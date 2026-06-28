@@ -1,24 +1,25 @@
-// index.js - Discord Bot with Slash Commands (FIXED)
-import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder } from "discord.js";
+// index.js - Discord Bot with Slash Commands (ROLE FIXED)
+import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials } from "discord.js";
 import express from "express";
 import fs from "fs";
 import crypto from "crypto";
 
 const client = new Client({
     intents: [
-        GatewayIntentBits.Guilds,  // REQUIRED for slash commands
+        GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.GuildMembers
-    ]
+        GatewayIntentBits.GuildMembers  // REQUIRED for role checking
+    ],
+    partials: [Partials.GuildMember, Partials.User]  // Helps with member data
 });
 
 // ============================================
 // CONFIGURATION
 // ============================================
 const REQUIRED_ROLE_ID = "1520668279335817226";
-const ADMIN_ID = "1176388663320510535"; // Replace with your Discord ID
+const ADMIN_ID = "1176388663320510535";
 const DB_PATH = "./database.json";
 
 // ============================================
@@ -51,9 +52,22 @@ function generateKey() {
     return key;
 }
 
-function hasRequiredRole(member) {
-    if (!member) return false;
-    return member.roles.cache.has(REQUIRED_ROLE_ID);
+// ============================================
+// ROLE CHECK FUNCTION (FIXED)
+// ============================================
+async function hasRequiredRole(interaction) {
+    try {
+        // Fetch the member from the guild
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        if (!member) return false;
+        
+        // Check if the member has the required role
+        const hasRole = member.roles.cache.has(REQUIRED_ROLE_ID);
+        return hasRole;
+    } catch (error) {
+        console.error("Role check error:", error);
+        return false;
+    }
 }
 
 function generateLoaderScript(username, password, serverUrl) {
@@ -154,7 +168,6 @@ client.once(Events.ClientReady, async () => {
     console.log(`📊 Database loaded from ${DB_PATH}`);
     console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
     
-    // Register slash commands on startup
     await registerCommands();
 });
 
@@ -169,8 +182,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     // Role check (except for help)
     if (command !== "help") {
-        const member = interaction.member;
-        if (!hasRequiredRole(member)) {
+        const hasRole = await hasRequiredRole(interaction);
+        if (!hasRole) {
             return interaction.reply({
                 content: `❌ You need the <@&${REQUIRED_ROLE_ID}> role to use this command.`,
                 ephemeral: true
@@ -1977,7 +1990,6 @@ print("Blushwovens script v28.9 loaded successfully!")
 print("Press Q to toggle Speedhack, Z to toggle Jump Power")
 print("Hold T to continuously Teleport to closest player to cursor")
 print("Press RightShift to toggle UI visibility")
-print("Blushwovens loaded successfully!")
 `;
 
 app.post('/load', (req, res) => {
