@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Google Sheets Database (FIXED)
+// index.js - Discord Bot with Google Sheets Database (GLOBAL COMMANDS)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -451,20 +451,21 @@ const commands = [
 ];
 
 // ============================================
-// REGISTER COMMANDS
+// REGISTER COMMANDS (GLOBAL)
 // ============================================
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
-async function registerGuildCommands() {
+async function registerGlobalCommands() {
     try {
-        console.log('🔄 Registering guild commands...');
+        console.log('🔄 Registering global commands...');
         await rest.put(
-            Routes.applicationGuildCommands(client.user.id, GUILD_ID),
+            Routes.applicationCommands(client.user.id),
             { body: commands.map(cmd => cmd.toJSON()) }
         );
-        console.log('✅ Guild commands registered successfully!');
+        console.log('✅ Global commands registered successfully!');
+        console.log('⏳ Note: Global commands can take up to 1 hour to appear everywhere.');
     } catch (error) {
-        console.error('❌ Error registering guild commands:', error);
+        console.error('❌ Error registering global commands:', error);
     }
 }
 
@@ -475,7 +476,7 @@ client.once(Events.ClientReady, async () => {
     console.log(`🏠 Guild ID: ${GUILD_ID}`);
     console.log(`📋 Sheet ID: ${SHEET_ID}`);
     
-    await registerGuildCommands();
+    await registerGlobalCommands();
 });
 
 // ============================================
@@ -537,13 +538,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
         }
 
-        // ============================================
-        // PASSWORD HASHING (Security feature)
-        // To store plain text password instead, change:
-        // const hashedPassword = hashPassword(password);
-        // to:
-        // const hashedPassword = password;
-        // ============================================
         const hashedPassword = hashPassword(password);
         const key = generateKey();
 
