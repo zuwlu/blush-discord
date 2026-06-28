@@ -274,6 +274,7 @@ const SCRIPTS = {
   CHANGED: Yellow toggle color to a warmer butter/gold that fits the cream/pink scheme.
   REMOVED: Target section entirely.
   CHANGED: Teleport now works while key is held down (not just press).
+  FIXED: GetClosestPlayerToCursor - added nil check for Mouse and Mouse.X/Y.
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -353,7 +354,12 @@ local TOGGLE_KNOB_ON = UDim2.new(1, -23, 0.5, -10)
 local TOGGLE_KNOB_OFF = UDim2.new(0, 3, 0.5, -10)
 
 -- ==================== FIND CLOSEST PLAYER TO CURSOR ====================
+-- FIX: Added nil check for Mouse and Mouse.X/Y
 local function GetClosestPlayerToCursor()
+    if not Mouse or not Mouse.X or not Mouse.Y then
+        return nil
+    end
+    
     local closest = nil
     local closestDist = math.huge
     local mousePos = Vector2.new(Mouse.X, Mouse.Y)
@@ -458,6 +464,9 @@ end)
 local function getClosestPart(char)
     local closest = nil
     local shortestDist = math.huge
+    if not mouse or not mouse.X or not mouse.Y then
+        return char:FindFirstChild("Head")
+    end
     local mousePos = Vector2.new(mouse.X, mouse.Y)
     local parts = {"Head", "HumanoidRootPart", "Torso", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand"}
     for _, partName in pairs(parts) do
@@ -474,6 +483,9 @@ local function getClosestPart(char)
 end
 
 local function getClosest()
+    if not mouse or not mouse.X or not mouse.Y then
+        return nil
+    end
     local mousePos = Vector2.new(mouse.X, mouse.Y)
     local best = nil
     local bestDist = _G.FOV_RADIUS
@@ -1863,6 +1875,7 @@ print("Press RightShift to toggle UI visibility")
   FIXED: Removed _G.RevolverBypass and _G.WallCheck globals (localized).
   FIXED: Removed _0x obfuscated hook (math.random) - not needed for Xeno.
   FIXED: Removed handler.getAim override - Xeno uses standard gun mechanics.
+  FIXED: GetClosestPlayerToCursor - added nil check for Mouse and Mouse.X/Y.
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -1937,7 +1950,12 @@ local TOGGLE_KNOB_ON = UDim2.new(1, -23, 0.5, -10)
 local TOGGLE_KNOB_OFF = UDim2.new(0, 3, 0.5, -10)
 
 -- ==================== FIND CLOSEST PLAYER TO CURSOR ====================
+-- FIX: Added nil check for Mouse and Mouse.X/Y
 local function GetClosestPlayerToCursor()
+    if not Mouse or not Mouse.X or not Mouse.Y then
+        return nil
+    end
+    
     local closest = nil
     local closestDist = math.huge
     local mousePos = Vector2.new(Mouse.X, Mouse.Y)
@@ -2021,6 +2039,9 @@ end
 local function getClosestPart(char)
     local closest = nil
     local shortestDist = math.huge
+    if not mouse or not mouse.X or not mouse.Y then
+        return char:FindFirstChild("Head")
+    end
     local mousePos = Vector2.new(mouse.X, mouse.Y)
     local parts = {"Head", "HumanoidRootPart", "Torso", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand"}
     for _, partName in pairs(parts) do
@@ -2040,6 +2061,9 @@ local function getClosestPart(char)
 end
 
 local function getClosestAimPart()
+    if not mouse or not mouse.X or not mouse.Y then
+        return nil
+    end
     local mousePos = Vector2.new(mouse.X, mouse.Y)
     local best = nil
     local bestDist = FOV_RADIUS
@@ -3820,6 +3844,7 @@ print("Press RightShift to toggle UI visibility")
   ADAPTED: Touch-friendly UI with larger buttons and sliders.
   ADAPTED: No CoreGui fallback - uses PlayerGui.
   ADAPTED: Removed all Drawing objects (circles, ESP lines) - ESP now uses BillboardGuis.
+  FIXED: GetClosestPlayerToCursor - added nil check for Mouse and Mouse.X/Y.
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -3887,7 +3912,12 @@ local TOGGLE_ON_COLOR = Color3.fromRGB(235, 200, 120)
 local TOGGLE_OFF_COLOR = Color3.fromRGB(110, 90, 90)
 
 -- ==================== FIND CLOSEST PLAYER TO CURSOR ====================
+-- FIX: Added nil check for Mouse and Mouse.X/Y
 local function GetClosestPlayerToCursor()
+    if not Mouse or not Mouse.X or not Mouse.Y then
+        return nil
+    end
+    
     local closest = nil
     local closestDist = math.huge
     local mousePos = Vector2.new(Mouse.X, Mouse.Y)
@@ -3971,6 +4001,9 @@ end
 local function getClosestPart(char)
     local closest = nil
     local shortestDist = math.huge
+    if not mouse or not mouse.X or not mouse.Y then
+        return char:FindFirstChild("Head")
+    end
     local mousePos = Vector2.new(mouse.X, mouse.Y)
     local parts = {"Head", "HumanoidRootPart", "Torso", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand"}
     for _, partName in pairs(parts) do
@@ -3990,6 +4023,9 @@ local function getClosestPart(char)
 end
 
 local function getClosestAimPart()
+    if not mouse or not mouse.X or not mouse.Y then
+        return nil
+    end
     local mousePos = Vector2.new(mouse.X, mouse.Y)
     local best = nil
     local bestDist = FOV_RADIUS
