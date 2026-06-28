@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Slash Commands (FULL VERSION)
+// index.js - Discord Bot with Slash Commands (DM NOTIFICATIONS)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -53,9 +53,6 @@ function generateKey() {
     return key;
 }
 
-// ============================================
-// ROLE CHECK (ENFORCED IN DMs)
-// ============================================
 async function hasRequiredRole(interaction) {
     try {
         let member = null;
@@ -320,44 +317,16 @@ const commands = [
 // ============================================
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
-async function registerCommands() {
+async function registerGuildCommands() {
     try {
-        console.log('🔄 Registering slash commands...');
+        console.log('🔄 Registering guild commands...');
         await rest.put(
-            Routes.applicationCommands(client.user.id),
+            Routes.applicationGuildCommands(client.user.id, GUILD_ID),
             { body: commands.map(cmd => cmd.toJSON()) }
         );
-        console.log('✅ Slash commands registered successfully!');
+        console.log('✅ Guild commands registered successfully!');
     } catch (error) {
-        console.error('❌ Error registering commands:', error);
-    }
-}
-
-// ============================================
-// ONE-TIME COMMAND REFRESH (CLEAR + RE-REGISTER)
-// ============================================
-async function clearAndRegisterCommands() {
-    try {
-        console.log('🔄 Clearing all existing commands...');
-        // Delete all global commands
-        await rest.put(
-            Routes.applicationCommands(client.user.id),
-            { body: [] }
-        );
-        console.log('✅ All commands cleared!');
-        
-        // Wait 2 seconds
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Re-register your commands
-        console.log('🔄 Re-registering commands...');
-        await rest.put(
-            Routes.applicationCommands(client.user.id),
-            { body: commands.map(cmd => cmd.toJSON()) }
-        );
-        console.log('✅ Commands re-registered successfully!');
-    } catch (error) {
-        console.error('❌ Error:', error);
+        console.error('❌ Error registering guild commands:', error);
     }
 }
 
@@ -367,7 +336,7 @@ client.once(Events.ClientReady, async () => {
     console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
     console.log(`🏠 Guild ID: ${GUILD_ID}`);
     
-    await clearAndRegisterCommands(); // <-- Uses the one-time refresh
+    await registerGuildCommands();
 });
 
 // ============================================
@@ -390,7 +359,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /create-account
+    // /create-account (WITH DM NOTIFICATION)
     // ============================================
     if (command === "create-account") {
         const username = interaction.options.getString("username");
@@ -430,6 +399,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
         };
 
         saveDatabase(db);
+
+        // ============================================
+        // DM ADMIN NOTIFICATION
+        // ============================================
+        try {
+            const adminUser = await client.users.fetch(ADMIN_ID);
+            await adminUser.send({
+                content: `🆕 **New Account Created!**\n\n` +
+                         `**Username:** ${username}\n` +
+                         `**Discord Tag:** ${interaction.user.tag}\n` +
+                         `**Key:** \`${key}\`\n` +
+                         `**Created:** ${new Date().toISOString().split("T")[0]}\n` +
+                         `**Total Users:** ${Object.keys(db.users).length}`
+            });
+        } catch (error) {
+            console.error("Admin DM error:", error);
+        }
 
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
         const loaderScript = generateLoaderScript(username, password, serverUrl);
