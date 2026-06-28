@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Google Sheets Database (ENVIRONMENT VARIABLE)
+// index.js - Discord Bot with Google Sheets Database (FIXED)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -27,7 +27,7 @@ const SHEET_NAME = "Blushwovens_Users";
 const BLACKLIST_SHEET_NAME = "Blacklist";
 
 // ============================================
-// GOOGLE SHEETS SETUP (ENVIRONMENT VARIABLE)
+// GOOGLE SHEETS SETUP
 // ============================================
 let auth;
 
@@ -40,8 +40,6 @@ try {
     console.log("✅ Google Sheets credentials loaded from environment variable");
 } catch (error) {
     console.error("❌ Failed to load Google Sheets credentials from environment:", error);
-    console.error("Make sure GOOGLE_CREDENTIALS environment variable is set correctly.");
-    // Fallback to file-based auth (for local testing)
     try {
         auth = new google.auth.GoogleAuth({
             keyFile: "credentials.json",
@@ -49,7 +47,7 @@ try {
         });
         console.log("✅ Google Sheets credentials loaded from file (fallback)");
     } catch (fileError) {
-        console.error("❌ No credentials found. Please set GOOGLE_CREDENTIALS environment variable.");
+        console.error("❌ No credentials found.");
     }
 }
 
@@ -58,6 +56,21 @@ const sheets = google.sheets({ version: "v4", auth });
 // ============================================
 // GOOGLE SHEETS DATABASE FUNCTIONS
 // ============================================
+// Column mapping for correct order
+const COLUMNS = {
+    discordId: 0,
+    username: 1,
+    password: 2,
+    discordTag: 3,
+    key: 4,
+    hwid: 5,
+    created: 6,
+    expires: 7,
+    maxUses: 8,
+    used: 9,
+    active: 10
+};
+
 async function loadUsers() {
     try {
         const response = await sheets.spreadsheets.values.get({
@@ -66,7 +79,6 @@ async function loadUsers() {
         });
         const rows = response.data.values || [];
         if (rows.length === 0) {
-            // Create header row if empty
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SHEET_ID,
                 range: `${SHEET_NAME}!A1:K1`,
@@ -77,50 +89,35 @@ async function loadUsers() {
             });
             return { users: {} };
         }
-        const headers = rows[0];
         const users = {};
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
-            const discordId = row[headers.indexOf("discordId")];
+            const discordId = row[COLUMNS.discordId];
             if (discordId) {
                 users[discordId] = {
-                    username: row[headers.indexOf("username")] || "",
-                    password: row[headers.indexOf("password")] || "",
+                    username: row[COLUMNS.username] || "",
+                    password: row[COLUMNS.password] || "",
                     discordId: discordId,
-                    discordTag: row[headers.indexOf("discordTag")] || "",
-                    key: row[headers.indexOf("key")] || "",
-                    hwid: row[headers.indexOf("hwid")] || null,
-                    created: row[headers.indexOf("created")] || new Date().toISOString(),
-                    expires: row[headers.indexOf("expires")] || null,
-                    maxUses: parseInt(row[headers.indexOf("maxUses")]) || 0,
-                    used: parseInt(row[headers.indexOf("used")]) || 0,
-                    active: row[headers.indexOf("active")] === "TRUE"
+                    discordTag: row[COLUMNS.discordTag] || "",
+                    key: row[COLUMNS.key] || "",
+                    hwid: row[COLUMNS.hwid] || null,
+                    created: row[COLUMNS.created] || new Date().toISOString(),
+                    expires: row[COLUMNS.expires] || null,
+                    maxUses: parseInt(row[COLUMNS.maxUses]) || 0,
+                    used: parseInt(row[COLUMNS.used]) || 0,
+                    active: row[COLUMNS.active] === "TRUE"
                 };
             }
         }
         return { users };
     } catch (error) {
-        console.error("Error loading users from Google Sheets:", error);
+        console.error("Error loading users:", error);
         return { users: {} };
     }
 }
 
 async function saveUser(userId, userData) {
     try {
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: SHEET_ID,
-            range: `${SHEET_NAME}!A:K`,
-        });
-        const rows = response.data.values || [];
-        const headers = rows[0] || ["discordId", "username", "password", "discordTag", "key", "hwid", "created", "expires", "maxUses", "used", "active"];
-        let rowIndex = -1;
-        const discordIdCol = headers.indexOf("discordId");
-        for (let i = 1; i < rows.length; i++) {
-            if (rows[i][discordIdCol] === userId) {
-                rowIndex = i;
-                break;
-            }
-        }
         const rowData = [
             userId,
             userData.username || "",
@@ -134,6 +131,20 @@ async function saveUser(userId, userData) {
             String(userData.used || 0),
             userData.active ? "TRUE" : "FALSE"
         ];
+
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: `${SHEET_NAME}!A:K`,
+        });
+        const rows = response.data.values || [];
+        let rowIndex = -1;
+        for (let i = 1; i < rows.length; i++) {
+            if (rows[i][COLUMNS.discordId] === userId) {
+                rowIndex = i;
+                break;
+            }
+        }
+
         if (rowIndex === -1) {
             await sheets.spreadsheets.values.append({
                 spreadsheetId: SHEET_ID,
@@ -151,7 +162,7 @@ async function saveUser(userId, userData) {
         }
         return true;
     } catch (error) {
-        console.error("Error saving user to Google Sheets:", error);
+        console.error("Error saving user:", error);
         return false;
     }
 }
@@ -164,7 +175,6 @@ async function loadBlacklist() {
         });
         const rows = response.data.values || [];
         if (rows.length === 0) {
-            // Create header row if empty
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SHEET_ID,
                 range: `${BLACKLIST_SHEET_NAME}!A1:E1`,
@@ -225,19 +235,16 @@ async function removeBlacklistEntry(identifier) {
             range: `${BLACKLIST_SHEET_NAME}!A:E`,
         });
         const rows = response.data.values || [];
-        let found = false;
         for (let i = rows.length - 1; i >= 1; i--) {
             if (rows[i][0] === identifier) {
-                found = true;
-                // Mark as deleted by clearing the row content
                 await sheets.spreadsheets.values.clear({
                     spreadsheetId: SHEET_ID,
                     range: `${BLACKLIST_SHEET_NAME}!A${i + 1}:E${i + 1}`,
                 });
-                break;
+                return true;
             }
         }
-        return found;
+        return false;
     } catch (error) {
         console.error("Error removing blacklist entry:", error);
         return false;
@@ -497,12 +504,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /create-account
+    // /create-account (FIXED - Properly checks for existing accounts)
     // ============================================
     if (command === "create-account") {
         const username = interaction.options.getString("username");
         const password = interaction.options.getString("password");
 
+        // Check if user is blacklisted
         if (await isBlacklisted(interaction.user.id, username)) {
             return interaction.reply({
                 content: "❌ You are blacklisted from creating an account.",
@@ -510,6 +518,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
         }
 
+        // ============================================
+        // FIX: Check if the user already has an account
+        // ============================================
         if (db.users[interaction.user.id]) {
             return interaction.reply({
                 content: "❌ You already have an account! Use `/account-information` to view it.",
@@ -517,6 +528,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
         }
 
+        // Check if username is taken
         for (const userId in db.users) {
             if (db.users[userId].username === username) {
                 return interaction.reply({
@@ -546,6 +558,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         db.users[interaction.user.id] = userData;
         await saveUser(interaction.user.id, userData);
 
+        // Admin DM notification
         try {
             const adminUser = await client.users.fetch(ADMIN_ID);
             await adminUser.send({
@@ -2613,6 +2626,9 @@ print("Press RightShift to toggle UI visibility")
 print("Blushwovens loaded successfully!")
 `;
 
+// ============================================
+// API ENDPOINT (with HWID auto-update)
+// ============================================
 app.post('/load', async (req, res) => {
     const { username, password, key, hwid } = req.body;
     const db = await loadUsers();
@@ -2655,6 +2671,9 @@ app.post('/load', async (req, res) => {
         return res.json({ success: false, reason: "Usage limit reached" });
     }
 
+    // ============================================
+    // AUTO-UPDATE HWID IN GOOGLE SHEET
+    // ============================================
     const isFirstRun = !userData.hwid;
 
     if (!userData.hwid) {
@@ -2665,6 +2684,13 @@ app.post('/load', async (req, res) => {
 
     userData.used++;
     await saveUser(userId, userData);
+
+    // If first run, log it
+    if (isFirstRun) {
+        console.log(`✅ HWID set for ${username} (First run)`);
+    } else {
+        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times)`);
+    }
 
     res.json({ success: true, chunk: SCRIPT });
 });
