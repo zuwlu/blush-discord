@@ -407,7 +407,11 @@ const commands = [
         .addStringOption(option =>
             option.setName("username")
                 .setDescription("The username to revoke")
-                .setRequired(true)),
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName("reason")
+                .setDescription("Reason for revocation (optional)")
+                .setRequired(false)),
 
     new SlashCommandBuilder()
         .setName("revoke-all")
@@ -504,13 +508,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /create-account (FIXED - Properly checks for existing accounts)
+    // /create-account
     // ============================================
     if (command === "create-account") {
         const username = interaction.options.getString("username");
         const password = interaction.options.getString("password");
 
-        // Check if user is blacklisted
         if (await isBlacklisted(interaction.user.id, username)) {
             return interaction.reply({
                 content: "❌ You are blacklisted from creating an account.",
@@ -518,9 +521,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
         }
 
-        // ============================================
-        // FIX: Check if the user already has an account
-        // ============================================
         if (db.users[interaction.user.id]) {
             return interaction.reply({
                 content: "❌ You already have an account! Use `/account-information` to view it.",
@@ -528,7 +528,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
         }
 
-        // Check if username is taken
         for (const userId in db.users) {
             if (db.users[userId].username === username) {
                 return interaction.reply({
@@ -538,6 +537,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
         }
 
+        // ============================================
+        // PASSWORD HASHING (Security feature)
+        // To store plain text password instead, change:
+        // const hashedPassword = hashPassword(password);
+        // to:
+        // const hashedPassword = password;
+        // ============================================
         const hashedPassword = hashPassword(password);
         const key = generateKey();
 
@@ -759,10 +765,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /revoke (Admin only)
+    // /revoke (Admin only) - WITH OPTIONAL REASON
     // ============================================
     if (command === "revoke") {
         const targetUsername = interaction.options.getString("username");
+        const reason = interaction.options.getString("reason") || "No reason provided.";
         let found = false;
         let targetUser = null;
         let targetUserId = null;
@@ -792,7 +799,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 content: `❌ **Your Blushwovens account has been revoked.**\n\n` +
                          `**Username:** ${targetUser.username}\n` +
                          `**Key:** \`${targetUser.key}\`\n` +
-                         `**Reason:** Your account was disabled by an administrator.\n\n` +
+                         `**Reason:** ${reason}\n\n` +
                          `If you believe this is a mistake, please contact support.`
             });
         } catch (error) {
@@ -800,7 +807,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         await interaction.reply({
-            content: `✅ User \`${targetUsername}\` has been revoked. They have been notified via DM.`,
+            content: `✅ User \`${targetUsername}\` has been revoked. Reason: ${reason}`,
             flags: MessageFlags.Ephemeral
         });
         return;
@@ -1018,7 +1025,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     `/update\n`, inline: false },
                 { name: "🔒 Admin Commands", value: 
                     `/list-users\n` +
-                    `/revoke <username>\n` +
+                    `/revoke <username> [reason]\n` +
                     `/revoke-all\n` +
                     `/blacklist <user>\n` +
                     `/unblacklist <user>\n` +
@@ -2626,9 +2633,6 @@ print("Press RightShift to toggle UI visibility")
 print("Blushwovens loaded successfully!")
 `;
 
-// ============================================
-// API ENDPOINT (with HWID auto-update)
-// ============================================
 app.post('/load', async (req, res) => {
     const { username, password, key, hwid } = req.body;
     const db = await loadUsers();
@@ -2671,9 +2675,6 @@ app.post('/load', async (req, res) => {
         return res.json({ success: false, reason: "Usage limit reached" });
     }
 
-    // ============================================
-    // AUTO-UPDATE HWID IN GOOGLE SHEET
-    // ============================================
     const isFirstRun = !userData.hwid;
 
     if (!userData.hwid) {
@@ -2685,7 +2686,6 @@ app.post('/load', async (req, res) => {
     userData.used++;
     await saveUser(userId, userData);
 
-    // If first run, log it
     if (isFirstRun) {
         console.log(`✅ HWID set for ${username} (First run)`);
     } else {
