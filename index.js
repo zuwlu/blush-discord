@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Slash Commands (DM FIXED)
+// index.js - Discord Bot with Slash Commands (ROLE ENFORCED IN DMs)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -19,6 +19,7 @@ const client = new Client({
 // CONFIGURATION
 // ============================================
 const REQUIRED_ROLE_ID = "1520668279335817226";
+const GUILD_ID = "1516943154840993792"; // <-- REPLACE WITH YOUR SERVER ID
 const ADMIN_ID = "1176388663320510535";
 const DB_PATH = "./database.json";
 
@@ -52,15 +53,22 @@ function generateKey() {
     return key;
 }
 
+// ============================================
+// FIXED: ENFORCE ROLE CHECK IN DMs
+// ============================================
 async function hasRequiredRole(interaction) {
-    // If the interaction is in a DM, we cannot check roles
-    // Allow DMs without role check
-    if (!interaction.guild) {
-        return true; // Allow DMs
-    }
-    
     try {
-        const member = await interaction.guild.members.fetch(interaction.user.id);
+        let member = null;
+        
+        // If the interaction is in a server, get the member from there
+        if (interaction.guild) {
+            member = await interaction.guild.members.fetch(interaction.user.id);
+        } else {
+            // If in DMs, fetch the member from your main server
+            const guild = await client.guilds.fetch(GUILD_ID);
+            member = await guild.members.fetch(interaction.user.id);
+        }
+        
         if (!member) return false;
         return member.roles.cache.has(REQUIRED_ROLE_ID);
     } catch (error) {
@@ -69,13 +77,120 @@ async function hasRequiredRole(interaction) {
     }
 }
 
+// ============================================
+// LOADER SCRIPT
+// ============================================
 function generateLoaderScript(username, password, serverUrl) {
     return `
--- Blushwovens Loader
+-- Blushwovens Loader (Key Required)
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
 local HWID = game:GetService("RbxAnalyticsService"):GetClientId()
 local HttpService = game:GetService("HttpService")
+
+-- Create a simple UI to ask for the key
+local function askForKey()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "KeyInput"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = game:GetService("CoreGui")
+    
+    local background = Instance.new("Frame")
+    background.Size = UDim2.new(0, 420, 0, 200)
+    background.Position = UDim2.new(0.5, -210, 0.5, -100)
+    background.BackgroundColor3 = Color3.fromRGB(255, 248, 240)
+    background.BackgroundTransparency = 0.05
+    background.BorderSizePixel = 0
+    background.ZIndex = 10
+    background.Parent = screenGui
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 16)
+    corner.Parent = background
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2
+    stroke.Color = Color3.fromRGB(215, 130, 170)
+    stroke.Transparency = 0.2
+    stroke.Parent = background
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 44)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "🔑 BLUSHWOVENS KEY SYSTEM"
+    title.TextColor3 = Color3.fromRGB(60, 45, 35)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 17
+    title.ZIndex = 11
+    title.Parent = background
+
+    local subTitle = Instance.new("TextLabel")
+    subTitle.Size = UDim2.new(1, 0, 0, 22)
+    subTitle.Position = UDim2.new(0, 0, 0, 44)
+    subTitle.BackgroundTransparency = 1
+    subTitle.Text = "Enter your activation key"
+    subTitle.TextColor3 = Color3.fromRGB(100, 80, 70)
+    subTitle.Font = Enum.Font.Gotham
+    subTitle.TextSize = 11
+    subTitle.ZIndex = 11
+    subTitle.Parent = background
+
+    local keyBox = Instance.new("TextBox")
+    keyBox.Size = UDim2.new(0.8, 0, 0, 38)
+    keyBox.Position = UDim2.new(0.1, 0, 0, 76)
+    keyBox.BackgroundColor3 = Color3.fromRGB(255, 235, 240)
+    keyBox.BackgroundTransparency = 0.6
+    keyBox.BorderSizePixel = 0
+    keyBox.Text = ""
+    keyBox.PlaceholderText = "Enter your key (e.g., BLUSH-7F9D-2A1C-4E3B)"
+    keyBox.TextColor3 = Color3.fromRGB(60, 45, 35)
+    keyBox.PlaceholderColor3 = Color3.fromRGB(130, 100, 80)
+    keyBox.Font = Enum.Font.Code
+    keyBox.TextSize = 12
+    keyBox.ZIndex = 12
+    keyBox.Parent = background
+    local boxCorner = Instance.new("UICorner")
+    boxCorner.CornerRadius = UDim.new(0, 8)
+    boxCorner.Parent = keyBox
+    local boxStroke = Instance.new("UIStroke")
+    boxStroke.Thickness = 1.5
+    boxStroke.Color = Color3.fromRGB(215, 130, 170)
+    boxStroke.Transparency = 0.3
+    boxStroke.Parent = keyBox
+
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(0.8, 0, 0, 22)
+    statusLabel.Position = UDim2.new(0.1, 0, 0, 120)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "Enter your key to continue"
+    statusLabel.TextColor3 = Color3.fromRGB(130, 100, 80)
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.TextSize = 10
+    statusLabel.ZIndex = 12
+    statusLabel.Parent = background
+
+    local activateButton = Instance.new("TextButton")
+    activateButton.Size = UDim2.new(0.4, 0, 0, 38)
+    activateButton.Position = UDim2.new(0.3, 0, 0, 152)
+    activateButton.BackgroundColor3 = Color3.fromRGB(235, 200, 120)
+    activateButton.BackgroundTransparency = 0.15
+    activateButton.BorderSizePixel = 0
+    activateButton.Text = "ACTIVATE"
+    activateButton.TextColor3 = Color3.fromRGB(60, 45, 35)
+    activateButton.Font = Enum.Font.GothamBold
+    activateButton.TextSize = 12
+    activateButton.ZIndex = 12
+    activateButton.Parent = background
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = activateButton
+    local btnStroke = Instance.new("UIStroke")
+    btnStroke.Thickness = 1.5
+    btnStroke.Color = Color3.fromRGB(235, 200, 120)
+    btnStroke.Transparency = 0.3
+    btnStroke.Parent = activateButton
+
+    return {ScreenGui = screenGui, KeyBox = keyBox, StatusLabel = statusLabel, ActivateButton = activateButton}
+end
 
 local function request(url, body)
     local requestFunc = syn and syn.request or http and http.request or fluxus and fluxus.request
@@ -84,22 +199,79 @@ local function request(url, body)
         Url = "${serverUrl}/load",
         Method = "POST",
         Headers = { ["Content-Type"] = "application/json" },
-        Body = HttpService:JSONEncode({ username = USERNAME, password = PASSWORD, hwid = HWID })
+        Body = HttpService:JSONEncode({ 
+            username = USERNAME, 
+            password = PASSWORD, 
+            hwid = HWID 
+        })
     })
 end
 
-local ok, response = pcall(request)
-if not ok then error("Could not reach server.") end
+-- Show the key input UI
+local ui = askForKey()
+local keyBox = ui.KeyBox
+local statusLabel = ui.StatusLabel
+local activateButton = ui.ActivateButton
 
-local data = HttpService:JSONDecode(response.Body)
-if not data.success then
-    if data.reason == "HWID mismatch" then
-        game:GetService("Players").LocalPlayer:Kick("Wrong device. Use /reset-hwid in Discord.")
+activateButton.MouseButton1Click:Connect(function()
+    local key = keyBox.Text
+    if key == "" or #key < 4 then
+        statusLabel.Text = "⚠️ Please enter a valid key"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 190, 120)
+        return
     end
-    error("Error: " .. (data.reason or "Unknown error"))
-end
+    
+    statusLabel.Text = "⏳ Validating..."
+    statusLabel.TextColor3 = Color3.fromRGB(130, 100, 80)
+    activateButton.Active = false
+    
+    local ok, response = pcall(function()
+        return request("${serverUrl}/load", {
+            username = USERNAME,
+            password = PASSWORD,
+            key = key,
+            hwid = HWID
+        })
+    end)
+    
+    if not ok then
+        statusLabel.Text = "❌ Network error"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        activateButton.Active = true
+        return
+    end
+    
+    local data = HttpService:JSONDecode(response.Body)
+    if not data.success then
+        if data.reason == "HWID mismatch" then
+            statusLabel.Text = "❌ HWID mismatch - use /reset-hwid in Discord"
+            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        elseif data.reason == "Invalid key" then
+            statusLabel.Text = "❌ Invalid key - check your key in Discord"
+            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        else
+            statusLabel.Text = "❌ " .. data.reason
+            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        end
+        activateButton.Active = true
+        return
+    end
+    
+    statusLabel.Text = "✅ Loading script..."
+    statusLabel.TextColor3 = Color3.fromRGB(170, 220, 140)
+    task.wait(0.5)
+    ui.ScreenGui.Enabled = false
+    loadstring(data.chunk)()
+end)
 
-loadstring(data.chunk)()
+-- Allow Enter key to activate
+local UserInputService = game:GetService("UserInputService")
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Return and ui.ScreenGui.Enabled then
+        activateButton:Click()
+    end
+end)
 `;
 }
 
@@ -166,6 +338,7 @@ client.once(Events.ClientReady, async () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);
     console.log(`📊 Database loaded from ${DB_PATH}`);
     console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
+    console.log(`🏠 Guild ID: ${GUILD_ID}`);
     
     await registerCommands();
 });
@@ -242,7 +415,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         try {
             await interaction.user.send({
-                content: "📥 **Here is your loader script:**",
+                content: "📥 **Here is your loader script. You will need your key to run it:**",
                 files: [{
                     attachment: Buffer.from(loaderScript, "utf-8"),
                     name: "loader.lua"
@@ -307,7 +480,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         try {
             await interaction.user.send({
-                content: "📥 **Here is your loader script:**",
+                content: "📥 **Here is your loader script. You will need your key to run it:**",
                 files: [{
                     attachment: Buffer.from(loaderScript, "utf-8"),
                     name: "loader.lua"
@@ -1992,8 +2165,11 @@ print("Press RightShift to toggle UI visibility")
 print("Blushwovens loaded successfully!")
 `;
 
+// ============================================
+// API ENDPOINT
+// ============================================
 app.post('/load', (req, res) => {
-    const { username, password, hwid } = req.body;
+    const { username, password, key, hwid } = req.body;
     const db = loadDatabase();
 
     let userData = null;
@@ -2010,6 +2186,10 @@ app.post('/load', (req, res) => {
 
     if (hashPassword(password) !== userData.password) {
         return res.json({ success: false, reason: "Invalid password" });
+    }
+
+    if (key !== userData.key) {
+        return res.json({ success: false, reason: "Invalid key" });
     }
 
     if (!userData.active) {
