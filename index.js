@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Slash Commands
+// index.js - Discord Bot with Slash Commands (FIXED)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -6,7 +6,7 @@ import crypto from "crypto";
 
 const client = new Client({
     intents: [
-        GatewayIntentBits.Guilds,
+        GatewayIntentBits.Guilds,  // REQUIRED for slash commands
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
@@ -17,7 +17,7 @@ const client = new Client({
 // ============================================
 // CONFIGURATION
 // ============================================
-const REQUIRED_ROLE_ID = "1520668279335817226"; // Your role ID
+const REQUIRED_ROLE_ID = "1520668279335817226";
 const ADMIN_ID = "1176388663320510535"; // Replace with your Discord ID
 const DB_PATH = "./database.json";
 
@@ -56,9 +56,6 @@ function hasRequiredRole(member) {
     return member.roles.cache.has(REQUIRED_ROLE_ID);
 }
 
-// ============================================
-// LOADER SCRIPT TEMPLATE
-// ============================================
 function generateLoaderScript(username, password, serverUrl) {
     return `
 -- Blushwovens Loader
@@ -94,7 +91,7 @@ loadstring(data.chunk)()
 }
 
 // ============================================
-// REGISTER SLASH COMMANDS
+// SLASH COMMANDS
 // ============================================
 const commands = [
     new SlashCommandBuilder()
@@ -134,14 +131,12 @@ const commands = [
         .setDescription("Show all available commands")
 ];
 
+// ============================================
+// REGISTER COMMANDS
+// ============================================
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
-client.once(Events.ClientReady, async () => {
-    console.log(`✅ Logged in as ${client.user.tag}!`);
-    console.log(`📊 Database loaded from ${DB_PATH}`);
-    console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
-
-    // Register slash commands
+async function registerCommands() {
     try {
         console.log('🔄 Registering slash commands...');
         await rest.put(
@@ -152,6 +147,15 @@ client.once(Events.ClientReady, async () => {
     } catch (error) {
         console.error('❌ Error registering commands:', error);
     }
+}
+
+client.once(Events.ClientReady, async () => {
+    console.log(`✅ Logged in as ${client.user.tag}!`);
+    console.log(`📊 Database loaded from ${DB_PATH}`);
+    console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
+    
+    // Register slash commands on startup
+    await registerCommands();
 });
 
 // ============================================
@@ -188,7 +192,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
         }
 
-        // Check if username is taken
         for (const userId in db.users) {
             if (db.users[userId].username === username) {
                 return interaction.reply({
@@ -1977,9 +1980,6 @@ print("Press RightShift to toggle UI visibility")
 print("Blushwovens loaded successfully!")
 `;
 
-// ============================================
-// API ENDPOINT FOR ROBLOX LOADER
-// ============================================
 app.post('/load', (req, res) => {
     const { username, password, hwid } = req.body;
     const db = loadDatabase();
