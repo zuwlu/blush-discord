@@ -17,8 +17,8 @@ const client = new Client({
 // ============================================
 // CONFIGURATION
 // ============================================
-const REQUIRED_ROLE_ID = "YOUR_ROLE_ID_HERE"; // Replace with your role ID
-const ADMIN_ID = "YOUR_DISCORD_ID_HERE"; // Replace with your Discord ID
+const REQUIRED_ROLE_ID = "1520668279335817226"; // Replace with your role ID
+const ADMIN_ID = "1176388663320510535"; // Replace with your Discord ID
 const DB_PATH = "./database.json";
 
 // ============================================
