@@ -1,21 +1,275 @@
-// ============================================
-// WHERE TO PUT YOUR SCRIPTS
-// ============================================
-// 1. Put your FULL REGULAR (Madium) script in the "regular" section below.
-// 2. Put your FULL XENO script in the "xeno" section below.
-// 3. Make sure you paste the ENTIRE script between the backticks.
-// ============================================
+// index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH SCRIPTS)
+import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import express from "express";
+import fs from "fs";
+import crypto from "crypto";
+import { google } from "googleapis";
 
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildMembers
+    ],
+    partials: [Partials.GuildMember, Partials.User]
+});
+
+// ============================================
+// CONFIGURATION
+// ============================================
+const REQUIRED_ROLE_ID = "1520668279335817226";
+const GUILD_ID = "1516943154840993792";
+const ADMIN_ID = "1176388663320510535";
+const SHEET_ID = "12YV1x2tireoLEz8O29CxWpTJi1lhMSIIoiwIaUe-IbU";
+const SHEET_NAME = "Blushwovens_Users";
+const BLACKLIST_SHEET_NAME = "Blacklist";
+
+// ============================================
+// GOOGLE SHEETS SETUP
+// ============================================
+let auth;
+
+try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    auth = new google.auth.GoogleAuth({
+        credentials: credentials,
+        scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    console.log("✅ Google Sheets credentials loaded from environment variable");
+} catch (error) {
+    console.error("❌ Failed to load Google Sheets credentials from environment:", error);
+    try {
+        auth = new google.auth.GoogleAuth({
+            keyFile: "credentials.json",
+            scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+        });
+        console.log("✅ Google Sheets credentials loaded from file (fallback)");
+    } catch (fileError) {
+        console.error("❌ No credentials found.");
+    }
+}
+
+const sheets = google.sheets({ version: "v4", auth });
+
+// ============================================
+// GOOGLE SHEETS DATABASE FUNCTIONS
+// ============================================
+const COLUMNS = {
+    discordId: 0,
+    username: 1,
+    password: 2,
+    discordTag: 3,
+    key: 4,
+    hwid: 5,
+    created: 6,
+    expires: 7,
+    maxUses: 8,
+    used: 9,
+    active: 10,
+    version: 11
+};
+
+async function loadUsers() {
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: `${SHEET_NAME}!A:L`,
+        });
+        const rows = response.data.values || [];
+        if (rows.length === 0) {
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SHEET_ID,
+                range: `${SHEET_NAME}!A1:L1`,
+                valueInputOption: "USER_ENTERED",
+                requestBody: {
+                    values: [["discordId", "username", "password", "discordTag", "key", "hwid", "created", "expires", "maxUses", "used", "active", "version"]]
+                }
+            });
+            return { users: {} };
+        }
+        const users = {};
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const discordId = row[COLUMNS.discordId];
+            if (discordId) {
+                users[discordId] = {
+                    username: row[COLUMNS.username] || "",
+                    password: row[COLUMNS.password] || "",
+                    discordId: discordId,
+                    discordTag: row[COLUMNS.discordTag] || "",
+                    key: row[COLUMNS.key] || "",
+                    hwid: row[COLUMNS.hwid] || null,
+                    created: row[COLUMNS.created] || new Date().toISOString(),
+                    expires: row[COLUMNS.expires] || null,
+                    maxUses: parseInt(row[COLUMNS.maxUses]) || 0,
+                    used: parseInt(row[COLUMNS.used]) || 0,
+                    active: row[COLUMNS.active] === "TRUE",
+                    version: row[COLUMNS.version] || "regular"
+                };
+            }
+        }
+        return { users };
+    } catch (error) {
+        console.error("Error loading users:", error);
+        return { users: {} };
+    }
+}
+
+async function saveUser(userId, userData) {
+    try {
+        const rowData = [
+            userId,
+            userData.username || "",
+            userData.password || "",
+            userData.discordTag || "",
+            userData.key || "",
+            userData.hwid || "",
+            userData.created || new Date().toISOString(),
+            userData.expires || "",
+            String(userData.maxUses || 0),
+            String(userData.used || 0),
+            userData.active ? "TRUE" : "FALSE",
+            userData.version || "regular"
+        ];
+
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: `${SHEET_NAME}!A:L`,
+        });
+        const rows = response.data.values || [];
+        let rowIndex = -1;
+        for (let i = 1; i < rows.length; i++) {
+            if (rows[i][COLUMNS.discordId] === userId) {
+                rowIndex = i;
+                break;
+            }
+        }
+
+        if (rowIndex === -1) {
+            await sheets.spreadsheets.values.append({
+                spreadsheetId: SHEET_ID,
+                range: `${SHEET_NAME}!A:L`,
+                valueInputOption: "USER_ENTERED",
+                requestBody: { values: [rowData] }
+            });
+        } else {
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SHEET_ID,
+                range: `${SHEET_NAME}!A${rowIndex + 1}:L${rowIndex + 1}`,
+                valueInputOption: "USER_ENTERED",
+                requestBody: { values: [rowData] }
+            });
+        }
+        return true;
+    } catch (error) {
+        console.error("Error saving user:", error);
+        return false;
+    }
+}
+
+// ============================================
+// BLACKLIST FUNCTIONS
+// ============================================
+async function loadBlacklist() {
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: `${BLACKLIST_SHEET_NAME}!A:E`,
+        });
+        const rows = response.data.values || [];
+        if (rows.length === 0) {
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SHEET_ID,
+                range: `${BLACKLIST_SHEET_NAME}!A1:E1`,
+                valueInputOption: "USER_ENTERED",
+                requestBody: {
+                    values: [["identifier", "username", "discordId", "blacklistedAt", "blacklistedBy"]]
+                }
+            });
+            return { users: {} };
+        }
+        const blacklist = { users: {} };
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (row[0]) {
+                blacklist.users[row[0]] = {
+                    identifier: row[0],
+                    username: row[1] || null,
+                    discordId: row[2] || null,
+                    blacklistedAt: row[3] || new Date().toISOString(),
+                    blacklistedBy: row[4] || "Unknown"
+                };
+            }
+        }
+        return blacklist;
+    } catch (error) {
+        console.error("Error loading blacklist:", error);
+        return { users: {} };
+    }
+}
+
+async function addBlacklistEntry(identifier, entry) {
+    try {
+        await sheets.spreadsheets.values.append({
+            spreadsheetId: SHEET_ID,
+            range: `${BLACKLIST_SHEET_NAME}!A:E`,
+            valueInputOption: "USER_ENTERED",
+            requestBody: {
+                values: [[
+                    identifier,
+                    entry.username || "",
+                    entry.discordId || "",
+                    entry.blacklistedAt || new Date().toISOString(),
+                    entry.blacklistedBy || "Unknown"
+                ]]
+            }
+        });
+        return true;
+    } catch (error) {
+        console.error("Error adding blacklist entry:", error);
+        return false;
+    }
+}
+
+async function removeBlacklistEntry(identifier) {
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: `${BLACKLIST_SHEET_NAME}!A:E`,
+        });
+        const rows = response.data.values || [];
+        for (let i = rows.length - 1; i >= 1; i--) {
+            if (rows[i][0] === identifier) {
+                await sheets.spreadsheets.values.clear({
+                    spreadsheetId: SHEET_ID,
+                    range: `${BLACKLIST_SHEET_NAME}!A${i + 1}:E${i + 1}`,
+                });
+                return true;
+            }
+        }
+        return false;
+    } catch (error) {
+        console.error("Error removing blacklist entry:", error);
+        return false;
+    }
+}
+
+async function isBlacklisted(discordId, username) {
+    const blacklist = await loadBlacklist();
+    if (blacklist.users[discordId]) return true;
+    for (const id in blacklist.users) {
+        if (blacklist.users[id].username === username) return true;
+    }
+    return false;
+}
+
+// ============================================
+// VERSION-SPECIFIC SCRIPTS
+// ============================================
 const SCRIPTS = {
-    // ============================================
-    // REGULAR VERSION (Madium)
-    // Paste your Madium script here
-    // ============================================
     regular: `
---[[
-  Blushwovens - Regular (Madium) Version
-]]
-
 --[[
   CHANGED: Yellow toggle color to a warmer butter/gold that fits the cream/pink scheme.
   REMOVED: Target section entirely.
@@ -1597,18 +1851,9 @@ print("Blushwovens script v28.9 loaded successfully!")
 print("Press Q to toggle Speedhack, Z to toggle Jump Power")
 print("Hold T to continuously Teleport to closest player to cursor")
 print("Press RightShift to toggle UI visibility")
-print("Blushwovens - Regular (Madium) Edition loaded!")
     `,
 
-    // ============================================
-    // XENO VERSION
-    // Paste your Xeno script here
-    // ============================================
     xeno: `
---[[
-  Blushwovens - Xeno Version
-]]
-
 --[[
   CHANGED: Yellow toggle color to a warmer butter/gold that fits the cream/pink scheme.
   REMOVED: Target section entirely.
@@ -3563,6 +3808,929 @@ print("Blushwovens script v28.9 (Xeno adapted) loaded successfully!")
 print("Press Q to toggle Speedhack, Z to toggle Jump Power")
 print("Hold T to continuously Teleport to closest player to cursor")
 print("Press RightShift to toggle UI visibility")
-print("Blushwovens - Xeno Edition loaded!")
     `
 };
+
+function hashPassword(password) {
+    return crypto.createHash("sha256").update(password).digest("hex");
+}
+
+function generateKey() {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let key = "BLUSH-";
+    for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 4; j++) {
+            key += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        if (i < 3) key += "-";
+    }
+    return key;
+}
+
+async function hasRequiredRole(interaction) {
+    try {
+        if (interaction.guild) {
+            const member = await interaction.guild.members.fetch(interaction.user.id);
+            if (!member) return false;
+            return member.roles.cache.has(REQUIRED_ROLE_ID);
+        }
+        const guild = await client.guilds.fetch(GUILD_ID);
+        const member = await guild.members.fetch(interaction.user.id);
+        if (!member) return false;
+        return member.roles.cache.has(REQUIRED_ROLE_ID);
+    } catch (error) {
+        console.error("Role check error:", error);
+        return false;
+    }
+}
+
+// ============================================
+// LOADER SCRIPT
+// ============================================
+function generateLoaderScript(username, password, serverUrl, key, version) {
+    const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
+    return `
+-- Blushwovens Loader (Key Embedded - No UI)
+local USERNAME = "${username}"
+local PASSWORD = "${password}"
+local KEY = "${key}"
+local HWID = game:GetService("RbxAnalyticsService"):GetClientId()
+local HttpService = game:GetService("HttpService")
+
+local function request(url, body)
+    local requestFunc = syn and syn.request or http and http.request or fluxus and fluxus.request
+    if not requestFunc then error("No HTTP request function found") end
+    return requestFunc({
+        Url = "${serverUrl}/load",
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/json" },
+        Body = HttpService:JSONEncode({ 
+            username = USERNAME, 
+            password = PASSWORD, 
+            key = KEY, 
+            hwid = HWID,
+            version = "${version}"
+        })
+    })
+end
+
+local function notify(message, isError)
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = isError and "❌ Error" or "✅ Success",
+            Text = message,
+            Duration = 5
+        })
+    end)
+end
+
+print("Blushwovens Loader - Starting...")
+notify("Loading... Please wait.", false)
+
+local ok, response = pcall(request)
+if not ok then
+    notify("Network error - check your connection.", true)
+    error("Could not reach server.")
+end
+
+local data = HttpService:JSONDecode(response.Body)
+if not data.success then
+    if data.reason == "HWID mismatch" then
+        notify("Wrong device detected. Use /reset-hwid in Discord.", true)
+        game:GetService("Players").LocalPlayer:Kick("HWID mismatch.")
+    elseif data.reason == "Invalid key" then
+        notify("Invalid key. Please contact support.", true)
+    elseif data.reason == "Account revoked" then
+        notify("Your account has been revoked.", true)
+    elseif data.reason == "Usage limit reached" then
+        notify("Usage limit reached. Contact support.", true)
+    elseif data.reason == "Blacklisted" then
+        notify("You are blacklisted from this service.", true)
+        game:GetService("Players").LocalPlayer:Kick("Blacklisted.")
+    else
+        notify("Error: " .. data.reason, true)
+    end
+    error("Error: " .. data.reason)
+end
+
+notify("✅ Script loaded successfully!", false)
+loadstring(data.chunk)()
+`;
+}
+
+// ============================================
+// SLASH COMMANDS
+// ============================================
+const commands = [
+    new SlashCommandBuilder()
+        .setName("create-account")
+        .setDescription("Create a new account")
+        .addStringOption(option =>
+            option.setName("username")
+                .setDescription("Your desired username")
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName("password")
+                .setDescription("Your password")
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName("version")
+                .setDescription("Which executor are you using?")
+                .setRequired(true)
+                .addChoices(
+                    { name: "Regular (Madium)", value: "regular" },
+                    { name: "Xeno", value: "xeno" }
+                )),
+
+    new SlashCommandBuilder()
+        .setName("account-information")
+        .setDescription("View your account details"),
+
+    new SlashCommandBuilder()
+        .setName("get-loader")
+        .setDescription("Resend your loader script"),
+
+    new SlashCommandBuilder()
+        .setName("reset-hwid")
+        .setDescription("Reset your HWID for a new device"),
+
+    new SlashCommandBuilder()
+        .setName("set-version")
+        .setDescription("Change your executor version")
+        .addStringOption(option =>
+            option.setName("version")
+                .setDescription("Which executor are you using?")
+                .setRequired(true)
+                .addChoices(
+                    { name: "Regular (Madium)", value: "regular" },
+                    { name: "Xeno", value: "xeno" }
+                )),
+
+    new SlashCommandBuilder()
+        .setName("update")
+        .setDescription("Get the latest loader script with updates")
+        .addStringOption(option =>
+            option.setName("version")
+                .setDescription("Executor version (optional)")
+                .setRequired(false)
+                .addChoices(
+                    { name: "Regular (Madium)", value: "regular" },
+                    { name: "Xeno", value: "xeno" }
+                )),
+
+    new SlashCommandBuilder()
+        .setName("list-users")
+        .setDescription("List all users (Admin only)"),
+
+    new SlashCommandBuilder()
+        .setName("revoke")
+        .setDescription("Revoke a user's account (Admin only)")
+        .addStringOption(option =>
+            option.setName("username")
+                .setDescription("The username to revoke")
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName("reason")
+                .setDescription("Reason for revocation (optional)")
+                .setRequired(false)),
+
+    new SlashCommandBuilder()
+        .setName("revoke-all")
+        .setDescription("Revoke ALL user accounts (Admin only) - Requires confirmation"),
+
+    new SlashCommandBuilder()
+        .setName("blacklist")
+        .setDescription("Blacklist a user from creating accounts (Admin only)")
+        .addStringOption(option =>
+            option.setName("user")
+                .setDescription("Discord ID or username to blacklist")
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("unblacklist")
+        .setDescription("Remove a user from the blacklist (Admin only)")
+        .addStringOption(option =>
+            option.setName("user")
+                .setDescription("Discord ID or username to unblacklist")
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("set-usage")
+        .setDescription("Set usage limit for a user (Admin only)")
+        .addStringOption(option =>
+            option.setName("username")
+                .setDescription("The username")
+                .setRequired(true))
+        .addIntegerOption(option =>
+            option.setName("limit")
+                .setDescription("Max uses (0 = unlimited)")
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("help")
+        .setDescription("Show all available commands")
+];
+
+// ============================================
+// REGISTER COMMANDS (GLOBAL)
+// ============================================
+const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
+async function registerGlobalCommands() {
+    try {
+        console.log('🔄 Registering global commands...');
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands.map(cmd => cmd.toJSON()) }
+        );
+        console.log('✅ Global commands registered successfully!');
+        console.log('⏳ Note: Global commands can take up to 1 hour to appear everywhere.');
+    } catch (error) {
+        console.error('❌ Error registering global commands:', error);
+    }
+}
+
+client.once(Events.ClientReady, async () => {
+    console.log(`✅ Logged in as ${client.user.tag}!`);
+    console.log(`📊 Google Sheets connected!`);
+    console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
+    console.log(`🏠 Guild ID: ${GUILD_ID}`);
+    console.log(`📋 Sheet ID: ${SHEET_ID}`);
+    
+    await registerGlobalCommands();
+});
+
+// ============================================
+// SLASH COMMAND HANDLERS
+// ============================================
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+
+    const command = interaction.commandName;
+    const db = await loadUsers();
+
+    const adminCommands = ["list-users", "revoke", "revoke-all", "blacklist", "unblacklist", "set-usage"];
+    if (adminCommands.includes(command)) {
+        if (interaction.user.id !== ADMIN_ID) {
+            return interaction.reply({
+                content: "❌ You don't have permission to use this command.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+    }
+
+    if (command !== "help") {
+        const hasRole = await hasRequiredRole(interaction);
+        if (!hasRole) {
+            return interaction.reply({
+                content: `❌ You need the <@&${REQUIRED_ROLE_ID}> role to use this command.`,
+                flags: MessageFlags.Ephemeral
+            });
+        }
+    }
+
+    // ============================================
+    // /create-account
+    // ============================================
+    if (command === "create-account") {
+        const username = interaction.options.getString("username");
+        const password = interaction.options.getString("password");
+        const version = interaction.options.getString("version");
+
+        if (await isBlacklisted(interaction.user.id, username)) {
+            return interaction.reply({
+                content: "❌ You are blacklisted from creating an account.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        if (db.users[interaction.user.id]) {
+            return interaction.reply({
+                content: "❌ You already have an account! Use `/account-information` to view it.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        for (const userId in db.users) {
+            if (db.users[userId].username === username) {
+                return interaction.reply({
+                    content: "❌ That username is already taken. Please choose another.",
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+        }
+
+        const hashedPassword = hashPassword(password);
+        const key = generateKey();
+
+        const userData = {
+            username: username,
+            password: hashedPassword,
+            discordId: interaction.user.id,
+            discordTag: interaction.user.tag,
+            key: key,
+            hwid: null,
+            created: new Date().toISOString(),
+            expires: null,
+            maxUses: 0,
+            used: 0,
+            active: true,
+            version: version
+        };
+
+        db.users[interaction.user.id] = userData;
+        await saveUser(interaction.user.id, userData);
+
+        try {
+            const adminUser = await client.users.fetch(ADMIN_ID);
+            await adminUser.send({
+                content: `🆕 **NEW ACCOUNT CREATED!**\n\n` +
+                         `**📝 Username:** ${username}\n` +
+                         `**🔑 Password:** ${password}\n` +
+                         `**🔐 Key:** \`${key}\`\n` +
+                         `**👤 Discord Tag:** ${interaction.user.tag}\n` +
+                         `**🆔 Discord ID:** ${interaction.user.id}\n` +
+                         `**💻 HWID:** Not set\n` +
+                         `**📅 Created:** ${new Date().toISOString().split("T")[0]}\n` +
+                         `**⏰ Time:** ${new Date().toISOString().split("T")[1].slice(0, 8)} UTC\n` +
+                         `**📌 Version:** ${version}\n` +
+                         `**👥 Total Users:** ${Object.keys(db.users).length}`
+            });
+        } catch (error) {
+            console.error("Admin DM error:", error);
+        }
+
+        const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
+        const loaderScript = generateLoaderScript(username, password, serverUrl, key, version);
+
+        await interaction.reply({
+            content: `✅ **Account created successfully!** (Version: ${version}) I've sent your loader script via DM.`,
+            flags: MessageFlags.Ephemeral
+        });
+
+        try {
+            await interaction.user.send({
+                content: `📥 **Here is your loader script (${version} version). Just run it in your executor – no typing needed!**`,
+                files: [{
+                    attachment: Buffer.from(loaderScript, "utf-8"),
+                    name: `loader_${version}.lua`
+                }]
+            });
+        } catch (error) {
+            console.error("DM error:", error);
+        }
+        return;
+    }
+
+    // ============================================
+    // /account-information
+    // ============================================
+    if (command === "account-information") {
+        const userData = db.users[interaction.user.id];
+        if (!userData) {
+            return interaction.reply({
+                content: "❌ You don't have an account. Use `/create-account` to create one.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor(0x0099FF)
+            .setTitle("📋 Account Information")
+            .addFields(
+                { name: "👤 Username", value: userData.username, inline: true },
+                { name: "🔑 Key", value: `\`${userData.key}\``, inline: true },
+                { name: "📅 Created", value: new Date(userData.created).toISOString().split("T")[0], inline: true },
+                { name: "🔄 Used", value: `${userData.used}/${userData.maxUses === 0 ? "∞" : userData.maxUses}`, inline: true },
+                { name: "💻 HWID", value: userData.hwid || "Not set", inline: true },
+                { name: "📌 Version", value: userData.version || "regular", inline: true },
+                { name: "📌 Status", value: userData.active ? "✅ Active" : "❌ Inactive", inline: true },
+                { name: "⏰ Expires", value: userData.expires ? new Date(userData.expires).toISOString().split("T")[0] : "Never", inline: true }
+            )
+            .setFooter({ text: "Use /reset-hwid to reset your HWID" });
+
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+        return;
+    }
+
+    // ============================================
+    // /get-loader
+    // ============================================
+    if (command === "get-loader") {
+        const userData = db.users[interaction.user.id];
+        if (!userData) {
+            return interaction.reply({
+                content: "❌ You don't have an account. Use `/create-account` first.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        const version = userData.version || "regular";
+        const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
+        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, version);
+
+        await interaction.reply({
+            content: `✅ I've sent your loader script (${version} version) via DM.`,
+            flags: MessageFlags.Ephemeral
+        });
+
+        try {
+            await interaction.user.send({
+                content: `📥 **Here is your loader script (${version} version). Just run it in your executor – no typing needed!**`,
+                files: [{
+                    attachment: Buffer.from(loaderScript, "utf-8"),
+                    name: `loader_${version}.lua`
+                }]
+            });
+        } catch (error) {
+            console.error("DM error:", error);
+        }
+        return;
+    }
+
+    // ============================================
+    // /reset-hwid
+    // ============================================
+    if (command === "reset-hwid") {
+        const userData = db.users[interaction.user.id];
+        if (!userData) {
+            return interaction.reply({
+                content: "❌ You don't have an account.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        userData.hwid = null;
+        await saveUser(interaction.user.id, userData);
+
+        await interaction.reply({
+            content: "✅ Your HWID has been reset. You can now use your account on a new device.",
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    // ============================================
+    // /set-version
+    // ============================================
+    if (command === "set-version") {
+        const userData = db.users[interaction.user.id];
+        if (!userData) {
+            return interaction.reply({
+                content: "❌ You don't have an account. Use `/create-account` first.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        const newVersion = interaction.options.getString("version");
+        userData.version = newVersion;
+        await saveUser(interaction.user.id, userData);
+
+        await interaction.reply({
+            content: `✅ Your version has been updated to **${newVersion}**. Run \`/update\` to get the new loader.`,
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    // ============================================
+    // /update
+    // ============================================
+    if (command === "update") {
+        const userData = db.users[interaction.user.id];
+        if (!userData) {
+            return interaction.reply({
+                content: "❌ You don't have an account. Use `/create-account` first.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        const versionOption = interaction.options.getString("version");
+        let version = userData.version || "regular";
+        if (versionOption) {
+            version = versionOption;
+            userData.version = version;
+            await saveUser(interaction.user.id, userData);
+        }
+
+        const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
+        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, version);
+
+        await interaction.reply({
+            content: `✅ **Latest loader script sent!** (Version: ${version})`,
+            flags: MessageFlags.Ephemeral
+        });
+
+        try {
+            await interaction.user.send({
+                content: `📥 **Here is the latest loader script (${version} version):**`,
+                files: [{
+                    attachment: Buffer.from(loaderScript, "utf-8"),
+                    name: `loader_${version}.lua`
+                }]
+            });
+        } catch (error) {
+            console.error("DM error:", error);
+        }
+        return;
+    }
+
+    // ============================================
+    // /list-users (Admin only)
+    // ============================================
+    if (command === "list-users") {
+        const db = await loadUsers();
+        let userList = [];
+        for (const userId in db.users) {
+            const user = db.users[userId];
+            const maxUsesDisplay = user.maxUses === 0 ? "∞" : user.maxUses;
+            userList.push(`**${user.username}** | Key: \`${user.key}\` | HWID: ${user.hwid || "Not set"} | Uses: ${user.used}/${maxUsesDisplay} | Version: ${user.version || "regular"} | ${user.active ? "✅ Active" : "❌ Revoked"}`);
+        }
+
+        if (userList.length === 0) {
+            return interaction.reply({
+                content: "No users found.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        const chunks = [];
+        for (let i = 0; i < userList.length; i += 10) {
+            chunks.push(userList.slice(i, i + 10).join("\n"));
+        }
+
+        await interaction.reply({
+            content: `📋 **All Users (${userList.length} total)**\n\n${chunks[0]}`,
+            flags: MessageFlags.Ephemeral
+        });
+
+        for (let i = 1; i < chunks.length; i++) {
+            await interaction.followUp({
+                content: chunks[i],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        return;
+    }
+
+    // ============================================
+    // /revoke (Admin only)
+    // ============================================
+    if (command === "revoke") {
+        const targetUsername = interaction.options.getString("username");
+        const reason = interaction.options.getString("reason") || "No reason provided.";
+        let found = false;
+        let targetUser = null;
+        let targetUserId = null;
+
+        for (const userId in db.users) {
+            if (db.users[userId].username === targetUsername) {
+                db.users[userId].active = false;
+                targetUserId = userId;
+                targetUser = db.users[userId];
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            return interaction.reply({
+                content: "❌ User not found.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        await saveUser(targetUserId, db.users[targetUserId]);
+
+        try {
+            const user = await client.users.fetch(targetUserId);
+            await user.send({
+                content: `❌ **Your Blushwovens account has been revoked.**\n\n` +
+                         `**Username:** ${targetUser.username}\n` +
+                         `**Key:** \`${targetUser.key}\`\n` +
+                         `**Reason:** ${reason}\n\n` +
+                         `If you believe this is a mistake, please contact support.`
+            });
+        } catch (error) {
+            console.error(`Could not DM ${targetUsername}:`, error);
+        }
+
+        await interaction.reply({
+            content: `✅ User \`${targetUsername}\` has been revoked. Reason: ${reason}`,
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    // ============================================
+    // /revoke-all (Admin only)
+    // ============================================
+    if (command === "revoke-all") {
+        const db = await loadUsers();
+        const userCount = Object.keys(db.users).length;
+
+        if (userCount === 0) {
+            return interaction.reply({
+                content: "❌ No users to revoke.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId("confirm_revoke_all")
+                    .setLabel("✅ Yes, Revoke All")
+                    .setStyle(ButtonStyle.Danger),
+                new ButtonBuilder()
+                    .setCustomId("cancel_revoke_all")
+                    .setLabel("❌ Cancel")
+                    .setStyle(ButtonStyle.Secondary)
+            );
+
+        await interaction.reply({
+            content: `⚠️ **WARNING: You are about to revoke ALL ${userCount} user accounts.** This action cannot be undone. Are you sure?`,
+            components: [row],
+            flags: MessageFlags.Ephemeral
+        });
+
+        const filter = i => i.user.id === interaction.user.id;
+        const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000, max: 1 });
+
+        collector.on("collect", async (i) => {
+            if (i.customId === "confirm_revoke_all") {
+                await i.update({
+                    content: `⏳ Revoking all ${userCount} users...`,
+                    components: []
+                });
+
+                let revokedCount = 0;
+                for (const userId in db.users) {
+                    const user = db.users[userId];
+                    if (user.active) {
+                        user.active = false;
+                        revokedCount++;
+                        await saveUser(userId, user);
+                        try {
+                            const discordUser = await client.users.fetch(userId);
+                            await discordUser.send({
+                                content: `❌ **Your Blushwovens account has been revoked.**\n\n` +
+                                         `**Username:** ${user.username}\n` +
+                                         `**Key:** \`${user.key}\`\n` +
+                                         `**Reason:** All accounts were revoked by an administrator.\n\n` +
+                                         `If you believe this is a mistake, please contact support.`
+                            });
+                        } catch (error) {}
+                    }
+                }
+
+                await i.followUp({
+                    content: `✅ **Revoke all completed!** ${revokedCount} accounts were revoked.`,
+                    flags: MessageFlags.Ephemeral
+                });
+
+            } else if (i.customId === "cancel_revoke_all") {
+                await i.update({
+                    content: "❌ Revoke all cancelled.",
+                    components: []
+                });
+            }
+        });
+
+        collector.on("end", async (collected) => {
+            if (collected.size === 0) {
+                await interaction.editReply({
+                    content: "⏰ Revoke all timed out. Cancelled.",
+                    components: []
+                });
+            }
+        });
+        return;
+    }
+
+    // ============================================
+    // /blacklist (Admin only)
+    // ============================================
+    if (command === "blacklist") {
+        const target = interaction.options.getString("user");
+        const blacklist = await loadBlacklist();
+
+        for (const id in blacklist.users) {
+            if (blacklist.users[id].identifier === target || blacklist.users[id].username === target) {
+                return interaction.reply({
+                    content: `❌ User \`${target}\` is already blacklisted.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+        }
+
+        const isId = /^\d+$/.test(target);
+        let displayName = target;
+
+        if (isId) {
+            try {
+                const user = await client.users.fetch(target);
+                displayName = user.tag;
+            } catch (error) {}
+        }
+
+        let revoked = false;
+        for (const userId in db.users) {
+            const user = db.users[userId];
+            if (user.discordId === target || user.username === target) {
+                user.active = false;
+                revoked = true;
+                await saveUser(userId, user);
+                break;
+            }
+        }
+
+        await addBlacklistEntry(isId ? target : `username_${target}`, {
+            username: isId ? null : target,
+            discordId: isId ? target : null,
+            blacklistedAt: new Date().toISOString(),
+            blacklistedBy: interaction.user.tag
+        });
+
+        await interaction.reply({
+            content: `✅ User \`${displayName}\` has been blacklisted.${revoked ? " Their existing account has also been revoked." : ""}`,
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    // ============================================
+    // /unblacklist (Admin only)
+    // ============================================
+    if (command === "unblacklist") {
+        const target = interaction.options.getString("user");
+        const found = await removeBlacklistEntry(target);
+
+        if (!found) {
+            return interaction.reply({
+                content: `❌ User \`${target}\` is not on the blacklist.`,
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        await interaction.reply({
+            content: `✅ User \`${target}\` has been removed from the blacklist.`,
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    // ============================================
+    // /set-usage (Admin only)
+    // ============================================
+    if (command === "set-usage") {
+        const targetUsername = interaction.options.getString("username");
+        const newLimit = interaction.options.getInteger("limit");
+        let found = false;
+
+        if (newLimit < 0) {
+            return interaction.reply({
+                content: "❌ Limit cannot be negative. Use 0 for unlimited.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        for (const userId in db.users) {
+            if (db.users[userId].username === targetUsername) {
+                db.users[userId].maxUses = newLimit;
+                found = true;
+                await saveUser(userId, db.users[userId]);
+                break;
+            }
+        }
+
+        if (!found) {
+            return interaction.reply({
+                content: "❌ User not found.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        await interaction.reply({
+            content: `✅ User \`${targetUsername}\` now has ${newLimit === 0 ? "unlimited" : newLimit} uses.`,
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    // ============================================
+    // /help
+    // ============================================
+    if (command === "help") {
+        const embed = new EmbedBuilder()
+            .setColor(0x00FF00)
+            .setTitle("📚 Available Commands")
+            .addFields(
+                { name: "👤 User Commands", value: 
+                    `/create-account <username> <password> <version>\n` +
+                    `/account-information\n` +
+                    `/get-loader\n` +
+                    `/reset-hwid\n` +
+                    `/set-version <version>\n` +
+                    `/update [version]\n`, inline: false },
+                { name: "🔒 Admin Commands", value: 
+                    `/list-users\n` +
+                    `/revoke <username> [reason]\n` +
+                    `/revoke-all\n` +
+                    `/blacklist <user>\n` +
+                    `/unblacklist <user>\n` +
+                    `/set-usage <username> <limit>\n`, inline: false },
+                { name: "ℹ️ Other", value: `/help`, inline: false }
+            )
+            .setFooter({ text: "Admins: /list-users | /revoke | /revoke-all | /blacklist | /set-usage" });
+
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+        return;
+    }
+});
+
+// ============================================
+// EXPRESS WEB SERVER
+// ============================================
+const app = express();
+app.use(express.json());
+
+// ============================================
+// API ENDPOINT
+// ============================================
+app.post('/load', async (req, res) => {
+    const { username, password, key, hwid, version } = req.body;
+    const db = await loadUsers();
+
+    let userData = null;
+    let userId = null;
+    for (const id in db.users) {
+        if (db.users[id].username === username) {
+            userData = db.users[id];
+            userId = id;
+            break;
+        }
+    }
+
+    if (!userData) {
+        return res.json({ success: false, reason: "User not found" });
+    }
+
+    if (await isBlacklisted(userData.discordId, userData.username)) {
+        return res.json({ success: false, reason: "Blacklisted" });
+    }
+
+    if (hashPassword(password) !== userData.password) {
+        return res.json({ success: false, reason: "Invalid password" });
+    }
+
+    if (key !== userData.key) {
+        return res.json({ success: false, reason: "Invalid key" });
+    }
+
+    if (!userData.active) {
+        return res.json({ success: false, reason: "Account revoked" });
+    }
+
+    if (userData.expires && new Date(userData.expires) < new Date()) {
+        return res.json({ success: false, reason: "Account expired" });
+    }
+
+    if (userData.maxUses > 0 && userData.used >= userData.maxUses) {
+        return res.json({ success: false, reason: "Usage limit reached" });
+    }
+
+    const isFirstRun = !userData.hwid;
+
+    if (!userData.hwid) {
+        userData.hwid = hwid;
+    } else if (userData.hwid !== hwid) {
+        return res.json({ success: false, reason: "HWID mismatch" });
+    }
+
+    userData.used++;
+    if (version) {
+        userData.version = version;
+    }
+    await saveUser(userId, userData);
+
+    const scriptVersion = version || userData.version || "regular";
+    const scriptContent = SCRIPTS[scriptVersion] || SCRIPTS.regular;
+
+    if (isFirstRun) {
+        console.log(`✅ HWID set for ${username} (First run, Version: ${scriptVersion})`);
+    } else {
+        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, Version: ${scriptVersion})`);
+    }
+
+    res.json({ success: true, chunk: scriptContent });
+});
+
+app.get('/', (req, res) => res.send('Discord Bot is running!'));
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Web server running on port ${port}`));
+
+// ============================================
+// LOGIN
+// ============================================
+client.login(process.env.TOKEN);
