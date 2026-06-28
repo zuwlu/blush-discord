@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Slash Commands (EPHEMERAL FIXED)
+// index.js - Discord Bot with Slash Commands (DM FIXED)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -53,6 +53,12 @@ function generateKey() {
 }
 
 async function hasRequiredRole(interaction) {
+    // If the interaction is in a DM, we cannot check roles
+    // Allow DMs without role check
+    if (!interaction.guild) {
+        return true; // Allow DMs
+    }
+    
     try {
         const member = await interaction.guild.members.fetch(interaction.user.id);
         if (!member) return false;
