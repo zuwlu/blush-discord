@@ -1,5 +1,5 @@
-// index.js - Discord Bot with Slash Commands (ROLE FIXED)
-import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials } from "discord.js";
+// index.js - Discord Bot with Slash Commands (EPHEMERAL FIXED)
+import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags } from "discord.js";
 import express from "express";
 import fs from "fs";
 import crypto from "crypto";
@@ -10,9 +10,9 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.GuildMembers  // REQUIRED for role checking
+        GatewayIntentBits.GuildMembers
     ],
-    partials: [Partials.GuildMember, Partials.User]  // Helps with member data
+    partials: [Partials.GuildMember, Partials.User]
 });
 
 // ============================================
@@ -52,18 +52,11 @@ function generateKey() {
     return key;
 }
 
-// ============================================
-// ROLE CHECK FUNCTION (FIXED)
-// ============================================
 async function hasRequiredRole(interaction) {
     try {
-        // Fetch the member from the guild
         const member = await interaction.guild.members.fetch(interaction.user.id);
         if (!member) return false;
-        
-        // Check if the member has the required role
-        const hasRole = member.roles.cache.has(REQUIRED_ROLE_ID);
-        return hasRole;
+        return member.roles.cache.has(REQUIRED_ROLE_ID);
     } catch (error) {
         console.error("Role check error:", error);
         return false;
@@ -186,7 +179,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (!hasRole) {
             return interaction.reply({
                 content: `❌ You need the <@&${REQUIRED_ROLE_ID}> role to use this command.`,
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
     }
@@ -201,7 +194,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (db.users[interaction.user.id]) {
             return interaction.reply({
                 content: "❌ You already have an account! Use `/account-information` to view it.",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -209,7 +202,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             if (db.users[userId].username === username) {
                 return interaction.reply({
                     content: "❌ That username is already taken. Please choose another.",
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
         }
@@ -238,7 +231,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         await interaction.reply({
             content: "✅ **Account created successfully!** I've sent your loader script and key via DM.",
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
 
         try {
@@ -264,7 +257,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (!userData) {
             return interaction.reply({
                 content: "❌ You don't have an account. Use `/create-account` to create one.",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -282,7 +275,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             )
             .setFooter({ text: "Use /reset-hwid to reset your HWID" });
 
-        await interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -294,7 +287,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (!userData) {
             return interaction.reply({
                 content: "❌ You don't have an account. Use `/create-account` first.",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -303,7 +296,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         await interaction.reply({
             content: "✅ I've sent your loader script via DM.",
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
 
         try {
@@ -328,7 +321,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (!userData) {
             return interaction.reply({
                 content: "❌ You don't have an account.",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -337,7 +330,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         await interaction.reply({
             content: "✅ Your HWID has been reset. You can now use your account on a new device.",
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
         return;
     }
@@ -349,7 +342,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (interaction.user.id !== ADMIN_ID) {
             return interaction.reply({
                 content: "❌ You don't have permission to use this command.",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -367,14 +360,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (!found) {
             return interaction.reply({
                 content: "❌ User not found.",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
         saveDatabase(db);
         await interaction.reply({
             content: `✅ User \`${targetUsername}\` has been revoked.`,
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
         return;
     }
@@ -394,7 +387,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             )
             .setFooter({ text: "Admins: /revoke <username>" });
 
-        await interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
     }
 });
@@ -1990,6 +1983,7 @@ print("Blushwovens script v28.9 loaded successfully!")
 print("Press Q to toggle Speedhack, Z to toggle Jump Power")
 print("Hold T to continuously Teleport to closest player to cursor")
 print("Press RightShift to toggle UI visibility")
+print("Blushwovens loaded successfully!")
 `;
 
 app.post('/load', (req, res) => {
