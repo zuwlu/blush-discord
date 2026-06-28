@@ -1,5 +1,5 @@
-// index.js - Discord Bot with Account Creation and Loader Distribution
-import { Client, GatewayIntentBits, Events, EmbedBuilder } from "discord.js";
+// index.js - Discord Bot with Slash Commands
+import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder } from "discord.js";
 import express from "express";
 import fs from "fs";
 import crypto from "crypto";
@@ -17,7 +17,7 @@ const client = new Client({
 // ============================================
 // CONFIGURATION
 // ============================================
-const REQUIRED_ROLE_ID = "1520668279335817226"; // Replace with your role ID
+const REQUIRED_ROLE_ID = "1520668279335817226"; // Your role ID
 const ADMIN_ID = "1176388663320510535"; // Replace with your Discord ID
 const DB_PATH = "./database.json";
 
@@ -84,7 +84,7 @@ if not ok then error("Could not reach server.") end
 local data = HttpService:JSONDecode(response.Body)
 if not data.success then
     if data.reason == "HWID mismatch" then
-        game:GetService("Players").LocalPlayer:Kick("Wrong device. Contact support to reset your HWID.")
+        game:GetService("Players").LocalPlayer:Kick("Wrong device. Use /reset-hwid in Discord.")
     end
     error("Error: " .. (data.reason or "Unknown error"))
 end
@@ -94,60 +94,118 @@ loadstring(data.chunk)()
 }
 
 // ============================================
-// DISCORD BOT COMMANDS
+// REGISTER SLASH COMMANDS
 // ============================================
+const commands = [
+    new SlashCommandBuilder()
+        .setName("create-account")
+        .setDescription("Create a new account")
+        .addStringOption(option =>
+            option.setName("username")
+                .setDescription("Your desired username")
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName("password")
+                .setDescription("Your password")
+                .setRequired(true)),
 
-client.once(Events.ClientReady, () => {
+    new SlashCommandBuilder()
+        .setName("account-information")
+        .setDescription("View your account details"),
+
+    new SlashCommandBuilder()
+        .setName("get-loader")
+        .setDescription("Resend your loader script"),
+
+    new SlashCommandBuilder()
+        .setName("reset-hwid")
+        .setDescription("Reset your HWID for a new device"),
+
+    new SlashCommandBuilder()
+        .setName("revoke")
+        .setDescription("Revoke a user's account (Admin only)")
+        .addStringOption(option =>
+            option.setName("username")
+                .setDescription("The username to revoke")
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("help")
+        .setDescription("Show all available commands")
+];
+
+const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
+client.once(Events.ClientReady, async () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);
     console.log(`📊 Database loaded from ${DB_PATH}`);
     console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
+
+    // Register slash commands
+    try {
+        console.log('🔄 Registering slash commands...');
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands.map(cmd => cmd.toJSON()) }
+        );
+        console.log('✅ Slash commands registered successfully!');
+    } catch (error) {
+        console.error('❌ Error registering commands:', error);
+    }
 });
 
-client.on(Events.MessageCreate, async (message) => {
-    if (message.author.bot) return;
-    if (!message.content.startsWith("!")) return;
+// ============================================
+// SLASH COMMAND HANDLERS
+// ============================================
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
 
-    const args = message.content.slice(1).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
+    const command = interaction.commandName;
     const db = loadDatabase();
 
     // Role check (except for help)
     if (command !== "help") {
-        const member = message.guild?.members.cache.get(message.author.id);
+        const member = interaction.member;
         if (!hasRequiredRole(member)) {
-            return message.reply(`❌ You need the <@&${REQUIRED_ROLE_ID}> role to use this command.`);
+            return interaction.reply({
+                content: `❌ You need the <@&${REQUIRED_ROLE_ID}> role to use this command.`,
+                ephemeral: true
+            });
         }
     }
 
     // ============================================
-    // !create account <username> <password>
+    // /create-account
     // ============================================
-    if (command === "create" && args[0] === "account") {
-        const username = args[1];
-        const password = args[2];
-        if (!username || !password) {
-            return message.reply("❌ Usage: `!create account <username> <password>`");
-        }
+    if (command === "create-account") {
+        const username = interaction.options.getString("username");
+        const password = interaction.options.getString("password");
 
-        if (db.users[message.author.id]) {
-            return message.reply("❌ You already have an account! Use `!account information` to view it.");
+        if (db.users[interaction.user.id]) {
+            return interaction.reply({
+                content: "❌ You already have an account! Use `/account-information` to view it.",
+                ephemeral: true
+            });
         }
 
         // Check if username is taken
         for (const userId in db.users) {
             if (db.users[userId].username === username) {
-                return message.reply("❌ That username is already taken. Please choose another.");
+                return interaction.reply({
+                    content: "❌ That username is already taken. Please choose another.",
+                    ephemeral: true
+                });
             }
         }
 
         const hashedPassword = hashPassword(password);
         const key = generateKey();
 
-        db.users[message.author.id] = {
+        db.users[interaction.user.id] = {
             username: username,
             password: hashedPassword,
-            discordId: message.author.id,
-            discordTag: message.author.tag,
+            discordId: interaction.user.id,
+            discordTag: interaction.user.tag,
             key: key,
             hwid: null,
             created: new Date().toISOString(),
@@ -159,38 +217,39 @@ client.on(Events.MessageCreate, async (message) => {
 
         saveDatabase(db);
 
-        // Generate the loader script
-        const serverUrl = process.env.SERVER_URL || "https://your-bot.onrender.com";
+        const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
         const loaderScript = generateLoaderScript(username, password, serverUrl);
 
-        // Send the loader script to the user via DM
+        await interaction.reply({
+            content: "✅ **Account created successfully!** I've sent your loader script and key via DM.",
+            ephemeral: true
+        });
+
         try {
-            await message.author.send({
-                content: "✅ **Account created successfully!**\n\nHere is your loader script. Copy this into your Roblox executor and run it:",
+            await interaction.user.send({
+                content: "📥 **Here is your loader script:**",
                 files: [{
                     attachment: Buffer.from(loaderScript, "utf-8"),
                     name: "loader.lua"
                 }]
             });
-
-            // Also send the key as plain text
-            await message.author.send(`🔑 **Your key (keep this safe):** \`${key}\``);
-
-            await message.reply("✅ Account created! I've sent your loader script and key via DM.");
+            await interaction.user.send(`🔑 **Your key (keep this safe):** \`${key}\``);
         } catch (error) {
-            await message.reply("❌ I couldn't send you a DM. Please enable DMs from server members.");
             console.error("DM error:", error);
         }
         return;
     }
 
     // ============================================
-    // !account information
+    // /account-information
     // ============================================
-    if (command === "account" && args[0] === "information") {
-        const userData = db.users[message.author.id];
+    if (command === "account-information") {
+        const userData = db.users[interaction.user.id];
         if (!userData) {
-            return message.reply("❌ You don't have an account. Use `!create account <username> <password>` to create one.");
+            return interaction.reply({
+                content: "❌ You don't have an account. Use `/create-account` to create one.",
+                ephemeral: true
+            });
         }
 
         const embed = new EmbedBuilder()
@@ -205,69 +264,82 @@ client.on(Events.MessageCreate, async (message) => {
                 { name: "📌 Status", value: userData.active ? "✅ Active" : "❌ Inactive", inline: true },
                 { name: "⏰ Expires", value: userData.expires ? new Date(userData.expires).toISOString().split("T")[0] : "Never", inline: true }
             )
-            .setFooter({ text: "Use !reset hwid to reset your HWID" });
+            .setFooter({ text: "Use /reset-hwid to reset your HWID" });
 
-        await message.reply({ embeds: [embed] });
+        await interaction.reply({ embeds: [embed], ephemeral: true });
         return;
     }
 
     // ============================================
-    // !reset hwid
+    // /get-loader
     // ============================================
-    if (command === "reset" && args[0] === "hwid") {
-        const userData = db.users[message.author.id];
+    if (command === "get-loader") {
+        const userData = db.users[interaction.user.id];
         if (!userData) {
-            return message.reply("❌ You don't have an account.");
+            return interaction.reply({
+                content: "❌ You don't have an account. Use `/create-account` first.",
+                ephemeral: true
+            });
         }
 
-        userData.hwid = null;
-        saveDatabase(db);
-
-        await message.reply("✅ Your HWID has been reset. You can now use your key on a new device.");
-        return;
-    }
-
-    // ============================================
-    // !get loader (resend the loader script)
-    // ============================================
-    if (command === "get" && args[0] === "loader") {
-        const userData = db.users[message.author.id];
-        if (!userData) {
-            return message.reply("❌ You don't have an account. Use `!create account <username> <password>` first.");
-        }
-
-        const serverUrl = process.env.SERVER_URL || "https://your-bot.onrender.com";
+        const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
         const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl);
 
+        await interaction.reply({
+            content: "✅ I've sent your loader script via DM.",
+            ephemeral: true
+        });
+
         try {
-            await message.author.send({
-                content: "📥 **Here's your loader script:**",
+            await interaction.user.send({
+                content: "📥 **Here is your loader script:**",
                 files: [{
                     attachment: Buffer.from(loaderScript, "utf-8"),
                     name: "loader.lua"
                 }]
             });
-            await message.reply("✅ I've sent your loader script via DM.");
         } catch (error) {
-            await message.reply("❌ I couldn't send you a DM. Please enable DMs from server members.");
+            console.error("DM error:", error);
         }
         return;
     }
 
     // ============================================
-    // !revoke <username> (admin only)
+    // /reset-hwid
+    // ============================================
+    if (command === "reset-hwid") {
+        const userData = db.users[interaction.user.id];
+        if (!userData) {
+            return interaction.reply({
+                content: "❌ You don't have an account.",
+                ephemeral: true
+            });
+        }
+
+        userData.hwid = null;
+        saveDatabase(db);
+
+        await interaction.reply({
+            content: "✅ Your HWID has been reset. You can now use your account on a new device.",
+            ephemeral: true
+        });
+        return;
+    }
+
+    // ============================================
+    // /revoke (Admin only)
     // ============================================
     if (command === "revoke") {
-        if (message.author.id !== ADMIN_ID) {
-            return message.reply("❌ You don't have permission to use this command.");
+        if (interaction.user.id !== ADMIN_ID) {
+            return interaction.reply({
+                content: "❌ You don't have permission to use this command.",
+                ephemeral: true
+            });
         }
 
-        const targetUsername = args[0];
-        if (!targetUsername) {
-            return message.reply("❌ Usage: `!revoke <username>`");
-        }
-
+        const targetUsername = interaction.options.getString("username");
         let found = false;
+
         for (const userId in db.users) {
             if (db.users[userId].username === targetUsername) {
                 db.users[userId].active = false;
@@ -277,30 +349,36 @@ client.on(Events.MessageCreate, async (message) => {
         }
 
         if (!found) {
-            return message.reply("❌ User not found.");
+            return interaction.reply({
+                content: "❌ User not found.",
+                ephemeral: true
+            });
         }
 
         saveDatabase(db);
-        await message.reply(`✅ User \`${targetUsername}\` has been revoked.`);
+        await interaction.reply({
+            content: `✅ User \`${targetUsername}\` has been revoked.`,
+            ephemeral: true
+        });
         return;
     }
 
     // ============================================
-    // !help
+    // /help
     // ============================================
     if (command === "help") {
         const embed = new EmbedBuilder()
             .setColor(0x00FF00)
             .setTitle("📚 Available Commands")
             .addFields(
-                { name: "!create account <username> <password>", value: "Create an account and get your loader script", inline: false },
-                { name: "!account information", value: "View your account details", inline: false },
-                { name: "!get loader", value: "Resend your loader script", inline: false },
-                { name: "!reset hwid", value: "Reset your HWID", inline: false }
+                { name: "/create-account <username> <password>", value: "Create an account and get your loader script", inline: false },
+                { name: "/account-information", value: "View your account details", inline: false },
+                { name: "/get-loader", value: "Resend your loader script", inline: false },
+                { name: "/reset-hwid", value: "Reset your HWID", inline: false }
             )
-            .setFooter({ text: "Admins: !revoke <username>" });
+            .setFooter({ text: "Admins: /revoke <username>" });
 
-        await message.reply({ embeds: [embed] });
+        await interaction.reply({ embeds: [embed], ephemeral: true });
         return;
     }
 });
@@ -1906,13 +1984,10 @@ app.post('/load', (req, res) => {
     const { username, password, hwid } = req.body;
     const db = loadDatabase();
 
-    // Find user by username
     let userData = null;
-    let userId = null;
     for (const id in db.users) {
         if (db.users[id].username === username) {
             userData = db.users[id];
-            userId = id;
             break;
         }
     }
@@ -1921,7 +1996,6 @@ app.post('/load', (req, res) => {
         return res.json({ success: false, reason: "User not found" });
     }
 
-    // Check password
     if (hashPassword(password) !== userData.password) {
         return res.json({ success: false, reason: "Invalid password" });
     }
@@ -1938,7 +2012,6 @@ app.post('/load', (req, res) => {
         return res.json({ success: false, reason: "Usage limit reached" });
     }
 
-    // HWID check
     if (!userData.hwid) {
         userData.hwid = hwid;
     } else if (userData.hwid !== hwid) {
