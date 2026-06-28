@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Slash Commands (ROLE ENFORCED IN DMs)
+// index.js - Discord Bot with Slash Commands (FULL VERSION)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -54,7 +54,7 @@ function generateKey() {
 }
 
 // ============================================
-// FIXED: ENFORCE ROLE CHECK IN DMs
+// ROLE CHECK (ENFORCED IN DMs)
 // ============================================
 async function hasRequiredRole(interaction) {
     try {
@@ -78,7 +78,7 @@ async function hasRequiredRole(interaction) {
 }
 
 // ============================================
-// LOADER SCRIPT
+// LOADER SCRIPT (KEY REQUIRED)
 // ============================================
 function generateLoaderScript(username, password, serverUrl) {
     return `
@@ -304,6 +304,10 @@ const commands = [
         .setDescription("Reset your HWID for a new device"),
 
     new SlashCommandBuilder()
+        .setName("list-users")
+        .setDescription("List all users (Admin only)"),
+
+    new SlashCommandBuilder()
         .setName("revoke")
         .setDescription("Revoke a user's account (Admin only)")
         .addStringOption(option =>
@@ -515,6 +519,52 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
+    // /list-users (Admin only)
+    // ============================================
+    if (command === "list-users") {
+        if (interaction.user.id !== ADMIN_ID) {
+            return interaction.reply({
+                content: "❌ You don't have permission to use this command.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        const db = loadDatabase();
+        let userList = [];
+        for (const userId in db.users) {
+            const user = db.users[userId];
+            userList.push(`**${user.username}** | Key: \`${user.key}\` | HWID: ${user.hwid || "Not set"} | Uses: ${user.used}/${user.maxUses} | ${user.active ? "✅ Active" : "❌ Revoked"}`);
+        }
+
+        if (userList.length === 0) {
+            return interaction.reply({
+                content: "No users found.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        // Split into chunks of 10 to avoid message length limits
+        const chunks = [];
+        for (let i = 0; i < userList.length; i += 10) {
+            chunks.push(userList.slice(i, i + 10).join("\n"));
+        }
+
+        await interaction.reply({
+            content: `📋 **All Users (${userList.length} total)**\n\n${chunks[0]}`,
+            flags: MessageFlags.Ephemeral
+        });
+
+        // Send remaining chunks as follow-up messages
+        for (let i = 1; i < chunks.length; i++) {
+            await interaction.followUp({
+                content: chunks[i],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        return;
+    }
+
+    // ============================================
     // /revoke (Admin only)
     // ============================================
     if (command === "revoke") {
@@ -562,9 +612,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 { name: "/create-account <username> <password>", value: "Create an account and get your loader script", inline: false },
                 { name: "/account-information", value: "View your account details", inline: false },
                 { name: "/get-loader", value: "Resend your loader script", inline: false },
-                { name: "/reset-hwid", value: "Reset your HWID", inline: false }
+                { name: "/reset-hwid", value: "Reset your HWID", inline: false },
+                { name: "/list-users", value: "List all users (Admin only)", inline: false },
+                { name: "/revoke <username>", value: "Revoke a user's account (Admin only)", inline: false }
             )
-            .setFooter({ text: "Admins: /revoke <username>" });
+            .setFooter({ text: "Admins: /list-users | /revoke <username>" });
 
         await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
