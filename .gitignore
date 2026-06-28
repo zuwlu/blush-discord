@@ -1,7 +1,0 @@
-credentials.json
-node_modules/
-.env
-*.log
-database.json
-blacklist.json
-admin_dms.json
