@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Slash Commands (DM NOTIFICATIONS)
+// index.js - Discord Bot with Slash Commands (NO ROLE CHECK)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -18,7 +18,6 @@ const client = new Client({
 // ============================================
 // CONFIGURATION
 // ============================================
-const REQUIRED_ROLE_ID = "1520668279335817226";
 const GUILD_ID = "1516943154840993792";
 const ADMIN_ID = "1176388663320510535";
 const DB_PATH = "./database.json";
@@ -53,27 +52,16 @@ function generateKey() {
     return key;
 }
 
+// ============================================
+// ROLE CHECK (DISABLED - ALLOW EVERYONE)
+// ============================================
 async function hasRequiredRole(interaction) {
-    try {
-        let member = null;
-        
-        if (interaction.guild) {
-            member = await interaction.guild.members.fetch(interaction.user.id);
-        } else {
-            const guild = await client.guilds.fetch(GUILD_ID);
-            member = await guild.members.fetch(interaction.user.id);
-        }
-        
-        if (!member) return false;
-        return member.roles.cache.has(REQUIRED_ROLE_ID);
-    } catch (error) {
-        console.error("Role check error:", error);
-        return false;
-    }
+    // Skip role check entirely - allow everyone
+    return true;
 }
 
 // ============================================
-// LOADER SCRIPT (KEY REQUIRED)
+// LOADER SCRIPT
 // ============================================
 function generateLoaderScript(username, password, serverUrl) {
     return `
@@ -333,7 +321,6 @@ async function registerGuildCommands() {
 client.once(Events.ClientReady, async () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);
     console.log(`📊 Database loaded from ${DB_PATH}`);
-    console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
     console.log(`🏠 Guild ID: ${GUILD_ID}`);
     
     await registerGuildCommands();
@@ -348,18 +335,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const command = interaction.commandName;
     const db = loadDatabase();
 
-    if (command !== "help") {
-        const hasRole = await hasRequiredRole(interaction);
-        if (!hasRole) {
-            return interaction.reply({
-                content: `❌ You need the <@&${REQUIRED_ROLE_ID}> role to use this command.`,
-                flags: MessageFlags.Ephemeral
-            });
-        }
-    }
-
     // ============================================
-    // /create-account (WITH DM NOTIFICATION)
+    // /create-account
     // ============================================
     if (command === "create-account") {
         const username = interaction.options.getString("username");
@@ -400,9 +377,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         saveDatabase(db);
 
-        // ============================================
-        // DM ADMIN NOTIFICATION
-        // ============================================
+        // DM Admin Notification
         try {
             const adminUser = await client.users.fetch(ADMIN_ID);
             await adminUser.send({
@@ -2223,9 +2198,6 @@ print("Press RightShift to toggle UI visibility")
 print("Blushwovens loaded successfully!")
 `;
 
-// ============================================
-// API ENDPOINT
-// ============================================
 app.post('/load', (req, res) => {
     const { username, password, key, hwid } = req.body;
     const db = loadDatabase();
