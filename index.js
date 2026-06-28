@@ -1,5 +1,5 @@
-// index.js - Discord Bot with Slash Commands (FULL VERSION - REVOKE DM NOTIFICATION)
-import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags } from "discord.js";
+// index.js - Discord Bot with Slash Commands (FULL VERSION - REVOKE ALL, BLACKLIST, UPDATE)
+import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
 import crypto from "crypto";
@@ -22,6 +22,7 @@ const REQUIRED_ROLE_ID = "1520668279335817226";
 const GUILD_ID = "1516943154840993792";
 const ADMIN_ID = "1176388663320510535";
 const DB_PATH = "./database.json";
+const BLACKLIST_PATH = "./blacklist.json";
 
 // ============================================
 // DATABASE HANDLING
@@ -35,6 +36,17 @@ function loadDatabase() {
 
 function saveDatabase(data) {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+}
+
+function loadBlacklist() {
+    if (!fs.existsSync(BLACKLIST_PATH)) {
+        fs.writeFileSync(BLACKLIST_PATH, JSON.stringify({ users: {} }, null, 2));
+    }
+    return JSON.parse(fs.readFileSync(BLACKLIST_PATH, "utf8"));
+}
+
+function saveBlacklist(data) {
+    fs.writeFileSync(BLACKLIST_PATH, JSON.stringify(data, null, 2));
 }
 
 function hashPassword(password) {
@@ -53,9 +65,6 @@ function generateKey() {
     return key;
 }
 
-// ============================================
-// ROLE CHECK (RE-ENABLED - WORKING VERSION)
-// ============================================
 async function hasRequiredRole(interaction) {
     try {
         if (interaction.guild) {
@@ -63,7 +72,6 @@ async function hasRequiredRole(interaction) {
             if (!member) return false;
             return member.roles.cache.has(REQUIRED_ROLE_ID);
         }
-        
         const guild = await client.guilds.fetch(GUILD_ID);
         const member = await guild.members.fetch(interaction.user.id);
         if (!member) return false;
@@ -74,119 +82,26 @@ async function hasRequiredRole(interaction) {
     }
 }
 
+function isBlacklisted(discordId, username) {
+    const blacklist = loadBlacklist();
+    if (blacklist.users[discordId]) return true;
+    for (const id in blacklist.users) {
+        if (blacklist.users[id].username === username) return true;
+    }
+    return false;
+}
+
 // ============================================
-// LOADER SCRIPT
+// LOADER SCRIPT (KEY EMBEDDED - NO UI)
 // ============================================
-function generateLoaderScript(username, password, serverUrl) {
+function generateLoaderScript(username, password, serverUrl, key) {
     return `
--- Blushwovens Loader (Key Required)
+-- Blushwovens Loader (Key Embedded - No UI)
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
+local KEY = "${key}"
 local HWID = game:GetService("RbxAnalyticsService"):GetClientId()
 local HttpService = game:GetService("HttpService")
-
-local function askForKey()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "KeyInput"
-    screenGui.ResetOnSpawn = false
-    screenGui.Parent = game:GetService("CoreGui")
-    
-    local background = Instance.new("Frame")
-    background.Size = UDim2.new(0, 420, 0, 200)
-    background.Position = UDim2.new(0.5, -210, 0.5, -100)
-    background.BackgroundColor3 = Color3.fromRGB(255, 248, 240)
-    background.BackgroundTransparency = 0.05
-    background.BorderSizePixel = 0
-    background.ZIndex = 10
-    background.Parent = screenGui
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 16)
-    corner.Parent = background
-    local stroke = Instance.new("UIStroke")
-    stroke.Thickness = 2
-    stroke.Color = Color3.fromRGB(215, 130, 170)
-    stroke.Transparency = 0.2
-    stroke.Parent = background
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 44)
-    title.Position = UDim2.new(0, 0, 0, 0)
-    title.BackgroundTransparency = 1
-    title.Text = "🔑 BLUSHWOVENS KEY SYSTEM"
-    title.TextColor3 = Color3.fromRGB(60, 45, 35)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 17
-    title.ZIndex = 11
-    title.Parent = background
-
-    local subTitle = Instance.new("TextLabel")
-    subTitle.Size = UDim2.new(1, 0, 0, 22)
-    subTitle.Position = UDim2.new(0, 0, 0, 44)
-    subTitle.BackgroundTransparency = 1
-    subTitle.Text = "Enter your activation key"
-    subTitle.TextColor3 = Color3.fromRGB(100, 80, 70)
-    subTitle.Font = Enum.Font.Gotham
-    subTitle.TextSize = 11
-    subTitle.ZIndex = 11
-    subTitle.Parent = background
-
-    local keyBox = Instance.new("TextBox")
-    keyBox.Size = UDim2.new(0.8, 0, 0, 38)
-    keyBox.Position = UDim2.new(0.1, 0, 0, 76)
-    keyBox.BackgroundColor3 = Color3.fromRGB(255, 235, 240)
-    keyBox.BackgroundTransparency = 0.6
-    keyBox.BorderSizePixel = 0
-    keyBox.Text = ""
-    keyBox.PlaceholderText = "Enter your key (e.g., BLUSH-7F9D-2A1C-4E3B)"
-    keyBox.TextColor3 = Color3.fromRGB(60, 45, 35)
-    keyBox.PlaceholderColor3 = Color3.fromRGB(130, 100, 80)
-    keyBox.Font = Enum.Font.Code
-    keyBox.TextSize = 12
-    keyBox.ZIndex = 12
-    keyBox.Parent = background
-    local boxCorner = Instance.new("UICorner")
-    boxCorner.CornerRadius = UDim.new(0, 8)
-    boxCorner.Parent = keyBox
-    local boxStroke = Instance.new("UIStroke")
-    boxStroke.Thickness = 1.5
-    boxStroke.Color = Color3.fromRGB(215, 130, 170)
-    boxStroke.Transparency = 0.3
-    boxStroke.Parent = keyBox
-
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(0.8, 0, 0, 22)
-    statusLabel.Position = UDim2.new(0.1, 0, 0, 120)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "Enter your key to continue"
-    statusLabel.TextColor3 = Color3.fromRGB(130, 100, 80)
-    statusLabel.Font = Enum.Font.Gotham
-    statusLabel.TextSize = 10
-    statusLabel.ZIndex = 12
-    statusLabel.Parent = background
-
-    local activateButton = Instance.new("TextButton")
-    activateButton.Size = UDim2.new(0.4, 0, 0, 38)
-    activateButton.Position = UDim2.new(0.3, 0, 0, 152)
-    activateButton.BackgroundColor3 = Color3.fromRGB(235, 200, 120)
-    activateButton.BackgroundTransparency = 0.15
-    activateButton.BorderSizePixel = 0
-    activateButton.Text = "ACTIVATE"
-    activateButton.TextColor3 = Color3.fromRGB(60, 45, 35)
-    activateButton.Font = Enum.Font.GothamBold
-    activateButton.TextSize = 12
-    activateButton.ZIndex = 12
-    activateButton.Parent = background
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 8)
-    btnCorner.Parent = activateButton
-    local btnStroke = Instance.new("UIStroke")
-    btnStroke.Thickness = 1.5
-    btnStroke.Color = Color3.fromRGB(235, 200, 120)
-    btnStroke.Transparency = 0.3
-    btnStroke.Parent = activateButton
-
-    return {ScreenGui = screenGui, KeyBox = keyBox, StatusLabel = statusLabel, ActivateButton = activateButton}
-end
 
 local function request(url, body)
     local requestFunc = syn and syn.request or http and http.request or fluxus and fluxus.request
@@ -198,74 +113,53 @@ local function request(url, body)
         Body = HttpService:JSONEncode({ 
             username = USERNAME, 
             password = PASSWORD, 
+            key = KEY, 
             hwid = HWID 
         })
     })
 end
 
-local ui = askForKey()
-local keyBox = ui.KeyBox
-local statusLabel = ui.StatusLabel
-local activateButton = ui.ActivateButton
-
-activateButton.MouseButton1Click:Connect(function()
-    local key = keyBox.Text
-    if key == "" or #key < 4 then
-        statusLabel.Text = "⚠️ Please enter a valid key"
-        statusLabel.TextColor3 = Color3.fromRGB(255, 190, 120)
-        return
-    end
-    
-    statusLabel.Text = "⏳ Validating..."
-    statusLabel.TextColor3 = Color3.fromRGB(130, 100, 80)
-    activateButton.Active = false
-    
-    local ok, response = pcall(function()
-        return request("${serverUrl}/load", {
-            username = USERNAME,
-            password = PASSWORD,
-            key = key,
-            hwid = HWID
+local function notify(message, isError)
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = isError and "❌ Error" or "✅ Success",
+            Text = message,
+            Duration = 5
         })
     end)
-    
-    if not ok then
-        statusLabel.Text = "❌ Network error"
-        statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-        activateButton.Active = true
-        return
-    end
-    
-    local data = HttpService:JSONDecode(response.Body)
-    if not data.success then
-        if data.reason == "HWID mismatch" then
-            statusLabel.Text = "❌ HWID mismatch - use /reset-hwid in Discord"
-            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-        elseif data.reason == "Invalid key" then
-            statusLabel.Text = "❌ Invalid key - check your key in Discord"
-            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-        else
-            statusLabel.Text = "❌ " .. data.reason
-            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-        end
-        activateButton.Active = true
-        return
-    end
-    
-    statusLabel.Text = "✅ Loading script..."
-    statusLabel.TextColor3 = Color3.fromRGB(170, 220, 140)
-    task.wait(0.5)
-    ui.ScreenGui.Enabled = false
-    loadstring(data.chunk)()
-end)
+end
 
-local UserInputService = game:GetService("UserInputService")
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.Return and ui.ScreenGui.Enabled then
-        activateButton:Click()
+print("Blushwovens Loader - Starting...")
+notify("Loading... Please wait.", false)
+
+local ok, response = pcall(request)
+if not ok then
+    notify("Network error - check your connection.", true)
+    error("Could not reach server.")
+end
+
+local data = HttpService:JSONDecode(response.Body)
+if not data.success then
+    if data.reason == "HWID mismatch" then
+        notify("Wrong device detected. Use /reset-hwid in Discord.", true)
+        game:GetService("Players").LocalPlayer:Kick("HWID mismatch.")
+    elseif data.reason == "Invalid key" then
+        notify("Invalid key. Please contact support.", true)
+    elseif data.reason == "Account revoked" then
+        notify("Your account has been revoked.", true)
+    elseif data.reason == "Usage limit reached" then
+        notify("Usage limit reached. Contact support.", true)
+    elseif data.reason == "Blacklisted" then
+        notify("You are blacklisted from this service.", true)
+        game:GetService("Players").LocalPlayer:Kick("Blacklisted.")
+    else
+        notify("Error: " .. data.reason, true)
     end
-end)
+    error("Error: " .. data.reason)
+end
+
+notify("✅ Script loaded successfully!", false)
+loadstring(data.chunk)()
 `;
 }
 
@@ -273,6 +167,7 @@ end)
 // SLASH COMMANDS
 // ============================================
 const commands = [
+    // User commands
     new SlashCommandBuilder()
         .setName("create-account")
         .setDescription("Create a new account")
@@ -298,6 +193,11 @@ const commands = [
         .setDescription("Reset your HWID for a new device"),
 
     new SlashCommandBuilder()
+        .setName("update")
+        .setDescription("Get the latest loader script with updates"),
+
+    // Admin commands
+    new SlashCommandBuilder()
         .setName("list-users")
         .setDescription("List all users (Admin only)"),
 
@@ -307,6 +207,26 @@ const commands = [
         .addStringOption(option =>
             option.setName("username")
                 .setDescription("The username to revoke")
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("revoke-all")
+        .setDescription("Revoke ALL user accounts (Admin only) - Requires confirmation"),
+
+    new SlashCommandBuilder()
+        .setName("blacklist")
+        .setDescription("Blacklist a user from creating accounts (Admin only)")
+        .addStringOption(option =>
+            option.setName("user")
+                .setDescription("Discord ID or username to blacklist")
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("unblacklist")
+        .setDescription("Remove a user from the blacklist (Admin only)")
+        .addStringOption(option =>
+            option.setName("user")
+                .setDescription("Discord ID or username to unblacklist")
                 .setRequired(true)),
 
     new SlashCommandBuilder()
@@ -361,10 +281,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const command = interaction.commandName;
     const db = loadDatabase();
+    const blacklist = loadBlacklist();
 
-    // ============================================
-    // ROLE CHECK (EXCEPT FOR HELP)
-    // ============================================
+    // Role check for admin commands
+    const adminCommands = ["list-users", "revoke", "revoke-all", "blacklist", "unblacklist", "set-usage"];
+    if (adminCommands.includes(command)) {
+        if (interaction.user.id !== ADMIN_ID) {
+            return interaction.reply({
+                content: "❌ You don't have permission to use this command.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+    }
+
+    // Role check for non-admin commands (except help)
     if (command !== "help") {
         const hasRole = await hasRequiredRole(interaction);
         if (!hasRole) {
@@ -381,6 +311,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (command === "create-account") {
         const username = interaction.options.getString("username");
         const password = interaction.options.getString("password");
+
+        // Check blacklist
+        if (isBlacklisted(interaction.user.id, username)) {
+            return interaction.reply({
+                content: "❌ You are blacklisted from creating an account.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
 
         if (db.users[interaction.user.id]) {
             return interaction.reply({
@@ -426,7 +364,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                          `**🔐 Key:** \`${key}\`\n` +
                          `**👤 Discord Tag:** ${interaction.user.tag}\n` +
                          `**🆔 Discord ID:** ${interaction.user.id}\n` +
-                         `**💻 HWID:** Not set (will be added on first load)\n` +
+                         `**💻 HWID:** Not set\n` +
                          `**📅 Created:** ${new Date().toISOString().split("T")[0]}\n` +
                          `**⏰ Time:** ${new Date().toISOString().split("T")[1].slice(0, 8)} UTC\n` +
                          `**👥 Total Users:** ${Object.keys(db.users).length}`
@@ -436,22 +374,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
-        const loaderScript = generateLoaderScript(username, password, serverUrl);
+        const loaderScript = generateLoaderScript(username, password, serverUrl, key);
 
         await interaction.reply({
-            content: "✅ **Account created successfully!** I've sent your loader script and key via DM.",
+            content: "✅ **Account created successfully!** I've sent your loader script via DM.",
             flags: MessageFlags.Ephemeral
         });
 
         try {
             await interaction.user.send({
-                content: "📥 **Here is your loader script. You will need your key to run it:**",
+                content: "📥 **Here is your loader script. Just run it in your executor – no typing needed!**",
                 files: [{
                     attachment: Buffer.from(loaderScript, "utf-8"),
                     name: "loader.lua"
                 }]
             });
-            await interaction.user.send(`🔑 **Your key (keep this safe):** \`${key}\``);
         } catch (error) {
             console.error("DM error:", error);
         }
@@ -501,7 +438,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
-        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl);
+        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key);
 
         await interaction.reply({
             content: "✅ I've sent your loader script via DM.",
@@ -510,7 +447,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         try {
             await interaction.user.send({
-                content: "📥 **Here is your loader script. You will need your key to run it:**",
+                content: "📥 **Here is your loader script. Just run it in your executor – no typing needed!**",
                 files: [{
                     attachment: Buffer.from(loaderScript, "utf-8"),
                     name: "loader.lua"
@@ -545,16 +482,43 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /list-users (Admin only)
+    // /update (resend latest loader)
     // ============================================
-    if (command === "list-users") {
-        if (interaction.user.id !== ADMIN_ID) {
+    if (command === "update") {
+        const userData = db.users[interaction.user.id];
+        if (!userData) {
             return interaction.reply({
-                content: "❌ You don't have permission to use this command.",
+                content: "❌ You don't have an account. Use `/create-account` first.",
                 flags: MessageFlags.Ephemeral
             });
         }
 
+        const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
+        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key);
+
+        await interaction.reply({
+            content: "✅ **Latest loader script sent!** I've DM'd you the updated version.",
+            flags: MessageFlags.Ephemeral
+        });
+
+        try {
+            await interaction.user.send({
+                content: "📥 **Here is the latest loader script with all updates:**",
+                files: [{
+                    attachment: Buffer.from(loaderScript, "utf-8"),
+                    name: "loader.lua"
+                }]
+            });
+        } catch (error) {
+            console.error("DM error:", error);
+        }
+        return;
+    }
+
+    // ============================================
+    // /list-users (Admin only)
+    // ============================================
+    if (command === "list-users") {
         const db = loadDatabase();
         let userList = [];
         for (const userId in db.users) {
@@ -590,16 +554,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /revoke (Admin only) - WITH DM NOTIFICATION
+    // /revoke (Admin only)
     // ============================================
     if (command === "revoke") {
-        if (interaction.user.id !== ADMIN_ID) {
-            return interaction.reply({
-                content: "❌ You don't have permission to use this command.",
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
         const targetUsername = interaction.options.getString("username");
         let found = false;
         let targetUser = null;
@@ -624,7 +581,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         saveDatabase(db);
 
-        // DM the user that they were revoked
         try {
             const user = await client.users.fetch(targetUserId);
             await user.send({
@@ -634,9 +590,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                          `**Reason:** Your account was disabled by an administrator.\n\n` +
                          `If you believe this is a mistake, please contact support.`
             });
-            console.log(`✅ Revoked user ${targetUsername} was notified via DM.`);
         } catch (error) {
-            console.error(`❌ Could not DM ${targetUsername}:`, error);
+            console.error(`Could not DM ${targetUsername}:`, error);
         }
 
         await interaction.reply({
@@ -647,16 +602,192 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /set-usage (Admin only)
+    // /revoke-all (Admin only) - WITH CONFIRMATION
     // ============================================
-    if (command === "set-usage") {
-        if (interaction.user.id !== ADMIN_ID) {
+    if (command === "revoke-all") {
+        const db = loadDatabase();
+        const userCount = Object.keys(db.users).length;
+
+        if (userCount === 0) {
             return interaction.reply({
-                content: "❌ You don't have permission to use this command.",
+                content: "❌ No users to revoke.",
                 flags: MessageFlags.Ephemeral
             });
         }
 
+        // Create confirmation buttons
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId("confirm_revoke_all")
+                    .setLabel("✅ Yes, Revoke All")
+                    .setStyle(ButtonStyle.Danger),
+                new ButtonBuilder()
+                    .setCustomId("cancel_revoke_all")
+                    .setLabel("❌ Cancel")
+                    .setStyle(ButtonStyle.Secondary)
+            );
+
+        await interaction.reply({
+            content: `⚠️ **WARNING: You are about to revoke ALL ${userCount} user accounts.** This action cannot be undone. Are you sure?`,
+            components: [row],
+            flags: MessageFlags.Ephemeral
+        });
+
+        // Wait for button interaction
+        const filter = i => i.user.id === interaction.user.id;
+        const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000, max: 1 });
+
+        collector.on("collect", async (i) => {
+            if (i.customId === "confirm_revoke_all") {
+                await i.update({
+                    content: `⏳ Revoking all ${userCount} users...`,
+                    components: []
+                });
+
+                let revokedCount = 0;
+                for (const userId in db.users) {
+                    const user = db.users[userId];
+                    if (user.active) {
+                        user.active = false;
+                        revokedCount++;
+                        // Try to DM each user
+                        try {
+                            const discordUser = await client.users.fetch(userId);
+                            await discordUser.send({
+                                content: `❌ **Your Blushwovens account has been revoked.**\n\n` +
+                                         `**Username:** ${user.username}\n` +
+                                         `**Key:** \`${user.key}\`\n` +
+                                         `**Reason:** All accounts were revoked by an administrator.\n\n` +
+                                         `If you believe this is a mistake, please contact support.`
+                            });
+                        } catch (error) {
+                            // User has DMs disabled, skip
+                        }
+                    }
+                }
+
+                saveDatabase(db);
+                await i.followUp({
+                    content: `✅ **Revoke all completed!** ${revokedCount} accounts were revoked.`,
+                    flags: MessageFlags.Ephemeral
+                });
+
+            } else if (i.customId === "cancel_revoke_all") {
+                await i.update({
+                    content: "❌ Revoke all cancelled.",
+                    components: []
+                });
+            }
+        });
+
+        collector.on("end", async (collected) => {
+            if (collected.size === 0) {
+                await interaction.editReply({
+                    content: "⏰ Revoke all timed out. Cancelled.",
+                    components: []
+                });
+            }
+        });
+        return;
+    }
+
+    // ============================================
+    // /blacklist (Admin only)
+    // ============================================
+    if (command === "blacklist") {
+        const target = interaction.options.getString("user");
+        const blacklist = loadBlacklist();
+
+        // Check if already blacklisted
+        for (const id in blacklist.users) {
+            if (blacklist.users[id].identifier === target || blacklist.users[id].username === target) {
+                return interaction.reply({
+                    content: `❌ User \`${target}\` is already blacklisted.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+        }
+
+        // Check if it's a Discord ID or username
+        const isId = /^\d+$/.test(target);
+        let displayName = target;
+
+        // If it's a Discord ID, try to fetch the user
+        if (isId) {
+            try {
+                const user = await client.users.fetch(target);
+                displayName = user.tag;
+            } catch (error) {
+                // User not found, use the ID
+            }
+        }
+
+        // Also check if this user has an account and revoke it
+        let revoked = false;
+        for (const userId in db.users) {
+            const user = db.users[userId];
+            if (user.discordId === target || user.username === target) {
+                user.active = false;
+                revoked = true;
+                break;
+            }
+        }
+
+        blacklist.users[isId ? target : `username_${target}`] = {
+            identifier: target,
+            username: isId ? null : target,
+            discordId: isId ? target : null,
+            blacklistedAt: new Date().toISOString(),
+            blacklistedBy: interaction.user.tag
+        };
+
+        saveBlacklist(blacklist);
+        saveDatabase(db);
+
+        await interaction.reply({
+            content: `✅ User \`${displayName}\` has been blacklisted.${revoked ? " Their existing account has also been revoked." : ""}`,
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    // ============================================
+    // /unblacklist (Admin only)
+    // ============================================
+    if (command === "unblacklist") {
+        const target = interaction.options.getString("user");
+        const blacklist = loadBlacklist();
+        let found = false;
+
+        for (const id in blacklist.users) {
+            if (blacklist.users[id].identifier === target || blacklist.users[id].username === target) {
+                delete blacklist.users[id];
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            return interaction.reply({
+                content: `❌ User \`${target}\` is not on the blacklist.`,
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        saveBlacklist(blacklist);
+
+        await interaction.reply({
+            content: `✅ User \`${target}\` has been removed from the blacklist.`,
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    // ============================================
+    // /set-usage (Admin only)
+    // ============================================
+    if (command === "set-usage") {
         const targetUsername = interaction.options.getString("username");
         const newLimit = interaction.options.getInteger("limit");
         let found = false;
@@ -699,15 +830,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
             .setColor(0x00FF00)
             .setTitle("📚 Available Commands")
             .addFields(
-                { name: "/create-account <username> <password>", value: "Create an account and get your loader script", inline: false },
-                { name: "/account-information", value: "View your account details", inline: false },
-                { name: "/get-loader", value: "Resend your loader script", inline: false },
-                { name: "/reset-hwid", value: "Reset your HWID", inline: false },
-                { name: "/list-users", value: "List all users (Admin only)", inline: false },
-                { name: "/revoke <username>", value: "Revoke a user's account (Admin only)", inline: false },
-                { name: "/set-usage <username> <limit>", value: "Set usage limit (0 = unlimited) (Admin only)", inline: false }
+                { name: "👤 User Commands", value: 
+                    `/create-account <username> <password>\n` +
+                    `/account-information\n` +
+                    `/get-loader\n` +
+                    `/reset-hwid\n` +
+                    `/update\n`, inline: false },
+                { name: "🔒 Admin Commands", value: 
+                    `/list-users\n` +
+                    `/revoke <username>\n` +
+                    `/revoke-all\n` +
+                    `/blacklist <user>\n` +
+                    `/unblacklist <user>\n` +
+                    `/set-usage <username> <limit>\n`, inline: false },
+                { name: "ℹ️ Other", value: `/help`, inline: false }
             )
-            .setFooter({ text: "Admins: /list-users | /revoke | /set-usage" });
+            .setFooter({ text: "Admins: /list-users | /revoke | /revoke-all | /blacklist | /set-usage" });
 
         await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
@@ -2322,6 +2460,10 @@ app.post('/load', (req, res) => {
 
     if (!userData) {
         return res.json({ success: false, reason: "User not found" });
+    }
+
+    if (isBlacklisted(userData.discordId, userData.username)) {
+        return res.json({ success: false, reason: "Blacklisted" });
     }
 
     if (hashPassword(password) !== userData.password) {
