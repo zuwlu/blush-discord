@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Slash Commands (FULL VERSION - REVOKE ALL, BLACKLIST, UPDATE)
+// index.js - Discord Bot with Slash Commands (HWID AUTO-UPDATE)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -23,6 +23,7 @@ const GUILD_ID = "1516943154840993792";
 const ADMIN_ID = "1176388663320510535";
 const DB_PATH = "./database.json";
 const BLACKLIST_PATH = "./blacklist.json";
+const ADMIN_DM_PATH = "./admin_dms.json";
 
 // ============================================
 // DATABASE HANDLING
@@ -47,6 +48,17 @@ function loadBlacklist() {
 
 function saveBlacklist(data) {
     fs.writeFileSync(BLACKLIST_PATH, JSON.stringify(data, null, 2));
+}
+
+function loadAdminDMs() {
+    if (!fs.existsSync(ADMIN_DM_PATH)) {
+        fs.writeFileSync(ADMIN_DM_PATH, JSON.stringify({}, null, 2));
+    }
+    return JSON.parse(fs.readFileSync(ADMIN_DM_PATH, "utf8"));
+}
+
+function saveAdminDMs(data) {
+    fs.writeFileSync(ADMIN_DM_PATH, JSON.stringify(data, null, 2));
 }
 
 function hashPassword(password) {
@@ -167,7 +179,6 @@ loadstring(data.chunk)()
 // SLASH COMMANDS
 // ============================================
 const commands = [
-    // User commands
     new SlashCommandBuilder()
         .setName("create-account")
         .setDescription("Create a new account")
@@ -196,7 +207,6 @@ const commands = [
         .setName("update")
         .setDescription("Get the latest loader script with updates"),
 
-    // Admin commands
     new SlashCommandBuilder()
         .setName("list-users")
         .setDescription("List all users (Admin only)"),
@@ -283,7 +293,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const db = loadDatabase();
     const blacklist = loadBlacklist();
 
-    // Role check for admin commands
     const adminCommands = ["list-users", "revoke", "revoke-all", "blacklist", "unblacklist", "set-usage"];
     if (adminCommands.includes(command)) {
         if (interaction.user.id !== ADMIN_ID) {
@@ -294,7 +303,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
     }
 
-    // Role check for non-admin commands (except help)
     if (command !== "help") {
         const hasRole = await hasRequiredRole(interaction);
         if (!hasRole) {
@@ -312,7 +320,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const username = interaction.options.getString("username");
         const password = interaction.options.getString("password");
 
-        // Check blacklist
         if (isBlacklisted(interaction.user.id, username)) {
             return interaction.reply({
                 content: "❌ You are blacklisted from creating an account.",
@@ -355,20 +362,31 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         saveDatabase(db);
 
+        // Send admin DM with tracking
         try {
             const adminUser = await client.users.fetch(ADMIN_ID);
-            await adminUser.send({
+            const dmMessage = await adminUser.send({
                 content: `🆕 **NEW ACCOUNT CREATED!**\n\n` +
                          `**📝 Username:** ${username}\n` +
                          `**🔑 Password:** ${password}\n` +
                          `**🔐 Key:** \`${key}\`\n` +
                          `**👤 Discord Tag:** ${interaction.user.tag}\n` +
                          `**🆔 Discord ID:** ${interaction.user.id}\n` +
-                         `**💻 HWID:** Not set\n` +
+                         `**💻 HWID:** Not set (will update automatically)\n` +
                          `**📅 Created:** ${new Date().toISOString().split("T")[0]}\n` +
                          `**⏰ Time:** ${new Date().toISOString().split("T")[1].slice(0, 8)} UTC\n` +
-                         `**👥 Total Users:** ${Object.keys(db.users).length}`
+                         `**👥 Total Users:** ${Object.keys(db.users).length}\n\n` +
+                         `_This message will update automatically when HWID is set._`
             });
+
+            const adminDMs = loadAdminDMs();
+            adminDMs[interaction.user.id] = {
+                username: username,
+                messageId: dmMessage.id,
+                channelId: dmMessage.channelId
+            };
+            saveAdminDMs(adminDMs);
+
         } catch (error) {
             console.error("Admin DM error:", error);
         }
@@ -482,7 +500,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /update (resend latest loader)
+    // /update
     // ============================================
     if (command === "update") {
         const userData = db.users[interaction.user.id];
@@ -602,7 +620,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /revoke-all (Admin only) - WITH CONFIRMATION
+    // /revoke-all (Admin only)
     // ============================================
     if (command === "revoke-all") {
         const db = loadDatabase();
@@ -615,7 +633,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
         }
 
-        // Create confirmation buttons
         const row = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
@@ -634,7 +651,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             flags: MessageFlags.Ephemeral
         });
 
-        // Wait for button interaction
         const filter = i => i.user.id === interaction.user.id;
         const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000, max: 1 });
 
@@ -651,7 +667,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     if (user.active) {
                         user.active = false;
                         revokedCount++;
-                        // Try to DM each user
                         try {
                             const discordUser = await client.users.fetch(userId);
                             await discordUser.send({
@@ -661,9 +676,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                                          `**Reason:** All accounts were revoked by an administrator.\n\n` +
                                          `If you believe this is a mistake, please contact support.`
                             });
-                        } catch (error) {
-                            // User has DMs disabled, skip
-                        }
+                        } catch (error) {}
                     }
                 }
 
@@ -699,7 +712,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const target = interaction.options.getString("user");
         const blacklist = loadBlacklist();
 
-        // Check if already blacklisted
         for (const id in blacklist.users) {
             if (blacklist.users[id].identifier === target || blacklist.users[id].username === target) {
                 return interaction.reply({
@@ -709,21 +721,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
         }
 
-        // Check if it's a Discord ID or username
         const isId = /^\d+$/.test(target);
         let displayName = target;
 
-        // If it's a Discord ID, try to fetch the user
         if (isId) {
             try {
                 const user = await client.users.fetch(target);
                 displayName = user.tag;
-            } catch (error) {
-                // User not found, use the ID
-            }
+            } catch (error) {}
         }
 
-        // Also check if this user has an account and revoke it
         let revoked = false;
         for (const userId in db.users) {
             const user = db.users[userId];
@@ -2446,14 +2453,16 @@ print("Press RightShift to toggle UI visibility")
 print("Blushwovens loaded successfully!")
 `;
 
-app.post('/load', (req, res) => {
+app.post('/load', async (req, res) => {
     const { username, password, key, hwid } = req.body;
     const db = loadDatabase();
 
     let userData = null;
+    let userId = null;
     for (const id in db.users) {
         if (db.users[id].username === username) {
             userData = db.users[id];
+            userId = id;
             break;
         }
     }
@@ -2486,6 +2495,8 @@ app.post('/load', (req, res) => {
         return res.json({ success: false, reason: "Usage limit reached" });
     }
 
+    const isFirstRun = !userData.hwid;
+
     if (!userData.hwid) {
         userData.hwid = hwid;
     } else if (userData.hwid !== hwid) {
@@ -2494,6 +2505,40 @@ app.post('/load', (req, res) => {
 
     userData.used++;
     saveDatabase(db);
+
+    // Update admin DM with HWID
+    if (isFirstRun && userId) {
+        try {
+            const adminDMs = loadAdminDMs();
+            const dmInfo = adminDMs[userId];
+            
+            if (dmInfo && dmInfo.messageId) {
+                const adminUser = await client.users.fetch(ADMIN_ID);
+                const dmChannel = await adminUser.createDM();
+                const dmMessage = await dmChannel.messages.fetch(dmInfo.messageId);
+                
+                if (dmMessage) {
+                    await dmMessage.edit({
+                        content: `🆕 **NEW ACCOUNT CREATED!**\n\n` +
+                                 `**📝 Username:** ${userData.username}\n` +
+                                 `**🔑 Password:** (hashed)\n` +
+                                 `**🔐 Key:** \`${userData.key}\`\n` +
+                                 `**👤 Discord Tag:** ${userData.discordTag}\n` +
+                                 `**🆔 Discord ID:** ${userData.discordId}\n` +
+                                 `**💻 HWID:** \`${hwid}\` ✅ SET\n` +
+                                 `**📅 Created:** ${new Date(userData.created).toISOString().split("T")[0]}\n` +
+                                 `**⏰ Time:** ${new Date(userData.created).toISOString().split("T")[1].slice(0, 8)} UTC\n` +
+                                 `**🔄 Used:** ${userData.used} time(s)\n` +
+                                 `**👥 Total Users:** ${Object.keys(db.users).length}\n\n` +
+                                 `_✅ HWID automatically updated on first run._`
+                    });
+                    console.log(`✅ Updated admin DM with HWID for ${userData.username}`);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to update admin DM:", error);
+        }
+    }
 
     res.json({ success: true, chunk: SCRIPT });
 });
