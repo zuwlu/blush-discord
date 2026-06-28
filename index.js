@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Slash Commands (FULL VERSION WITH LIST-USERS)
+// index.js - Discord Bot with Slash Commands (FULL VERSION)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -53,6 +53,9 @@ function generateKey() {
     return key;
 }
 
+// ============================================
+// ROLE CHECK (ENFORCED IN DMs)
+// ============================================
 async function hasRequiredRole(interaction) {
     try {
         let member = null;
@@ -72,6 +75,9 @@ async function hasRequiredRole(interaction) {
     }
 }
 
+// ============================================
+// LOADER SCRIPT (KEY REQUIRED)
+// ============================================
 function generateLoaderScript(username, password, serverUrl) {
     return `
 -- Blushwovens Loader (Key Required)
@@ -327,13 +333,41 @@ async function registerCommands() {
     }
 }
 
+// ============================================
+// ONE-TIME COMMAND REFRESH (CLEAR + RE-REGISTER)
+// ============================================
+async function clearAndRegisterCommands() {
+    try {
+        console.log('🔄 Clearing all existing commands...');
+        // Delete all global commands
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: [] }
+        );
+        console.log('✅ All commands cleared!');
+        
+        // Wait 2 seconds
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Re-register your commands
+        console.log('🔄 Re-registering commands...');
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands.map(cmd => cmd.toJSON()) }
+        );
+        console.log('✅ Commands re-registered successfully!');
+    } catch (error) {
+        console.error('❌ Error:', error);
+    }
+}
+
 client.once(Events.ClientReady, async () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);
     console.log(`📊 Database loaded from ${DB_PATH}`);
     console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
     console.log(`🏠 Guild ID: ${GUILD_ID}`);
     
-    await registerCommands();
+    await clearAndRegisterCommands(); // <-- Uses the one-time refresh
 });
 
 // ============================================
@@ -345,7 +379,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const command = interaction.commandName;
     const db = loadDatabase();
 
-    // Role check (except for help)
     if (command !== "help") {
         const hasRole = await hasRequiredRole(interaction);
         if (!hasRole) {
@@ -616,6 +649,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 const app = express();
 app.use(express.json());
 
+// ============================================
+// YOUR BLUSHWOVENS SCRIPT
+// ============================================
 const SCRIPT = `
 --[[
   CHANGED: Yellow toggle color to a warmer butter/gold that fits the cream/pink scheme.
@@ -2201,6 +2237,9 @@ print("Press RightShift to toggle UI visibility")
 print("Blushwovens loaded successfully!")
 `;
 
+// ============================================
+// API ENDPOINT
+// ============================================
 app.post('/load', (req, res) => {
     const { username, password, key, hwid } = req.body;
     const db = loadDatabase();
