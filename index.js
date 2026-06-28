@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Slash Commands (FULL VERSION)
+// index.js - Discord Bot with Slash Commands (FULL VERSION WITH LIST-USERS)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -19,7 +19,7 @@ const client = new Client({
 // CONFIGURATION
 // ============================================
 const REQUIRED_ROLE_ID = "1520668279335817226";
-const GUILD_ID = "1516943154840993792"; // <-- REPLACE WITH YOUR SERVER ID
+const GUILD_ID = "1516943154840993792";
 const ADMIN_ID = "1176388663320510535";
 const DB_PATH = "./database.json";
 
@@ -53,18 +53,13 @@ function generateKey() {
     return key;
 }
 
-// ============================================
-// ROLE CHECK (ENFORCED IN DMs)
-// ============================================
 async function hasRequiredRole(interaction) {
     try {
         let member = null;
         
-        // If the interaction is in a server, get the member from there
         if (interaction.guild) {
             member = await interaction.guild.members.fetch(interaction.user.id);
         } else {
-            // If in DMs, fetch the member from your main server
             const guild = await client.guilds.fetch(GUILD_ID);
             member = await guild.members.fetch(interaction.user.id);
         }
@@ -77,9 +72,6 @@ async function hasRequiredRole(interaction) {
     }
 }
 
-// ============================================
-// LOADER SCRIPT (KEY REQUIRED)
-// ============================================
 function generateLoaderScript(username, password, serverUrl) {
     return `
 -- Blushwovens Loader (Key Required)
@@ -88,7 +80,6 @@ local PASSWORD = "${password}"
 local HWID = game:GetService("RbxAnalyticsService"):GetClientId()
 local HttpService = game:GetService("HttpService")
 
--- Create a simple UI to ask for the key
 local function askForKey()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "KeyInput"
@@ -207,7 +198,6 @@ local function request(url, body)
     })
 end
 
--- Show the key input UI
 local ui = askForKey()
 local keyBox = ui.KeyBox
 local statusLabel = ui.StatusLabel
@@ -264,7 +254,6 @@ activateButton.MouseButton1Click:Connect(function()
     loadstring(data.chunk)()
 end)
 
--- Allow Enter key to activate
 local UserInputService = game:GetService("UserInputService")
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
@@ -543,7 +532,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
         }
 
-        // Split into chunks of 10 to avoid message length limits
         const chunks = [];
         for (let i = 0; i < userList.length; i += 10) {
             chunks.push(userList.slice(i, i + 10).join("\n"));
@@ -554,7 +542,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             flags: MessageFlags.Ephemeral
         });
 
-        // Send remaining chunks as follow-up messages
         for (let i = 1; i < chunks.length; i++) {
             await interaction.followUp({
                 content: chunks[i],
@@ -629,9 +616,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 const app = express();
 app.use(express.json());
 
-// ============================================
-// YOUR BLUSHWOVENS SCRIPT
-// ============================================
 const SCRIPT = `
 --[[
   CHANGED: Yellow toggle color to a warmer butter/gold that fits the cream/pink scheme.
@@ -2217,9 +2201,6 @@ print("Press RightShift to toggle UI visibility")
 print("Blushwovens loaded successfully!")
 `;
 
-// ============================================
-// API ENDPOINT
-// ============================================
 app.post('/load', (req, res) => {
     const { username, password, key, hwid } = req.body;
     const db = loadDatabase();
