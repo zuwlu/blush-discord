@@ -1,5 +1,5 @@
-// index.js - Discord Bot with Key System
-import { Client, GatewayIntentBits, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+// index.js - Discord Bot with Role Check and User-Specific Keys
+import { Client, GatewayIntentBits, Events, EmbedBuilder } from "discord.js";
 import express from "express";
 import fs from "fs";
 import crypto from "crypto";
@@ -9,15 +9,21 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.DirectMessages
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildMembers
     ]
 });
 
 // ============================================
-// DATABASE HANDLING (JSON File)
+// CONFIGURATION
 // ============================================
+const REQUIRED_ROLE_ID = "YOUR_ROLE_ID_HERE"; // Replace with your role ID
+const ADMIN_ID = "YOUR_DISCORD_ID_HERE"; // Replace with your Discord ID
 const DB_PATH = "./database.json";
 
+// ============================================
+// DATABASE HANDLING
+// ============================================
 function loadDatabase() {
     if (!fs.existsSync(DB_PATH)) {
         fs.writeFileSync(DB_PATH, JSON.stringify({ users: {}, keys: {} }, null, 2));
@@ -29,7 +35,6 @@ function saveDatabase(data) {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
 }
 
-// Generate a random key
 function generateKey() {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let key = "BLUSH-";
@@ -42,6 +47,11 @@ function generateKey() {
     return key;
 }
 
+function hasRequiredRole(member) {
+    if (!member) return false;
+    return member.roles.cache.has(REQUIRED_ROLE_ID);
+}
+
 // ============================================
 // DISCORD BOT COMMANDS
 // ============================================
@@ -49,6 +59,7 @@ function generateKey() {
 client.once(Events.ClientReady, () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);
     console.log(`📊 Database loaded from ${DB_PATH}`);
+    console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -58,6 +69,16 @@ client.on(Events.MessageCreate, async (message) => {
     const args = message.content.slice(1).trim().split(/ +/);
     const command = args.shift().toLowerCase();
     const db = loadDatabase();
+
+    // ============================================
+    // ROLE CHECK (except for help)
+    // ============================================
+    if (command !== "help") {
+        const member = message.guild?.members.cache.get(message.author.id);
+        if (!hasRequiredRole(member)) {
+            return message.reply(`❌ You need the <@&${REQUIRED_ROLE_ID}> role to use this command.`);
+        }
+    }
 
     // ============================================
     // !create account <username>
@@ -80,7 +101,7 @@ client.on(Events.MessageCreate, async (message) => {
             key: newKey,
             hwid: null,
             created: new Date().toISOString(),
-            expires: null, // null = never expires
+            expires: null,
             maxUses: 5,
             used: 0,
             active: true
@@ -93,7 +114,8 @@ client.on(Events.MessageCreate, async (message) => {
             expires: null,
             maxUses: 5,
             used: 0,
-            active: true
+            active: true,
+            hwid: null
         };
 
         saveDatabase(db);
@@ -184,11 +206,9 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     // ============================================
-    // !renew (admin only - extend key expiry)
+    // !renew key <key> <days> (admin only)
     // ============================================
     if (command === "renew" && args[0] === "key") {
-        // Admin check – replace with your Discord ID
-        const ADMIN_ID = "YOUR_DISCORD_ID_HERE";
         if (message.author.id !== ADMIN_ID) {
             return message.reply("❌ You don't have permission to use this command.");
         }
@@ -208,23 +228,20 @@ client.on(Events.MessageCreate, async (message) => {
         newExpiry.setDate(newExpiry.getDate() + days);
         keyData.expires = newExpiry.toISOString();
 
-        // Update user data too
         const userData = db.users[keyData.owner];
         if (userData) {
             userData.expires = keyData.expires;
         }
 
         saveDatabase(db);
-
-        await message.reply(`✅ Key \`${targetKey}\` renewed for ${days} days. New expiry: ${newExpiry.toISOString().split("T")[0]}`);
+        await message.reply(`✅ Key \`${targetKey}\` renewed for ${days} days.`);
         return;
     }
 
     // ============================================
-    // !revoke (admin only - disable a key)
+    // !revoke <key> (admin only)
     // ============================================
     if (command === "revoke") {
-        const ADMIN_ID = "YOUR_DISCORD_ID_HERE";
         if (message.author.id !== ADMIN_ID) {
             return message.reply("❌ You don't have permission to use this command.");
         }
@@ -260,7 +277,7 @@ client.on(Events.MessageCreate, async (message) => {
             .addFields(
                 { name: "!create account <username>", value: "Create a new account and generate your key", inline: false },
                 { name: "!account information", value: "View your account details and key status", inline: false },
-                { name: "!get key", value: "Display your key (without showing full account)", inline: false },
+                { name: "!get key", value: "Display your key", inline: false },
                 { name: "!reset hwid", value: "Reset your HWID to use the key on a new device", inline: false }
             )
             .setFooter({ text: "Admins: !renew key <key> <days> | !revoke <key>" });
@@ -271,9 +288,60 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 // ============================================
-// EXPRESS WEB SERVER (for Render)
+// EXPRESS WEB SERVER
 // ============================================
 const app = express();
+app.use(express.json());
+
+// ============================================
+// YOUR BLUSHWOVENS SCRIPT
+// ============================================
+const SCRIPT = `
+-- Paste your full Blushwovens script here
+print("Blushwovens loaded successfully!")
+`;
+
+// ============================================
+// API ENDPOINT FOR ROBLOX LOADER
+// ============================================
+app.post('/load', (req, res) => {
+    const { username, key, hwid } = req.body;
+    const db = loadDatabase();
+
+    const keyData = db.keys[key];
+    if (!keyData) {
+        return res.json({ success: false, reason: "Invalid key" });
+    }
+
+    if (!keyData.active) {
+        return res.json({ success: false, reason: "Key revoked" });
+    }
+
+    if (keyData.username !== username) {
+        return res.json({ success: false, reason: "Username mismatch" });
+    }
+
+    if (keyData.expires && new Date(keyData.expires) < new Date()) {
+        return res.json({ success: false, reason: "Key expired" });
+    }
+
+    if (keyData.maxUses > 0 && keyData.used >= keyData.maxUses) {
+        return res.json({ success: false, reason: "Usage limit reached" });
+    }
+
+    // HWID check
+    if (!keyData.hwid) {
+        keyData.hwid = hwid;
+    } else if (keyData.hwid !== hwid) {
+        return res.json({ success: false, reason: "HWID mismatch" });
+    }
+
+    keyData.used++;
+    saveDatabase(db);
+
+    res.json({ success: true, chunk: SCRIPT });
+});
+
 app.get('/', (req, res) => res.send('Discord Bot is running!'));
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Web server running on port ${port}`));
@@ -282,50 +350,3 @@ app.listen(port, () => console.log(`Web server running on port ${port}`));
 // LOGIN
 // ============================================
 client.login(process.env.TOKEN);
-
-// ============================================
-// API ENDPOINT FOR ROBLOX LOADER
-// ============================================
-app.post('/load', express.json(), (req, res) => {
-    const { username, key, hwid } = req.body;
-    const db = loadDatabase();
-    
-    const keyData = db.keys[key];
-    if (!keyData) {
-        return res.json({ success: false, reason: "Invalid key" });
-    }
-    
-    if (!keyData.active) {
-        return res.json({ success: false, reason: "Key revoked" });
-    }
-    
-    if (keyData.username !== username) {
-        return res.json({ success: false, reason: "Username mismatch" });
-    }
-    
-    if (keyData.expires && new Date(keyData.expires) < new Date()) {
-        return res.json({ success: false, reason: "Key expired" });
-    }
-    
-    if (keyData.maxUses > 0 && keyData.used >= keyData.maxUses) {
-        return res.json({ success: false, reason: "Usage limit reached" });
-    }
-    
-    // HWID check
-    if (keyData.hwid === "") {
-        keyData.hwid = hwid;
-    } else if (keyData.hwid !== hwid) {
-        return res.json({ success: false, reason: "HWID mismatch" });
-    }
-    
-    keyData.used++;
-    saveDatabase(db);
-    
-    // Load your actual Blushwovens script here
-    const SCRIPT = `
-        print("Blushwovens script loaded!")
-        -- Your full script goes here
-    `;
-    
-    res.json({ success: true, chunk: SCRIPT });
-});
