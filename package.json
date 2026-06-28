@@ -8,6 +8,6 @@
   "dependencies": {
     "discord.js": "^14.14.1",
     "express": "^4.18.2",
-    "googleapis": "^141.0.0"
+    "googleapis": "^173.0.0"
   }
 }
