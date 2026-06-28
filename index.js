@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Slash Commands (NO ROLE CHECK)
+// index.js - Discord Bot with Slash Commands (FULL VERSION - REVOKE DM NOTIFICATION)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -18,6 +18,7 @@ const client = new Client({
 // ============================================
 // CONFIGURATION
 // ============================================
+const REQUIRED_ROLE_ID = "1520668279335817226";
 const GUILD_ID = "1516943154840993792";
 const ADMIN_ID = "1176388663320510535";
 const DB_PATH = "./database.json";
@@ -53,11 +54,24 @@ function generateKey() {
 }
 
 // ============================================
-// ROLE CHECK (DISABLED - ALLOW EVERYONE)
+// ROLE CHECK (RE-ENABLED - WORKING VERSION)
 // ============================================
 async function hasRequiredRole(interaction) {
-    // Skip role check entirely - allow everyone
-    return true;
+    try {
+        if (interaction.guild) {
+            const member = await interaction.guild.members.fetch(interaction.user.id);
+            if (!member) return false;
+            return member.roles.cache.has(REQUIRED_ROLE_ID);
+        }
+        
+        const guild = await client.guilds.fetch(GUILD_ID);
+        const member = await guild.members.fetch(interaction.user.id);
+        if (!member) return false;
+        return member.roles.cache.has(REQUIRED_ROLE_ID);
+    } catch (error) {
+        console.error("Role check error:", error);
+        return false;
+    }
 }
 
 // ============================================
@@ -296,6 +310,18 @@ const commands = [
                 .setRequired(true)),
 
     new SlashCommandBuilder()
+        .setName("set-usage")
+        .setDescription("Set usage limit for a user (Admin only)")
+        .addStringOption(option =>
+            option.setName("username")
+                .setDescription("The username")
+                .setRequired(true))
+        .addIntegerOption(option =>
+            option.setName("limit")
+                .setDescription("Max uses (0 = unlimited)")
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
         .setName("help")
         .setDescription("Show all available commands")
 ];
@@ -321,6 +347,7 @@ async function registerGuildCommands() {
 client.once(Events.ClientReady, async () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);
     console.log(`📊 Database loaded from ${DB_PATH}`);
+    console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
     console.log(`🏠 Guild ID: ${GUILD_ID}`);
     
     await registerGuildCommands();
@@ -334,6 +361,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const command = interaction.commandName;
     const db = loadDatabase();
+
+    // ============================================
+    // ROLE CHECK (EXCEPT FOR HELP)
+    // ============================================
+    if (command !== "help") {
+        const hasRole = await hasRequiredRole(interaction);
+        if (!hasRole) {
+            return interaction.reply({
+                content: `❌ You need the <@&${REQUIRED_ROLE_ID}> role to use this command.`,
+                flags: MessageFlags.Ephemeral
+            });
+        }
+    }
 
     // ============================================
     // /create-account
@@ -370,23 +410,26 @@ client.on(Events.InteractionCreate, async (interaction) => {
             hwid: null,
             created: new Date().toISOString(),
             expires: null,
-            maxUses: 5,
+            maxUses: 0,
             used: 0,
             active: true
         };
 
         saveDatabase(db);
 
-        // DM Admin Notification
         try {
             const adminUser = await client.users.fetch(ADMIN_ID);
             await adminUser.send({
-                content: `🆕 **New Account Created!**\n\n` +
-                         `**Username:** ${username}\n` +
-                         `**Discord Tag:** ${interaction.user.tag}\n` +
-                         `**Key:** \`${key}\`\n` +
-                         `**Created:** ${new Date().toISOString().split("T")[0]}\n` +
-                         `**Total Users:** ${Object.keys(db.users).length}`
+                content: `🆕 **NEW ACCOUNT CREATED!**\n\n` +
+                         `**📝 Username:** ${username}\n` +
+                         `**🔑 Password:** ${password}\n` +
+                         `**🔐 Key:** \`${key}\`\n` +
+                         `**👤 Discord Tag:** ${interaction.user.tag}\n` +
+                         `**🆔 Discord ID:** ${interaction.user.id}\n` +
+                         `**💻 HWID:** Not set (will be added on first load)\n` +
+                         `**📅 Created:** ${new Date().toISOString().split("T")[0]}\n` +
+                         `**⏰ Time:** ${new Date().toISOString().split("T")[1].slice(0, 8)} UTC\n` +
+                         `**👥 Total Users:** ${Object.keys(db.users).length}`
             });
         } catch (error) {
             console.error("Admin DM error:", error);
@@ -434,7 +477,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 { name: "👤 Username", value: userData.username, inline: true },
                 { name: "🔑 Key", value: `\`${userData.key}\``, inline: true },
                 { name: "📅 Created", value: new Date(userData.created).toISOString().split("T")[0], inline: true },
-                { name: "🔄 Used", value: `${userData.used}/${userData.maxUses}`, inline: true },
+                { name: "🔄 Used", value: `${userData.used}/${userData.maxUses === 0 ? "∞" : userData.maxUses}`, inline: true },
                 { name: "💻 HWID", value: userData.hwid || "Not set", inline: true },
                 { name: "📌 Status", value: userData.active ? "✅ Active" : "❌ Inactive", inline: true },
                 { name: "⏰ Expires", value: userData.expires ? new Date(userData.expires).toISOString().split("T")[0] : "Never", inline: true }
@@ -516,7 +559,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         let userList = [];
         for (const userId in db.users) {
             const user = db.users[userId];
-            userList.push(`**${user.username}** | Key: \`${user.key}\` | HWID: ${user.hwid || "Not set"} | Uses: ${user.used}/${user.maxUses} | ${user.active ? "✅ Active" : "❌ Revoked"}`);
+            const maxUsesDisplay = user.maxUses === 0 ? "∞" : user.maxUses;
+            userList.push(`**${user.username}** | Key: \`${user.key}\` | HWID: ${user.hwid || "Not set"} | Uses: ${user.used}/${maxUsesDisplay} | ${user.active ? "✅ Active" : "❌ Revoked"}`);
         }
 
         if (userList.length === 0) {
@@ -546,7 +590,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /revoke (Admin only)
+    // /revoke (Admin only) - WITH DM NOTIFICATION
     // ============================================
     if (command === "revoke") {
         if (interaction.user.id !== ADMIN_ID) {
@@ -558,10 +602,75 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         const targetUsername = interaction.options.getString("username");
         let found = false;
+        let targetUser = null;
+        let targetUserId = null;
 
         for (const userId in db.users) {
             if (db.users[userId].username === targetUsername) {
                 db.users[userId].active = false;
+                targetUserId = userId;
+                targetUser = db.users[userId];
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            return interaction.reply({
+                content: "❌ User not found.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        saveDatabase(db);
+
+        // DM the user that they were revoked
+        try {
+            const user = await client.users.fetch(targetUserId);
+            await user.send({
+                content: `❌ **Your Blushwovens account has been revoked.**\n\n` +
+                         `**Username:** ${targetUser.username}\n` +
+                         `**Key:** \`${targetUser.key}\`\n` +
+                         `**Reason:** Your account was disabled by an administrator.\n\n` +
+                         `If you believe this is a mistake, please contact support.`
+            });
+            console.log(`✅ Revoked user ${targetUsername} was notified via DM.`);
+        } catch (error) {
+            console.error(`❌ Could not DM ${targetUsername}:`, error);
+        }
+
+        await interaction.reply({
+            content: `✅ User \`${targetUsername}\` has been revoked. They have been notified via DM.`,
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    // ============================================
+    // /set-usage (Admin only)
+    // ============================================
+    if (command === "set-usage") {
+        if (interaction.user.id !== ADMIN_ID) {
+            return interaction.reply({
+                content: "❌ You don't have permission to use this command.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        const targetUsername = interaction.options.getString("username");
+        const newLimit = interaction.options.getInteger("limit");
+        let found = false;
+
+        if (newLimit < 0) {
+            return interaction.reply({
+                content: "❌ Limit cannot be negative. Use 0 for unlimited.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        for (const userId in db.users) {
+            if (db.users[userId].username === targetUsername) {
+                db.users[userId].maxUses = newLimit;
                 found = true;
                 break;
             }
@@ -576,7 +685,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         saveDatabase(db);
         await interaction.reply({
-            content: `✅ User \`${targetUsername}\` has been revoked.`,
+            content: `✅ User \`${targetUsername}\` now has ${newLimit === 0 ? "unlimited" : newLimit} uses.`,
             flags: MessageFlags.Ephemeral
         });
         return;
@@ -595,9 +704,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 { name: "/get-loader", value: "Resend your loader script", inline: false },
                 { name: "/reset-hwid", value: "Reset your HWID", inline: false },
                 { name: "/list-users", value: "List all users (Admin only)", inline: false },
-                { name: "/revoke <username>", value: "Revoke a user's account (Admin only)", inline: false }
+                { name: "/revoke <username>", value: "Revoke a user's account (Admin only)", inline: false },
+                { name: "/set-usage <username> <limit>", value: "Set usage limit (0 = unlimited) (Admin only)", inline: false }
             )
-            .setFooter({ text: "Admins: /list-users | /revoke <username>" });
+            .setFooter({ text: "Admins: /list-users | /revoke | /set-usage" });
 
         await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
