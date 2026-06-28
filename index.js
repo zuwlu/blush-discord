@@ -282,3 +282,50 @@ app.listen(port, () => console.log(`Web server running on port ${port}`));
 // LOGIN
 // ============================================
 client.login(process.env.TOKEN);
+
+// ============================================
+// API ENDPOINT FOR ROBLOX LOADER
+// ============================================
+app.post('/load', express.json(), (req, res) => {
+    const { username, key, hwid } = req.body;
+    const db = loadDatabase();
+    
+    const keyData = db.keys[key];
+    if (!keyData) {
+        return res.json({ success: false, reason: "Invalid key" });
+    }
+    
+    if (!keyData.active) {
+        return res.json({ success: false, reason: "Key revoked" });
+    }
+    
+    if (keyData.username !== username) {
+        return res.json({ success: false, reason: "Username mismatch" });
+    }
+    
+    if (keyData.expires && new Date(keyData.expires) < new Date()) {
+        return res.json({ success: false, reason: "Key expired" });
+    }
+    
+    if (keyData.maxUses > 0 && keyData.used >= keyData.maxUses) {
+        return res.json({ success: false, reason: "Usage limit reached" });
+    }
+    
+    // HWID check
+    if (keyData.hwid === "") {
+        keyData.hwid = hwid;
+    } else if (keyData.hwid !== hwid) {
+        return res.json({ success: false, reason: "HWID mismatch" });
+    }
+    
+    keyData.used++;
+    saveDatabase(db);
+    
+    // Load your actual Blushwovens script here
+    const SCRIPT = `
+        print("Blushwovens script loaded!")
+        -- Your full script goes here
+    `;
+    
+    res.json({ success: true, chunk: SCRIPT });
+});
