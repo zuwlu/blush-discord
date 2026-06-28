@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Role Check and User-Specific Keys
+// index.js - Discord Bot with Account Creation and Loader Distribution
 import { Client, GatewayIntentBits, Events, EmbedBuilder } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -26,13 +26,17 @@ const DB_PATH = "./database.json";
 // ============================================
 function loadDatabase() {
     if (!fs.existsSync(DB_PATH)) {
-        fs.writeFileSync(DB_PATH, JSON.stringify({ users: {}, keys: {} }, null, 2));
+        fs.writeFileSync(DB_PATH, JSON.stringify({ users: {} }, null, 2));
     }
     return JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
 }
 
 function saveDatabase(data) {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+}
+
+function hashPassword(password) {
+    return crypto.createHash("sha256").update(password).digest("hex");
 }
 
 function generateKey() {
@@ -53,6 +57,43 @@ function hasRequiredRole(member) {
 }
 
 // ============================================
+// LOADER SCRIPT TEMPLATE
+// ============================================
+function generateLoaderScript(username, password, serverUrl) {
+    return `
+-- Blushwovens Loader
+local USERNAME = "${username}"
+local PASSWORD = "${password}"
+local HWID = game:GetService("RbxAnalyticsService"):GetClientId()
+local HttpService = game:GetService("HttpService")
+
+local function request(url, body)
+    local requestFunc = syn and syn.request or http and http.request or fluxus and fluxus.request
+    if not requestFunc then error("No HTTP request function found") end
+    return requestFunc({
+        Url = "${serverUrl}/load",
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/json" },
+        Body = HttpService:JSONEncode({ username = USERNAME, password = PASSWORD, hwid = HWID })
+    })
+end
+
+local ok, response = pcall(request)
+if not ok then error("Could not reach server.") end
+
+local data = HttpService:JSONDecode(response.Body)
+if not data.success then
+    if data.reason == "HWID mismatch" then
+        game:GetService("Players").LocalPlayer:Kick("Wrong device. Contact support to reset your HWID.")
+    end
+    error("Error: " .. (data.reason or "Unknown error"))
+end
+
+loadstring(data.chunk)()
+`;
+}
+
+// ============================================
 // DISCORD BOT COMMANDS
 // ============================================
 
@@ -70,9 +111,7 @@ client.on(Events.MessageCreate, async (message) => {
     const command = args.shift().toLowerCase();
     const db = loadDatabase();
 
-    // ============================================
-    // ROLE CHECK (except for help)
-    // ============================================
+    // Role check (except for help)
     if (command !== "help") {
         const member = message.guild?.members.cache.get(message.author.id);
         if (!hasRequiredRole(member)) {
@@ -81,24 +120,35 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     // ============================================
-    // !create account <username>
+    // !create account <username> <password>
     // ============================================
     if (command === "create" && args[0] === "account") {
         const username = args[1];
-        if (!username) {
-            return message.reply("❌ Usage: `!create account <username>`");
+        const password = args[2];
+        if (!username || !password) {
+            return message.reply("❌ Usage: `!create account <username> <password>`");
         }
 
         if (db.users[message.author.id]) {
             return message.reply("❌ You already have an account! Use `!account information` to view it.");
         }
 
-        const newKey = generateKey();
+        // Check if username is taken
+        for (const userId in db.users) {
+            if (db.users[userId].username === username) {
+                return message.reply("❌ That username is already taken. Please choose another.");
+            }
+        }
+
+        const hashedPassword = hashPassword(password);
+        const key = generateKey();
+
         db.users[message.author.id] = {
             username: username,
+            password: hashedPassword,
             discordId: message.author.id,
             discordTag: message.author.tag,
-            key: newKey,
+            key: key,
             hwid: null,
             created: new Date().toISOString(),
             expires: null,
@@ -107,32 +157,30 @@ client.on(Events.MessageCreate, async (message) => {
             active: true
         };
 
-        db.keys[newKey] = {
-            owner: message.author.id,
-            username: username,
-            created: new Date().toISOString(),
-            expires: null,
-            maxUses: 5,
-            used: 0,
-            active: true,
-            hwid: null
-        };
-
         saveDatabase(db);
 
-        const embed = new EmbedBuilder()
-            .setColor(0x00FF00)
-            .setTitle("✅ Account Created Successfully!")
-            .setDescription(`Welcome **${username}**!`)
-            .addFields(
-                { name: "🔑 Your Key", value: `\`${newKey}\``, inline: false },
-                { name: "📅 Created", value: new Date().toISOString().split("T")[0], inline: true },
-                { name: "🔄 Max Uses", value: "5", inline: true },
-                { name: "📌 Instructions", value: "Keep your key safe! Use `!account information` to view your details." }
-            )
-            .setFooter({ text: "Do not share your key with anyone!" });
+        // Generate the loader script
+        const serverUrl = process.env.SERVER_URL || "https://your-bot.onrender.com";
+        const loaderScript = generateLoaderScript(username, password, serverUrl);
 
-        await message.reply({ embeds: [embed] });
+        // Send the loader script to the user via DM
+        try {
+            await message.author.send({
+                content: "✅ **Account created successfully!**\n\nHere is your loader script. Copy this into your Roblox executor and run it:",
+                files: [{
+                    attachment: Buffer.from(loaderScript, "utf-8"),
+                    name: "loader.lua"
+                }]
+            });
+
+            // Also send the key as plain text
+            await message.author.send(`🔑 **Your key (keep this safe):** \`${key}\``);
+
+            await message.reply("✅ Account created! I've sent your loader script and key via DM.");
+        } catch (error) {
+            await message.reply("❌ I couldn't send you a DM. Please enable DMs from server members.");
+            console.error("DM error:", error);
+        }
         return;
     }
 
@@ -142,7 +190,7 @@ client.on(Events.MessageCreate, async (message) => {
     if (command === "account" && args[0] === "information") {
         const userData = db.users[message.author.id];
         if (!userData) {
-            return message.reply("❌ You don't have an account. Use `!create account <username>` to create one.");
+            return message.reply("❌ You don't have an account. Use `!create account <username> <password>` to create one.");
         }
 
         const embed = new EmbedBuilder()
@@ -173,9 +221,6 @@ client.on(Events.MessageCreate, async (message) => {
         }
 
         userData.hwid = null;
-        if (db.keys[userData.key]) {
-            db.keys[userData.key].hwid = null;
-        }
         saveDatabase(db);
 
         await message.reply("✅ Your HWID has been reset. You can now use your key on a new device.");
@@ -183,87 +228,60 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     // ============================================
-    // !get key
+    // !get loader (resend the loader script)
     // ============================================
-    if (command === "get" && args[0] === "key") {
+    if (command === "get" && args[0] === "loader") {
         const userData = db.users[message.author.id];
         if (!userData) {
-            return message.reply("❌ You don't have an account. Use `!create account <username>` first.");
+            return message.reply("❌ You don't have an account. Use `!create account <username> <password>` first.");
         }
 
-        const embed = new EmbedBuilder()
-            .setColor(0xFFD700)
-            .setTitle("🔑 Your Key")
-            .setDescription(`\`${userData.key}\``)
-            .addFields(
-                { name: "📌 Usage", value: `${userData.used}/${userData.maxUses} uses remaining`, inline: true },
-                { name: "💻 HWID", value: userData.hwid || "Not set", inline: true }
-            )
-            .setFooter({ text: "Keep this key private! Do not share it." });
+        const serverUrl = process.env.SERVER_URL || "https://your-bot.onrender.com";
+        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl);
 
-        await message.reply({ embeds: [embed] });
+        try {
+            await message.author.send({
+                content: "📥 **Here's your loader script:**",
+                files: [{
+                    attachment: Buffer.from(loaderScript, "utf-8"),
+                    name: "loader.lua"
+                }]
+            });
+            await message.reply("✅ I've sent your loader script via DM.");
+        } catch (error) {
+            await message.reply("❌ I couldn't send you a DM. Please enable DMs from server members.");
+        }
         return;
     }
 
     // ============================================
-    // !renew key <key> <days> (admin only)
-    // ============================================
-    if (command === "renew" && args[0] === "key") {
-        if (message.author.id !== ADMIN_ID) {
-            return message.reply("❌ You don't have permission to use this command.");
-        }
-
-        const targetKey = args[1];
-        if (!targetKey) {
-            return message.reply("❌ Usage: `!renew key <key> <days>`");
-        }
-
-        const days = parseInt(args[2]) || 30;
-        const keyData = db.keys[targetKey];
-        if (!keyData) {
-            return message.reply("❌ Key not found.");
-        }
-
-        const newExpiry = new Date();
-        newExpiry.setDate(newExpiry.getDate() + days);
-        keyData.expires = newExpiry.toISOString();
-
-        const userData = db.users[keyData.owner];
-        if (userData) {
-            userData.expires = keyData.expires;
-        }
-
-        saveDatabase(db);
-        await message.reply(`✅ Key \`${targetKey}\` renewed for ${days} days.`);
-        return;
-    }
-
-    // ============================================
-    // !revoke <key> (admin only)
+    // !revoke <username> (admin only)
     // ============================================
     if (command === "revoke") {
         if (message.author.id !== ADMIN_ID) {
             return message.reply("❌ You don't have permission to use this command.");
         }
 
-        const targetKey = args[0];
-        if (!targetKey) {
-            return message.reply("❌ Usage: `!revoke <key>`");
+        const targetUsername = args[0];
+        if (!targetUsername) {
+            return message.reply("❌ Usage: `!revoke <username>`");
         }
 
-        const keyData = db.keys[targetKey];
-        if (!keyData) {
-            return message.reply("❌ Key not found.");
+        let found = false;
+        for (const userId in db.users) {
+            if (db.users[userId].username === targetUsername) {
+                db.users[userId].active = false;
+                found = true;
+                break;
+            }
         }
 
-        keyData.active = false;
-        const userData = db.users[keyData.owner];
-        if (userData) {
-            userData.active = false;
+        if (!found) {
+            return message.reply("❌ User not found.");
         }
+
         saveDatabase(db);
-
-        await message.reply(`✅ Key \`${targetKey}\` has been revoked.`);
+        await message.reply(`✅ User \`${targetUsername}\` has been revoked.`);
         return;
     }
 
@@ -275,12 +293,12 @@ client.on(Events.MessageCreate, async (message) => {
             .setColor(0x00FF00)
             .setTitle("📚 Available Commands")
             .addFields(
-                { name: "!create account <username>", value: "Create a new account and generate your key", inline: false },
-                { name: "!account information", value: "View your account details and key status", inline: false },
-                { name: "!get key", value: "Display your key", inline: false },
-                { name: "!reset hwid", value: "Reset your HWID to use the key on a new device", inline: false }
+                { name: "!create account <username> <password>", value: "Create an account and get your loader script", inline: false },
+                { name: "!account information", value: "View your account details", inline: false },
+                { name: "!get loader", value: "Resend your loader script", inline: false },
+                { name: "!reset hwid", value: "Reset your HWID", inline: false }
             )
-            .setFooter({ text: "Admins: !renew key <key> <days> | !revoke <key>" });
+            .setFooter({ text: "Admins: !revoke <username>" });
 
         await message.reply({ embeds: [embed] });
         return;
@@ -1885,38 +1903,49 @@ print("Blushwovens loaded successfully!")
 // API ENDPOINT FOR ROBLOX LOADER
 // ============================================
 app.post('/load', (req, res) => {
-    const { username, key, hwid } = req.body;
+    const { username, password, hwid } = req.body;
     const db = loadDatabase();
 
-    const keyData = db.keys[key];
-    if (!keyData) {
-        return res.json({ success: false, reason: "Invalid key" });
+    // Find user by username
+    let userData = null;
+    let userId = null;
+    for (const id in db.users) {
+        if (db.users[id].username === username) {
+            userData = db.users[id];
+            userId = id;
+            break;
+        }
     }
 
-    if (!keyData.active) {
-        return res.json({ success: false, reason: "Key revoked" });
+    if (!userData) {
+        return res.json({ success: false, reason: "User not found" });
     }
 
-    if (keyData.username !== username) {
-        return res.json({ success: false, reason: "Username mismatch" });
+    // Check password
+    if (hashPassword(password) !== userData.password) {
+        return res.json({ success: false, reason: "Invalid password" });
     }
 
-    if (keyData.expires && new Date(keyData.expires) < new Date()) {
-        return res.json({ success: false, reason: "Key expired" });
+    if (!userData.active) {
+        return res.json({ success: false, reason: "Account revoked" });
     }
 
-    if (keyData.maxUses > 0 && keyData.used >= keyData.maxUses) {
+    if (userData.expires && new Date(userData.expires) < new Date()) {
+        return res.json({ success: false, reason: "Account expired" });
+    }
+
+    if (userData.maxUses > 0 && userData.used >= userData.maxUses) {
         return res.json({ success: false, reason: "Usage limit reached" });
     }
 
     // HWID check
-    if (!keyData.hwid) {
-        keyData.hwid = hwid;
-    } else if (keyData.hwid !== hwid) {
+    if (!userData.hwid) {
+        userData.hwid = hwid;
+    } else if (userData.hwid !== hwid) {
         return res.json({ success: false, reason: "HWID mismatch" });
     }
 
-    keyData.used++;
+    userData.used++;
     saveDatabase(db);
 
     res.json({ success: true, chunk: SCRIPT });
