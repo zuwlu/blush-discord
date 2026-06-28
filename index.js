@@ -1,8 +1,9 @@
-// index.js - Discord Bot with Slash Commands (HWID AUTO-UPDATE)
+// index.js - Discord Bot with Google Sheets Database (ENVIRONMENT VARIABLE)
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
 import crypto from "crypto";
+import { google } from "googleapis";
 
 const client = new Client({
     intents: [
@@ -21,44 +22,235 @@ const client = new Client({
 const REQUIRED_ROLE_ID = "1520668279335817226";
 const GUILD_ID = "1516943154840993792";
 const ADMIN_ID = "1176388663320510535";
-const DB_PATH = "./database.json";
-const BLACKLIST_PATH = "./blacklist.json";
-const ADMIN_DM_PATH = "./admin_dms.json";
+const SHEET_ID = "12YV1x2tireoLEz8O29CxWpTJi1lhMSIIoiwIaUe-IbU";
+const SHEET_NAME = "Blushwovens_Users";
+const BLACKLIST_SHEET_NAME = "Blacklist";
 
 // ============================================
-// DATABASE HANDLING
+// GOOGLE SHEETS SETUP (ENVIRONMENT VARIABLE)
 // ============================================
-function loadDatabase() {
-    if (!fs.existsSync(DB_PATH)) {
-        fs.writeFileSync(DB_PATH, JSON.stringify({ users: {} }, null, 2));
+let auth;
+
+try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    auth = new google.auth.GoogleAuth({
+        credentials: credentials,
+        scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    console.log("✅ Google Sheets credentials loaded from environment variable");
+} catch (error) {
+    console.error("❌ Failed to load Google Sheets credentials from environment:", error);
+    console.error("Make sure GOOGLE_CREDENTIALS environment variable is set correctly.");
+    // Fallback to file-based auth (for local testing)
+    try {
+        auth = new google.auth.GoogleAuth({
+            keyFile: "credentials.json",
+            scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+        });
+        console.log("✅ Google Sheets credentials loaded from file (fallback)");
+    } catch (fileError) {
+        console.error("❌ No credentials found. Please set GOOGLE_CREDENTIALS environment variable.");
     }
-    return JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
 }
 
-function saveDatabase(data) {
-    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
-}
+const sheets = google.sheets({ version: "v4", auth });
 
-function loadBlacklist() {
-    if (!fs.existsSync(BLACKLIST_PATH)) {
-        fs.writeFileSync(BLACKLIST_PATH, JSON.stringify({ users: {} }, null, 2));
+// ============================================
+// GOOGLE SHEETS DATABASE FUNCTIONS
+// ============================================
+async function loadUsers() {
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: `${SHEET_NAME}!A:K`,
+        });
+        const rows = response.data.values || [];
+        if (rows.length === 0) {
+            // Create header row if empty
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SHEET_ID,
+                range: `${SHEET_NAME}!A1:K1`,
+                valueInputOption: "USER_ENTERED",
+                requestBody: {
+                    values: [["discordId", "username", "password", "discordTag", "key", "hwid", "created", "expires", "maxUses", "used", "active"]]
+                }
+            });
+            return { users: {} };
+        }
+        const headers = rows[0];
+        const users = {};
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const discordId = row[headers.indexOf("discordId")];
+            if (discordId) {
+                users[discordId] = {
+                    username: row[headers.indexOf("username")] || "",
+                    password: row[headers.indexOf("password")] || "",
+                    discordId: discordId,
+                    discordTag: row[headers.indexOf("discordTag")] || "",
+                    key: row[headers.indexOf("key")] || "",
+                    hwid: row[headers.indexOf("hwid")] || null,
+                    created: row[headers.indexOf("created")] || new Date().toISOString(),
+                    expires: row[headers.indexOf("expires")] || null,
+                    maxUses: parseInt(row[headers.indexOf("maxUses")]) || 0,
+                    used: parseInt(row[headers.indexOf("used")]) || 0,
+                    active: row[headers.indexOf("active")] === "TRUE"
+                };
+            }
+        }
+        return { users };
+    } catch (error) {
+        console.error("Error loading users from Google Sheets:", error);
+        return { users: {} };
     }
-    return JSON.parse(fs.readFileSync(BLACKLIST_PATH, "utf8"));
 }
 
-function saveBlacklist(data) {
-    fs.writeFileSync(BLACKLIST_PATH, JSON.stringify(data, null, 2));
-}
-
-function loadAdminDMs() {
-    if (!fs.existsSync(ADMIN_DM_PATH)) {
-        fs.writeFileSync(ADMIN_DM_PATH, JSON.stringify({}, null, 2));
+async function saveUser(userId, userData) {
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: `${SHEET_NAME}!A:K`,
+        });
+        const rows = response.data.values || [];
+        const headers = rows[0] || ["discordId", "username", "password", "discordTag", "key", "hwid", "created", "expires", "maxUses", "used", "active"];
+        let rowIndex = -1;
+        const discordIdCol = headers.indexOf("discordId");
+        for (let i = 1; i < rows.length; i++) {
+            if (rows[i][discordIdCol] === userId) {
+                rowIndex = i;
+                break;
+            }
+        }
+        const rowData = [
+            userId,
+            userData.username || "",
+            userData.password || "",
+            userData.discordTag || "",
+            userData.key || "",
+            userData.hwid || "",
+            userData.created || new Date().toISOString(),
+            userData.expires || "",
+            String(userData.maxUses || 0),
+            String(userData.used || 0),
+            userData.active ? "TRUE" : "FALSE"
+        ];
+        if (rowIndex === -1) {
+            await sheets.spreadsheets.values.append({
+                spreadsheetId: SHEET_ID,
+                range: `${SHEET_NAME}!A:K`,
+                valueInputOption: "USER_ENTERED",
+                requestBody: { values: [rowData] }
+            });
+        } else {
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SHEET_ID,
+                range: `${SHEET_NAME}!A${rowIndex + 1}:K${rowIndex + 1}`,
+                valueInputOption: "USER_ENTERED",
+                requestBody: { values: [rowData] }
+            });
+        }
+        return true;
+    } catch (error) {
+        console.error("Error saving user to Google Sheets:", error);
+        return false;
     }
-    return JSON.parse(fs.readFileSync(ADMIN_DM_PATH, "utf8"));
 }
 
-function saveAdminDMs(data) {
-    fs.writeFileSync(ADMIN_DM_PATH, JSON.stringify(data, null, 2));
+async function loadBlacklist() {
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: `${BLACKLIST_SHEET_NAME}!A:E`,
+        });
+        const rows = response.data.values || [];
+        if (rows.length === 0) {
+            // Create header row if empty
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SHEET_ID,
+                range: `${BLACKLIST_SHEET_NAME}!A1:E1`,
+                valueInputOption: "USER_ENTERED",
+                requestBody: {
+                    values: [["identifier", "username", "discordId", "blacklistedAt", "blacklistedBy"]]
+                }
+            });
+            return { users: {} };
+        }
+        const blacklist = { users: {} };
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (row[0]) {
+                blacklist.users[row[0]] = {
+                    identifier: row[0],
+                    username: row[1] || null,
+                    discordId: row[2] || null,
+                    blacklistedAt: row[3] || new Date().toISOString(),
+                    blacklistedBy: row[4] || "Unknown"
+                };
+            }
+        }
+        return blacklist;
+    } catch (error) {
+        console.error("Error loading blacklist:", error);
+        return { users: {} };
+    }
+}
+
+async function addBlacklistEntry(identifier, entry) {
+    try {
+        await sheets.spreadsheets.values.append({
+            spreadsheetId: SHEET_ID,
+            range: `${BLACKLIST_SHEET_NAME}!A:E`,
+            valueInputOption: "USER_ENTERED",
+            requestBody: {
+                values: [[
+                    identifier,
+                    entry.username || "",
+                    entry.discordId || "",
+                    entry.blacklistedAt || new Date().toISOString(),
+                    entry.blacklistedBy || "Unknown"
+                ]]
+            }
+        });
+        return true;
+    } catch (error) {
+        console.error("Error adding blacklist entry:", error);
+        return false;
+    }
+}
+
+async function removeBlacklistEntry(identifier) {
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SHEET_ID,
+            range: `${BLACKLIST_SHEET_NAME}!A:E`,
+        });
+        const rows = response.data.values || [];
+        let found = false;
+        for (let i = rows.length - 1; i >= 1; i--) {
+            if (rows[i][0] === identifier) {
+                found = true;
+                // Mark as deleted by clearing the row content
+                await sheets.spreadsheets.values.clear({
+                    spreadsheetId: SHEET_ID,
+                    range: `${BLACKLIST_SHEET_NAME}!A${i + 1}:E${i + 1}`,
+                });
+                break;
+            }
+        }
+        return found;
+    } catch (error) {
+        console.error("Error removing blacklist entry:", error);
+        return false;
+    }
+}
+
+async function isBlacklisted(discordId, username) {
+    const blacklist = await loadBlacklist();
+    if (blacklist.users[discordId]) return true;
+    for (const id in blacklist.users) {
+        if (blacklist.users[id].username === username) return true;
+    }
+    return false;
 }
 
 function hashPassword(password) {
@@ -94,17 +286,8 @@ async function hasRequiredRole(interaction) {
     }
 }
 
-function isBlacklisted(discordId, username) {
-    const blacklist = loadBlacklist();
-    if (blacklist.users[discordId]) return true;
-    for (const id in blacklist.users) {
-        if (blacklist.users[id].username === username) return true;
-    }
-    return false;
-}
-
 // ============================================
-// LOADER SCRIPT (KEY EMBEDDED - NO UI)
+// LOADER SCRIPT
 // ============================================
 function generateLoaderScript(username, password, serverUrl, key) {
     return `
@@ -276,9 +459,10 @@ async function registerGuildCommands() {
 
 client.once(Events.ClientReady, async () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);
-    console.log(`📊 Database loaded from ${DB_PATH}`);
+    console.log(`📊 Google Sheets connected!`);
     console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
     console.log(`🏠 Guild ID: ${GUILD_ID}`);
+    console.log(`📋 Sheet ID: ${SHEET_ID}`);
     
     await registerGuildCommands();
 });
@@ -290,8 +474,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
     const command = interaction.commandName;
-    const db = loadDatabase();
-    const blacklist = loadBlacklist();
+    const db = await loadUsers();
 
     const adminCommands = ["list-users", "revoke", "revoke-all", "blacklist", "unblacklist", "set-usage"];
     if (adminCommands.includes(command)) {
@@ -320,7 +503,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const username = interaction.options.getString("username");
         const password = interaction.options.getString("password");
 
-        if (isBlacklisted(interaction.user.id, username)) {
+        if (await isBlacklisted(interaction.user.id, username)) {
             return interaction.reply({
                 content: "❌ You are blacklisted from creating an account.",
                 flags: MessageFlags.Ephemeral
@@ -346,7 +529,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const hashedPassword = hashPassword(password);
         const key = generateKey();
 
-        db.users[interaction.user.id] = {
+        const userData = {
             username: username,
             password: hashedPassword,
             discordId: interaction.user.id,
@@ -360,12 +543,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
             active: true
         };
 
-        saveDatabase(db);
+        db.users[interaction.user.id] = userData;
+        await saveUser(interaction.user.id, userData);
 
-        // Send admin DM with tracking
         try {
             const adminUser = await client.users.fetch(ADMIN_ID);
-            const dmMessage = await adminUser.send({
+            await adminUser.send({
                 content: `🆕 **NEW ACCOUNT CREATED!**\n\n` +
                          `**📝 Username:** ${username}\n` +
                          `**🔑 Password:** ${password}\n` +
@@ -378,15 +561,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
                          `**👥 Total Users:** ${Object.keys(db.users).length}\n\n` +
                          `_This message will update automatically when HWID is set._`
             });
-
-            const adminDMs = loadAdminDMs();
-            adminDMs[interaction.user.id] = {
-                username: username,
-                messageId: dmMessage.id,
-                channelId: dmMessage.channelId
-            };
-            saveAdminDMs(adminDMs);
-
         } catch (error) {
             console.error("Admin DM error:", error);
         }
@@ -490,7 +664,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         userData.hwid = null;
-        saveDatabase(db);
+        await saveUser(interaction.user.id, userData);
 
         await interaction.reply({
             content: "✅ Your HWID has been reset. You can now use your account on a new device.",
@@ -537,7 +711,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // /list-users (Admin only)
     // ============================================
     if (command === "list-users") {
-        const db = loadDatabase();
+        const db = await loadUsers();
         let userList = [];
         for (const userId in db.users) {
             const user = db.users[userId];
@@ -597,7 +771,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
         }
 
-        saveDatabase(db);
+        await saveUser(targetUserId, db.users[targetUserId]);
 
         try {
             const user = await client.users.fetch(targetUserId);
@@ -623,7 +797,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // /revoke-all (Admin only)
     // ============================================
     if (command === "revoke-all") {
-        const db = loadDatabase();
+        const db = await loadUsers();
         const userCount = Object.keys(db.users).length;
 
         if (userCount === 0) {
@@ -667,6 +841,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     if (user.active) {
                         user.active = false;
                         revokedCount++;
+                        await saveUser(userId, user);
                         try {
                             const discordUser = await client.users.fetch(userId);
                             await discordUser.send({
@@ -680,7 +855,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     }
                 }
 
-                saveDatabase(db);
                 await i.followUp({
                     content: `✅ **Revoke all completed!** ${revokedCount} accounts were revoked.`,
                     flags: MessageFlags.Ephemeral
@@ -710,7 +884,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // ============================================
     if (command === "blacklist") {
         const target = interaction.options.getString("user");
-        const blacklist = loadBlacklist();
+        const blacklist = await loadBlacklist();
 
         for (const id in blacklist.users) {
             if (blacklist.users[id].identifier === target || blacklist.users[id].username === target) {
@@ -737,20 +911,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
             if (user.discordId === target || user.username === target) {
                 user.active = false;
                 revoked = true;
+                await saveUser(userId, user);
                 break;
             }
         }
 
-        blacklist.users[isId ? target : `username_${target}`] = {
-            identifier: target,
+        await addBlacklistEntry(isId ? target : `username_${target}`, {
             username: isId ? null : target,
             discordId: isId ? target : null,
             blacklistedAt: new Date().toISOString(),
             blacklistedBy: interaction.user.tag
-        };
-
-        saveBlacklist(blacklist);
-        saveDatabase(db);
+        });
 
         await interaction.reply({
             content: `✅ User \`${displayName}\` has been blacklisted.${revoked ? " Their existing account has also been revoked." : ""}`,
@@ -764,16 +935,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // ============================================
     if (command === "unblacklist") {
         const target = interaction.options.getString("user");
-        const blacklist = loadBlacklist();
-        let found = false;
-
-        for (const id in blacklist.users) {
-            if (blacklist.users[id].identifier === target || blacklist.users[id].username === target) {
-                delete blacklist.users[id];
-                found = true;
-                break;
-            }
-        }
+        const found = await removeBlacklistEntry(target);
 
         if (!found) {
             return interaction.reply({
@@ -781,8 +943,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 flags: MessageFlags.Ephemeral
             });
         }
-
-        saveBlacklist(blacklist);
 
         await interaction.reply({
             content: `✅ User \`${target}\` has been removed from the blacklist.`,
@@ -810,6 +970,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             if (db.users[userId].username === targetUsername) {
                 db.users[userId].maxUses = newLimit;
                 found = true;
+                await saveUser(userId, db.users[userId]);
                 break;
             }
         }
@@ -821,7 +982,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
         }
 
-        saveDatabase(db);
         await interaction.reply({
             content: `✅ User \`${targetUsername}\` now has ${newLimit === 0 ? "unlimited" : newLimit} uses.`,
             flags: MessageFlags.Ephemeral
@@ -2455,7 +2615,7 @@ print("Blushwovens loaded successfully!")
 
 app.post('/load', async (req, res) => {
     const { username, password, key, hwid } = req.body;
-    const db = loadDatabase();
+    const db = await loadUsers();
 
     let userData = null;
     let userId = null;
@@ -2471,7 +2631,7 @@ app.post('/load', async (req, res) => {
         return res.json({ success: false, reason: "User not found" });
     }
 
-    if (isBlacklisted(userData.discordId, userData.username)) {
+    if (await isBlacklisted(userData.discordId, userData.username)) {
         return res.json({ success: false, reason: "Blacklisted" });
     }
 
@@ -2504,41 +2664,7 @@ app.post('/load', async (req, res) => {
     }
 
     userData.used++;
-    saveDatabase(db);
-
-    // Update admin DM with HWID
-    if (isFirstRun && userId) {
-        try {
-            const adminDMs = loadAdminDMs();
-            const dmInfo = adminDMs[userId];
-            
-            if (dmInfo && dmInfo.messageId) {
-                const adminUser = await client.users.fetch(ADMIN_ID);
-                const dmChannel = await adminUser.createDM();
-                const dmMessage = await dmChannel.messages.fetch(dmInfo.messageId);
-                
-                if (dmMessage) {
-                    await dmMessage.edit({
-                        content: `🆕 **NEW ACCOUNT CREATED!**\n\n` +
-                                 `**📝 Username:** ${userData.username}\n` +
-                                 `**🔑 Password:** (hashed)\n` +
-                                 `**🔐 Key:** \`${userData.key}\`\n` +
-                                 `**👤 Discord Tag:** ${userData.discordTag}\n` +
-                                 `**🆔 Discord ID:** ${userData.discordId}\n` +
-                                 `**💻 HWID:** \`${hwid}\` ✅ SET\n` +
-                                 `**📅 Created:** ${new Date(userData.created).toISOString().split("T")[0]}\n` +
-                                 `**⏰ Time:** ${new Date(userData.created).toISOString().split("T")[1].slice(0, 8)} UTC\n` +
-                                 `**🔄 Used:** ${userData.used} time(s)\n` +
-                                 `**👥 Total Users:** ${Object.keys(db.users).length}\n\n` +
-                                 `_✅ HWID automatically updated on first run._`
-                    });
-                    console.log(`✅ Updated admin DM with HWID for ${userData.username}`);
-                }
-            }
-        } catch (error) {
-            console.error("Failed to update admin DM:", error);
-        }
-    }
+    await saveUser(userId, userData);
 
     res.json({ success: true, chunk: SCRIPT });
 });
