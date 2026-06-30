@@ -1,4 +1,5 @@
 // index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH SCRIPTS)
+// WARNING: Passwords are stored in PLAIN TEXT in the Google Sheet
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -54,7 +55,7 @@ try {
 const sheets = google.sheets({ version: "v4", auth });
 
 // ============================================
-// GOOGLE SHEETS DATABASE FUNCTIONS (FIXED)
+// GOOGLE SHEETS DATABASE FUNCTIONS
 // ============================================
 const COLUMNS = {
     discordId: 0,
@@ -99,7 +100,7 @@ async function loadUsers() {
                 users[discordId] = {
                     discordId: discordId,
                     username: row[1] || "",
-                    password: row[2] || "",
+                    password: row[2] || "", // Now stores PLAIN password
                     discordTag: row[3] || "",
                     key: row[4] || "",
                     hwid: row[5] || null,
@@ -124,7 +125,7 @@ async function saveUser(userId, userData) {
         const rowData = [
             userId || "",
             userData.username || "",
-            userData.password || "",
+            userData.password || "", // Stores PLAIN password
             userData.discordTag || "",
             userData.key || "",
             userData.hwid || "",
@@ -265,25 +266,6 @@ async function isBlacklisted(discordId, username) {
         if (blacklist.users[id].username === username) return true;
     }
     return false;
-}
-
-// ============================================
-// SECURE PASSWORD CACHE (in-memory only)
-// ============================================
-// This stores plain passwords ONLY while the bot is running
-// They are never saved to disk or Google Sheets
-const passwordCache = new Map();
-
-function cachePlainPassword(discordId, plainPassword) {
-    passwordCache.set(discordId, plainPassword);
-    // Auto-expire after 1 hour (3600000 ms)
-    setTimeout(() => {
-        passwordCache.delete(discordId);
-    }, 3600000);
-}
-
-function getPlainPassword(discordId) {
-    return passwordCache.get(discordId) || null;
 }
 
 // ============================================
@@ -6006,9 +5988,8 @@ print("Press RightShift to toggle UI visibility")
     `
 };
 
-function hashPassword(password) {
-    return crypto.createHash("sha256").update(password).digest("hex");
-}
+// REMOVED hashPassword function - no longer needed
+// REMOVED cache system - no longer needed
 
 function generateKey() {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -6040,14 +6021,14 @@ async function hasRequiredRole(interaction) {
 }
 
 // ============================================
-// LOADER SCRIPT (USES PLAIN PASSWORD FROM CACHE)
+// LOADER SCRIPT (NOW USES PLAIN PASSWORD FROM SHEET)
 // ============================================
-function generateLoaderScript(username, plainPassword, serverUrl, key, version) {
+function generateLoaderScript(username, password, serverUrl, key, version) {
     const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
     return `
 -- Blushwovens Loader (Key Embedded - No UI)
 local USERNAME = "${username}"
-local PASSWORD = "${plainPassword}"
+local PASSWORD = "${password}"  -- PLAIN PASSWORD from sheet
 local KEY = "${key}"
 local HWID = game:GetService("RbxAnalyticsService"):GetClientId()
 local HttpService = game:GetService("HttpService")
@@ -6291,7 +6272,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     // ============================================
-    // /create-account (FIXED - caches plain password)
+    // /create-account (STORES PLAIN PASSWORD IN SHEET)
     // ============================================
     if (command === "create-account") {
         const username = interaction.options.getString("username");
@@ -6321,12 +6302,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
         }
 
-        const hashedPassword = hashPassword(password);
         const key = generateKey();
 
         const userData = {
             username: username,
-            password: hashedPassword,
+            password: password, // PLAIN PASSWORD - STORED IN SHEET
             discordId: interaction.user.id,
             discordTag: interaction.user.tag,
             key: key,
@@ -6341,9 +6321,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         db.users[interaction.user.id] = userData;
         await saveUser(interaction.user.id, userData);
-
-        // Cache the plain password for loader generation (expires in 1 hour)
-        cachePlainPassword(interaction.user.id, password);
 
         try {
             const adminUser = await client.users.fetch(ADMIN_ID);
@@ -6418,7 +6395,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /get-loader (FIXED - uses cached plain password)
+    // /get-loader (NOW USES PLAIN PASSWORD FROM SHEET)
     // ============================================
     if (command === "get-loader") {
         const userData = db.users[interaction.user.id];
@@ -6431,21 +6408,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         const version = userData.version || "regular";
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
-        
-        // Get plain password from cache
-        let plainPassword = getPlainPassword(interaction.user.id);
-        
-        // If not in cache, try to get it from the user (they'll need to re-enter it)
-        if (!plainPassword) {
-            // Send a follow-up asking for password
-            await interaction.followUp({
-                content: "⚠️ **Your password is not cached.** Please use `/update` and re-enter your password, or contact support.",
-                flags: MessageFlags.Ephemeral
-            });
-            return;
-        }
-
-        const loaderScript = generateLoaderScript(userData.username, plainPassword, serverUrl, userData.key, version);
+        // NOW USING PLAIN PASSWORD DIRECTLY FROM SHEET
+        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, version);
 
         await interaction.followUp({
             content: `✅ I've sent your loader script (${version} version) via DM.`,
@@ -6512,7 +6476,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /update (FIXED - uses cached plain password or prompts for it)
+    // /update (NOW USES PLAIN PASSWORD FROM SHEET)
     // ============================================
     if (command === "update") {
         const userData = db.users[interaction.user.id];
@@ -6532,23 +6496,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
-        
-        // Get plain password from cache
-        let plainPassword = getPlainPassword(interaction.user.id);
-        
-        // If not in cache, ask for it via a follow-up modal or message
-        if (!plainPassword) {
-            await interaction.followUp({
-                content: "⚠️ **Please enter your password to generate the loader script.**\n\n" +
-                         "⚠️ **Important:** Your password is NOT stored anywhere. It is only cached temporarily for 1 hour.\n\n" +
-                         "**To proceed, please run `/update` again within 1 hour of creating your account.**\n\n" +
-                         "If you've forgotten your password, please contact support.",
-                flags: MessageFlags.Ephemeral
-            });
-            return;
-        }
-
-        const loaderScript = generateLoaderScript(userData.username, plainPassword, serverUrl, userData.key, version);
+        // NOW USING PLAIN PASSWORD DIRECTLY FROM SHEET
+        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, version);
 
         await interaction.followUp({
             content: `✅ **Latest loader script sent!** (Version: ${version})`,
@@ -6890,7 +6839,7 @@ const app = express();
 app.use(express.json());
 
 // ============================================
-// API ENDPOINT
+// API ENDPOINT (NO HASH CHECK - COMPARES PLAIN PASSWORDS)
 // ============================================
 app.post('/load', async (req, res) => {
     const { username, password, key, hwid, version } = req.body;
@@ -6914,7 +6863,8 @@ app.post('/load', async (req, res) => {
         return res.json({ success: false, reason: "Blacklisted" });
     }
 
-    if (hashPassword(password) !== userData.password) {
+    // PLAIN PASSWORD COMPARISON (NO HASH)
+    if (password !== userData.password) {
         return res.json({ success: false, reason: "Invalid password" });
     }
 
