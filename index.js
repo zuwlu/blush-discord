@@ -1,5 +1,4 @@
 // index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH SCRIPTS)
-// WARNING: Passwords are stored in PLAIN TEXT in the Google Sheet
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -26,6 +25,7 @@ const ADMIN_ID = "1176388663320510535";
 const SHEET_ID = "12YV1x2tireoLEz8O29CxWpTJi1lhMSIIoiwIaUe-IbU";
 const SHEET_NAME = "Blushwovens_Users";
 const BLACKLIST_SHEET_NAME = "Blacklist";
+const ANNOUNCEMENT_CHANNEL_ID = "1516957022690611301";
 
 // ============================================
 // GOOGLE SHEETS SETUP
@@ -100,7 +100,7 @@ async function loadUsers() {
                 users[discordId] = {
                     discordId: discordId,
                     username: row[1] || "",
-                    password: row[2] || "", // Now stores PLAIN password
+                    password: row[2] || "",
                     discordTag: row[3] || "",
                     key: row[4] || "",
                     hwid: row[5] || null,
@@ -125,7 +125,7 @@ async function saveUser(userId, userData) {
         const rowData = [
             userId || "",
             userData.username || "",
-            userData.password || "", // Stores PLAIN password
+            userData.password || "",
             userData.discordTag || "",
             userData.key || "",
             userData.hwid || "",
@@ -269,7 +269,7 @@ async function isBlacklisted(discordId, username) {
 }
 
 // ============================================
-// VERSION-SPECIFIC SCRIPTS
+// VERSION-SPECIFIC SCRIPTS (FIXED - overlay stays visible when UI hidden)
 // ============================================
 const SCRIPTS = {
     regular: `
@@ -278,6 +278,7 @@ const SCRIPTS = {
   REMOVED: Target section entirely.
   CHANGED: Teleport now works while key is held down (not just press).
   FIXED: GetClosestPlayerToCursor - added nil check for Mouse and Mouse.X/Y.
+  FIXED: ToggleUI - keeps overlay visible (fully transparent) when UI is hidden to prevent game darkness change.
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -772,8 +773,7 @@ local function UpdateESP()
         if IsWL(p) or not p.Character then d.B.Visible=false; d.T.Visible=false; d.N.Visible=false; d.D.Visible=false; d.HB.Visible=false; d.HF.Visible=false
         else
             if ST.KnockCheck and IsKnocked(p.Character) then
-                d.B.Visible=false; d.T.Visible=false; d.N.Visible=false; d.D.Visible=false; d.HB.Visible=false; d.HF.Visible=false
-                continue
+                d.B.Visible=false; d.T.Visible=false; d.N.Visible=false; d.D.Visible=false; d.HB.Visible=false; d.HF.Visible=false                continue
             end
             local hum=p.Character:FindFirstChild("Humanoid"); local head=p.Character:FindFirstChild("Head"); local root=p.Character:FindFirstChild("HumanoidRootPart")
             if hum and head and root and hum.Health>0 then
@@ -928,6 +928,7 @@ LocalPlayer.CharacterAdded:Connect(function(char) ST.MorphOriginalHeadSize=nil; 
 print("All systems loaded")
 
 -- ==================== UI TOGGLE (INSTANT) ====================
+-- FIX: Keeps overlay visible (fully transparent) when UI is hidden to prevent game darkness change
 local UIVis = true
 
 local function ToggleUI()
@@ -941,7 +942,10 @@ local function ToggleUI()
     gui.Enabled = UIVis
     
     if UIVis then
-        if BO then BO.Visible = true; BO.BackgroundTransparency = 0.6 end
+        if BO then 
+            BO.Visible = true
+            BO.BackgroundTransparency = 0.6
+        end
         if MN then 
             MN.Visible = true
             MN.Size = UDim2.new(0, 680, 0, 500)
@@ -953,7 +957,12 @@ local function ToggleUI()
             if ST.CLDraw then CC.Visible = true end
         end)
     else
-        if BO then BO.Visible = false; BO.BackgroundTransparency = 1 end
+        -- FIX: Keep BO visible but fully transparent so game doesn't get darker
+        if BO then 
+            BO.Visible = true
+            BO.BackgroundTransparency = 1
+            BO.Size = UDim2.new(1, 0, 1, 0)
+        end
         if MN then MN.Visible = false end
         pcall(function()
             AC.Visible = false
@@ -1879,6 +1888,7 @@ print("Press RightShift to toggle UI visibility")
   FIXED: Removed _0x obfuscated hook (math.random) - not needed for Xeno.
   FIXED: Removed handler.getAim override - Xeno uses standard gun mechanics.
   FIXED: GetClosestPlayerToCursor - added nil check for Mouse and Mouse.X/Y.
+  FIXED: ToggleUI - keeps overlay visible (fully transparent) when UI is hidden to prevent game darkness change.
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -2609,6 +2619,7 @@ end)
 print("All systems loaded")
 
 -- ==================== UI TOGGLE (INSTANT) ====================
+-- FIX: Keeps overlay visible (fully transparent) when UI is hidden to prevent game darkness change
 local UIVis = true
 
 local function ToggleUI()
@@ -2617,10 +2628,15 @@ local function ToggleUI()
         gui = LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("DH")
     end
     if not gui then return end
+    
     UIVis = not UIVis
     gui.Enabled = UIVis
+    
     if UIVis then
-        if BO then BO.Visible = true; BO.BackgroundTransparency = 0.6 end
+        if BO then 
+            BO.Visible = true
+            BO.BackgroundTransparency = 0.6
+        end
         if MN then
             MN.Visible = true
             MN.Size = UDim2.new(0, 680, 0, 500)
@@ -2632,7 +2648,12 @@ local function ToggleUI()
             if ST.CLDraw then CC.Visible = true end
         end)
     else
-        if BO then BO.Visible = false; BO.BackgroundTransparency = 1 end
+        -- FIX: Keep BO visible but fully transparent so game doesn't get darker
+        if BO then 
+            BO.Visible = true
+            BO.BackgroundTransparency = 1
+            BO.Size = UDim2.new(1, 0, 1, 0)
+        end
         if MN then MN.Visible = false end
         pcall(function()
             AC.Visible = false
@@ -3848,6 +3869,7 @@ print("Press RightShift to toggle UI visibility")
   ADAPTED: No CoreGui fallback - uses PlayerGui.
   ADAPTED: Removed all Drawing objects (circles, ESP lines) - ESP now uses BillboardGuis.
   FIXED: GetClosestPlayerToCursor - added nil check for Mouse and Mouse.X/Y.
+  FIXED: ToggleUI - keeps overlay visible (fully transparent) when UI is hidden to prevent game darkness change.
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -4716,6 +4738,7 @@ end)
 print("All systems loaded")
 
 -- ==================== UI TOGGLE ====================
+-- FIX: Keeps overlay visible (fully transparent) when UI is hidden to prevent game darkness change
 local UIVis = true
 
 local function ToggleUI()
@@ -4724,10 +4747,15 @@ local function ToggleUI()
         gui = LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("DH")
     end
     if not gui then return end
+    
     UIVis = not UIVis
     gui.Enabled = UIVis
+    
     if UIVis then
-        if BO then BO.Visible = true; BO.BackgroundTransparency = 0.6 end
+        if BO then 
+            BO.Visible = true
+            BO.BackgroundTransparency = 0.6
+        end
         if MN then
             MN.Visible = true
             MN.Size = UDim2.new(0, 780, 0, 600)
@@ -4743,7 +4771,12 @@ local function ToggleUI()
             end
         end)
     else
-        if BO then BO.Visible = false; BO.BackgroundTransparency = 1 end
+        -- FIX: Keep BO visible but fully transparent so game doesn't get darker
+        if BO then 
+            BO.Visible = true
+            BO.BackgroundTransparency = 1
+            BO.Size = UDim2.new(1, 0, 1, 0)
+        end
         if MN then MN.Visible = false end
         pcall(function()
             if FOVCircleFrame then FOVCircleFrame.Visible = false end
@@ -5988,9 +6021,6 @@ print("Press RightShift to toggle UI visibility")
     `
 };
 
-// REMOVED hashPassword function - no longer needed
-// REMOVED cache system - no longer needed
-
 function generateKey() {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let key = "BLUSH-";
@@ -6021,14 +6051,14 @@ async function hasRequiredRole(interaction) {
 }
 
 // ============================================
-// LOADER SCRIPT (NOW USES PLAIN PASSWORD FROM SHEET)
+// LOADER SCRIPT (USES PLAIN PASSWORD FROM SHEET)
 // ============================================
 function generateLoaderScript(username, password, serverUrl, key, version) {
     const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
     return `
 -- Blushwovens Loader (Key Embedded - No UI)
 local USERNAME = "${username}"
-local PASSWORD = "${password}"  -- PLAIN PASSWORD from sheet
+local PASSWORD = "${password}"
 local KEY = "${key}"
 local HWID = game:GetService("RbxAnalyticsService"):GetClientId()
 local HttpService = game:GetService("HttpService")
@@ -6206,6 +6236,18 @@ const commands = [
                 .setRequired(true)),
 
     new SlashCommandBuilder()
+        .setName("announce-update")
+        .setDescription("Send an update announcement to the server (Admin only)")
+        .addStringOption(option =>
+            option.setName("message")
+                .setDescription("The update message to announce")
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName("version")
+                .setDescription("The new version number (optional)")
+                .setRequired(false)),
+
+    new SlashCommandBuilder()
         .setName("help")
         .setDescription("Show all available commands")
 ];
@@ -6248,7 +6290,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const command = interaction.commandName;
     const db = await loadUsers();
 
-    const adminCommands = ["list-users", "revoke", "revoke-all", "blacklist", "unblacklist", "set-usage"];
+    const adminCommands = ["list-users", "revoke", "revoke-all", "blacklist", "unblacklist", "set-usage", "announce-update"];
     if (adminCommands.includes(command)) {
         if (interaction.user.id !== ADMIN_ID) {
             return interaction.reply({
@@ -6272,7 +6314,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     // ============================================
-    // /create-account (STORES PLAIN PASSWORD IN SHEET)
+    // /create-account
     // ============================================
     if (command === "create-account") {
         const username = interaction.options.getString("username");
@@ -6306,7 +6348,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         const userData = {
             username: username,
-            password: password, // PLAIN PASSWORD - STORED IN SHEET
+            password: password,
             discordId: interaction.user.id,
             discordTag: interaction.user.tag,
             key: key,
@@ -6395,7 +6437,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /get-loader (NOW USES PLAIN PASSWORD FROM SHEET)
+    // /get-loader
     // ============================================
     if (command === "get-loader") {
         const userData = db.users[interaction.user.id];
@@ -6408,7 +6450,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         const version = userData.version || "regular";
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
-        // NOW USING PLAIN PASSWORD DIRECTLY FROM SHEET
         const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, version);
 
         await interaction.followUp({
@@ -6476,7 +6517,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
-    // /update (NOW USES PLAIN PASSWORD FROM SHEET)
+    // /update
     // ============================================
     if (command === "update") {
         const userData = db.users[interaction.user.id];
@@ -6496,7 +6537,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
-        // NOW USING PLAIN PASSWORD DIRECTLY FROM SHEET
         const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, version);
 
         await interaction.followUp({
@@ -6802,6 +6842,54 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
+    // /announce-update (Admin only)
+    // ============================================
+    if (command === "announce-update") {
+        const message = interaction.options.getString("message");
+        const version = interaction.options.getString("version") || "Latest";
+
+        try {
+            const channel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
+            if (!channel) {
+                return interaction.followUp({
+                    content: "❌ Could not find the announcement channel.",
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor(0xFF69B4)
+                .setTitle("🔄 **Blushwovens Update Available!**")
+                .setDescription(message)
+                .addFields(
+                    { name: "📌 Version", value: version, inline: true },
+                    { name: "📅 Date", value: new Date().toISOString().split("T")[0], inline: true },
+                    { name: "🔄 Update Now", value: "Run `/update` to get the latest loader script!", inline: false }
+                )
+                .setFooter({ text: "Blushwovens • Run /update to update your script" })
+                .setTimestamp();
+
+            await channel.send({
+                content: `<@&${REQUIRED_ROLE_ID}>`,
+                embeds: [embed]
+            });
+
+            await interaction.followUp({
+                content: `✅ Update announcement sent to <#${ANNOUNCEMENT_CHANNEL_ID}>!`,
+                flags: MessageFlags.Ephemeral
+            });
+
+        } catch (error) {
+            console.error("Announcement error:", error);
+            await interaction.followUp({
+                content: "❌ Failed to send announcement. Please check the channel ID.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        return;
+    }
+
+    // ============================================
     // /help
     // ============================================
     if (command === "help") {
@@ -6822,10 +6910,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     `/revoke-all\n` +
                     `/blacklist <user>\n` +
                     `/unblacklist <user>\n` +
-                    `/set-usage <username> <limit>\n`, inline: false },
+                    `/set-usage <username> <limit>\n` +
+                    `/announce-update <message> [version]\n`, inline: false },
                 { name: "ℹ️ Other", value: `/help`, inline: false }
             )
-            .setFooter({ text: "Admins: /list-users | /revoke | /revoke-all | /blacklist | /set-usage" });
+            .setFooter({ text: "Admins: /list-users | /revoke | /revoke-all | /blacklist | /set-usage | /announce-update" });
 
         await interaction.followUp({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
@@ -6839,7 +6928,7 @@ const app = express();
 app.use(express.json());
 
 // ============================================
-// API ENDPOINT (NO HASH CHECK - COMPARES PLAIN PASSWORDS)
+// API ENDPOINT
 // ============================================
 app.post('/load', async (req, res) => {
     const { username, password, key, hwid, version } = req.body;
@@ -6863,7 +6952,6 @@ app.post('/load', async (req, res) => {
         return res.json({ success: false, reason: "Blacklisted" });
     }
 
-    // PLAIN PASSWORD COMPARISON (NO HASH)
     if (password !== userData.password) {
         return res.json({ success: false, reason: "Invalid password" });
     }
