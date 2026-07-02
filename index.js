@@ -1,7 +1,6 @@
 // index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH SCRIPTS)
-// ADDED: Triggerbot toggle to all versions
-// ADDED: Flame Lock section to all versions
-// ADDED: izzy/whoreirl - flamelock to credits
+// REMOVED: Triggerbot from all versions
+// KEPT: Flame Lock, Silent Aim, Camlock, ESP, Hitbox, Movement, Fog, Morph, Settings
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -272,17 +271,17 @@ async function isBlacklisted(discordId, username) {
 }
 
 // ============================================
-// VERSION-SPECIFIC SCRIPTS (ADDED TRIGGERBOT + FLAME LOCK)
+// VERSION-SPECIFIC SCRIPTS (NO TRIGGERBOT)
 // ============================================
 const SCRIPTS = {
     regular: `
 --[[
   CHANGED: Yellow toggle color to a warmer butter/gold that fits the cream/pink scheme.
   REMOVED: Target section entirely.
+  REMOVED: Triggerbot - not working properly.
   CHANGED: Teleport now works while key is held down (not just press).
   FIXED: GetClosestPlayerToCursor - added nil check for Mouse and Mouse.X/Y.
   FIXED: ToggleUI - keeps overlay visible (fully transparent) when UI is hidden to prevent game darkness change.
-  ADDED: Triggerbot - automatically fires when cursor is on a player.
   ADDED: Flame Lock - locks onto the closest player to the center of the screen with prediction.
 ]]
 
@@ -354,8 +353,6 @@ local ST={
     FG=false, FGDen=0.02,
     MorphHeadless=false, MorphActive=false, MorphTarget="", MorphConnection=nil, MorphOriginalHeadSize=nil, MorphHiddenFace={},
     BulletSpread=100,
-    -- TRIGGERBOT
-    Triggerbot=false, TriggerbotKey=Enum.KeyCode.V, TriggerbotDelay=50,
     -- FLAME LOCK
     FlameLock=false, FlameLockKey=Enum.KeyCode.B
 }
@@ -363,10 +360,27 @@ local ST={
 print("State loaded")
 
 -- Toggle colors: ON = Warm butter/gold (fits cream/pink scheme)
-local TOGGLE_ON_COLOR = Color3.fromRGB(235, 200, 120)  -- Warm butter gold
-local TOGGLE_OFF_COLOR = Color3.fromRGB(110, 90, 90)   -- Brown
+local TOGGLE_ON_COLOR = Color3.fromRGB(235, 200, 120)
+local TOGGLE_OFF_COLOR = Color3.fromRGB(110, 90, 90)
 local TOGGLE_KNOB_ON = UDim2.new(1, -23, 0.5, -10)
 local TOGGLE_KNOB_OFF = UDim2.new(0, 3, 0.5, -10)
+
+-- ==================== KNOCK CHECK ====================
+local function IsKnocked(char)
+    if not char then return false end
+    local bodyEffects = char:FindFirstChild("BodyEffects")
+    if not bodyEffects then return false end
+    local ko = bodyEffects:FindFirstChild("K.O")
+    if ko and ko.Value == true then return true end
+    return false
+end
+
+-- ==================== WHITELIST FUNCTIONS ====================
+local function IsSilentAimWhitelisted(player)
+    if not player then return false end
+    if not player.UserId then return false end
+    return SilentAimWhitelist[player.UserId] == true
+end
 
 -- ==================== FIND CLOSEST PLAYER TO CURSOR ====================
 local function GetClosestPlayerToCursor()
@@ -397,142 +411,10 @@ local function GetClosestPlayerToCursor()
     return closest
 end
 
--- ==================== TRIGGERBOT ====================
-local TriggerbotActive = false
-local TriggerbotCooldown = 0
-local TriggerbotConnection = nil
-
-local function IsCursorOnPlayer()
-    if not Mouse or not Mouse.X or not Mouse.Y then
-        return false
-    end
-    
-    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
-            if ST.KnockCheck and IsKnocked(player.Character) then continue end
-            if IsSilentAimWhitelisted(player) then continue end
-            
-            local char = player.Character
-            local head = char:FindFirstChild("Head")
-            local root = char:FindFirstChild("HumanoidRootPart")
-            
-            if head then
-                local screenPos, onScreen = Camera:WorldToScreenPoint(head.Position)
-                if onScreen then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                    if dist < 50 then
-                        return true
-                    end
-                end
-            end
-            
-            if root then
-                local screenPos, onScreen = Camera:WorldToScreenPoint(root.Position)
-                if onScreen then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                    if dist < 50 then
-                        return true
-                    end
-                end
-            end
-        end
-    end
-    return false
-end
-
-local function GetValidTool()
-    if not LocalPlayer.Character then return nil end
-    local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
-    if not tool then return nil end
-    
-    if tool:FindFirstChild("RemoteEvent") then
-        return tool
-    end
-    
-    if tool:FindFirstChild("Activated") or tool:FindFirstChild("Handle") then
-        return tool
-    end
-    
-    return nil
-end
-
-local function FireWeapon()
-    if not ST.Triggerbot then return end
-    if not LocalPlayer.Character then return end
-    
-    local tool = GetValidTool()
-    if not tool then return end
-    
-    pcall(function()
-        local remote = tool:FindFirstChild("RemoteEvent")
-        if remote and remote:IsA("RemoteEvent") then
-            remote:FireServer()
-            return
-        end
-        
-        for _, child in ipairs(tool:GetChildren()) do
-            if child:IsA("RemoteEvent") then
-                child:FireServer()
-                return
-            end
-        end
-        
-        local click = tool:FindFirstChild("ClickDetector")
-        if click and click:IsA("ClickDetector") then
-            click:Click()
-            return
-        end
-        
-        if tool:FindFirstChild("Activated") then
-            tool.Activated:Fire()
-            return
-        end
-        
-        local inputManager = VirtualInputManager
-        if inputManager then
-            inputManager:SendMouseButtonEvent(1, 0, 0, true)
-            task.wait(0.05)
-            inputManager:SendMouseButtonEvent(1, 0, 0, false)
-        end
-    end)
-end
-
-local function StartTriggerbot()
-    if TriggerbotConnection then return end
-    
-    TriggerbotConnection = RunService.RenderStepped:Connect(function()
-        if not ST.Triggerbot then
-            StopTriggerbot()
-            return
-        end
-        
-        if not LocalPlayer.Character then return end
-        
-        if tick() - TriggerbotCooldown < (ST.TriggerbotDelay / 1000) then
-            return
-        end
-        
-        if IsCursorOnPlayer() then
-            FireWeapon()
-            TriggerbotCooldown = tick()
-        end
-    end)
-end
-
-local function StopTriggerbot()
-    if TriggerbotConnection then
-        TriggerbotConnection:Disconnect()
-        TriggerbotConnection = nil
-    end
-    TriggerbotCooldown = 0
-end
-
 -- ==================== FLAME LOCK ====================
-local FlameLockActive = false
 local FlameLockTarget = nil
 local FlameLockConnection = nil
+local FlameLockActive = false
 local character = LocalPlayer.Character
 local rootPart = character and character:FindFirstChild("HumanoidRootPart")
 local humanoid = character and character:FindFirstChild("Humanoid")
@@ -569,6 +451,8 @@ local function GetPlayerAtCenter()
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+            if ST.KnockCheck and IsKnocked(plr.Character) then continue end
+            if IsSilentAimWhitelisted(plr) then continue end
             local head = plr.Character.Head
             local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
             if onScreen then
@@ -624,9 +508,9 @@ local function StartFlameLock()
         humanoid = char:FindFirstChild("Humanoid")
     end
     
-    FlameLockConnection = RunService.BindToRenderStep("FlameLock", Enum.RenderPriority.Camera.Value + 1, function()
-        if not ST.FlameLock then
-            StopFlameLock()
+    FlameLockConnection = RunService.RenderStepped:Connect(function()
+        if not ST.FlameLock or not FlameLockActive then
+            if humanoid then humanoid.AutoRotate = true end
             return
         end
         
@@ -652,7 +536,10 @@ local function StartFlameLock()
         local flatDistance = Vector3.new(distanceVec.X, 0, distanceVec.Z).Magnitude
         local verticalOffset = math.abs(distanceVec.Y)
 
-        if flatDistance <= 1.2 and verticalOffset > 2 then return end
+        if flatDistance <= 1.2 and verticalOffset > 2 then 
+            if humanoid then humanoid.AutoRotate = true end
+            return 
+        end
 
         local predicted = GetPredictedHeadPosition(head)
         if not predicted then return end
@@ -667,8 +554,9 @@ local function StartFlameLock()
 end
 
 local function StopFlameLock()
+    FlameLockActive = false
     if FlameLockConnection then
-        RunService:UnbindFromRenderStep("FlameLock")
+        FlameLockConnection:Disconnect()
         FlameLockConnection = nil
     end
     FlameLockTarget = nil
@@ -677,9 +565,14 @@ local function StopFlameLock()
     end
 end
 
-local function ToggleFlameLock()
-    ST.FlameLock = not ST.FlameLock
-    if ST.FlameLock then
+local function ToggleFlameLockActive()
+    if not ST.FlameLock then
+        SendNotification("Flame Lock", "Feature is disabled. Enable it in the UI first.", 3)
+        return
+    end
+    
+    FlameLockActive = not FlameLockActive
+    if FlameLockActive then
         FlameLockTarget = GetPlayerAtCenter()
         if FlameLockTarget then
             SendNotification("Flame Lock ON", "Target: " .. FlameLockTarget.Name, 3)
@@ -713,7 +606,6 @@ local function TeleportToClosestPlayer()
     end
 end
 
--- Teleport while held
 local function StartTeleportHold()
     if TeleportHoldActive then return end
     if not ST.Teleport then return end
@@ -738,22 +630,6 @@ local function StopTeleportHold()
         TeleportHoldConnection:Disconnect()
         TeleportHoldConnection = nil
     end
-end
-
--- ==================== KNOCK CHECK ====================
-local function IsKnocked(char)
-    if not char then return false end
-    local bodyEffects = char:FindFirstChild("BodyEffects")
-    if not bodyEffects then return false end
-    local ko = bodyEffects:FindFirstChild("K.O")
-    if ko and ko.Value == true then return true end
-    return false
-end
-
-local function IsSilentAimWhitelisted(player)
-    if not player then return false end
-    if not player.UserId then return false end
-    return SilentAimWhitelist[player.UserId] == true
 end
 
 local _0xn1 = 100 local _0xn8 = 1 local _0xn9 = 0 local _0xn11 = 2 local _0xn14 = 0.05 local _0xn15 = -0.1 local _0xn16 = -0.05
@@ -893,7 +769,7 @@ local PAL = {
     CardBackground = Color3.fromRGB(255,250,250),
     CardStroke = Color3.fromRGB(215,130,170),
     SpeechBubble = Color3.fromRGB(255,235,240),
-    Gold = Color3.fromRGB(235, 200, 120)  -- Warm butter gold
+    Gold = Color3.fromRGB(235, 200, 120)
 }
 
 local UIAccentColor = Color3.fromRGB(215,130,170)
@@ -1235,7 +1111,6 @@ LocalPlayer.CharacterAdded:Connect(function(char) ST.MorphOriginalHeadSize=nil; 
 print("All systems loaded")
 
 -- ==================== UI TOGGLE (INSTANT) ====================
--- FIX: Keeps overlay visible (fully transparent) when UI is hidden to prevent game darkness change
 local UIVis = true
 
 local function ToggleUI()
@@ -1264,7 +1139,6 @@ local function ToggleUI()
             if ST.CLDraw then CC.Visible = true end
         end)
     else
-        -- FIX: Keep BO visible but fully transparent so game doesn't get darker
         if BO then 
             BO.Visible = true
             BO.BackgroundTransparency = 1
@@ -1278,7 +1152,6 @@ local function ToggleUI()
     end
 end
 
--- RightShift toggle
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.RightShift then
@@ -1286,7 +1159,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Teleport keybind (HOLD to continuously teleport)
 UserInputService.InputBegan:Connect(function(inp, gp)
     if gp then return end
     if inp.KeyCode == ST.TeleportKey and ST.Teleport then
@@ -1309,20 +1181,9 @@ UserInputService.InputBegan:Connect(function(inp, gp)
         JumpActive=not JumpActive
         UpdateMove() 
     end
-    -- Triggerbot toggle
-    if inp.KeyCode == ST.TriggerbotKey then
-        ST.Triggerbot = not ST.Triggerbot
-        if ST.Triggerbot then
-            StartTriggerbot()
-            print("Triggerbot: ON")
-        else
-            StopTriggerbot()
-            print("Triggerbot: OFF")
-        end
-    end
-    -- Flame Lock toggle
+    -- Flame Lock toggle (B key - only works if enabled in UI)
     if inp.KeyCode == ST.FlameLockKey then
-        ToggleFlameLock()
+        ToggleFlameLockActive()
     end
 end)
 
@@ -1444,7 +1305,7 @@ CT.Parent=MN
 print("GUI Setup complete")
 print("Building categories...")
 
--- CATEGORIES (removed TARGET section, added FLAME LOCK)
+-- CATEGORIES (NO TRIGGERBOT)
 local Cats={
     {"SILENT AIM",{
         {"Silent Aim","SA",false},
@@ -1453,10 +1314,7 @@ local Cats={
         {"Aim Part","SAPart","Head","D",{"Head","Torso","HumanoidRootPart","Left Arm","Right Arm","Left Leg","Right Leg","Nearest Part"}},
         {"Revolver Bypass","RevolverBypass",false},
         {"Knock Check","KnockCheck",false},
-        {"Bullet Spread","BulletSpread",100,"S",0,100},
-        {"Triggerbot","Triggerbot",false},
-        {"Triggerbot Key","TriggerbotKey",Enum.KeyCode.V,"K"},
-        {"Triggerbot Delay","TriggerbotDelay",50,"S",10,500}
+        {"Bullet Spread","BulletSpread",100,"S",0,100}
     }},
     {"CAMLOCK",{{"Camlock","CL",false},{"Key","CLKey",Enum.KeyCode.E,"K"},{"Mode","CLMode","Toggle","D",{"Toggle","Hold"}},{"Lock Part","CLPart","Head","D",{"Head","Torso","HumanoidRootPart","Left Arm","Right Arm","Left Leg","Right Leg","Nearest Part"}},{"FOV","CLFOV",300,"S",50,800},{"Smoothness","CLSm",0.08,"S",0.01,0.5},{"Prediction","CLPred",0.12,"S",0,0.5},{"Show FOV","CLDraw",false},{"Visible Only","CLVis",true}}},
     {"HITBOX",{{"Hitbox Exp.","HB",false},{"Size","HBSz",10,"S",2,30},{"Opacity","HBOp",0.9,"S",0.1,1}}},
@@ -1586,7 +1444,6 @@ for i,cat in ipairs(Cats) do
         if ftt=="LBL" then
             lb.Text=fnn; lb.Size=UDim2.new(1,-24,0,24); lb.Position=UDim2.new(0,12,0,12)
             lb.TextColor3=PAL.Txt; lb.Font=Enum.Font.GothamBold; lb.TextSize=13; lb.TextXAlignment=Enum.TextXAlignment.Center; lb.ZIndex=6
-            -- Make Discord link clickable in CREDITS
             if nm=="CREDITS" and fnn:match("discord%.gg") then
                 DiscordAdded=true
                 local db = lb
@@ -1637,9 +1494,6 @@ for i,cat in ipairs(Cats) do
                 if fkk=="BulletSpread" then
                     BulletSpreadAmount = v
                     _0x52a0d5.BulletSpread.Amount = v
-                end
-                if fkk=="TriggerbotDelay" then
-                    -- Update delay
                 end
             end
             bkn.InputBegan:Connect(function(inp) if inp.UserInputType==Enum.UserInputType.MouseButton1 then local cn; cn=RunService.RenderStepped:Connect(function() if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then upd({Position=UserInputService:GetMouseLocation()}) else cn:Disconnect() end end) end end)
@@ -1837,17 +1691,18 @@ for i,cat in ipairs(Cats) do
                     UpdateMove() 
                     if fkk=="SP" then OnSpeedhackToggle() end
                 end
-                if fkk=="Triggerbot" then
-                    if tg then
-                        StartTriggerbot()
-                        print("Triggerbot: ON")
-                    else
-                        StopTriggerbot()
-                        print("Triggerbot: OFF")
-                    end
-                end
+                -- Flame Lock UI toggle just enables/disables the feature
                 if fkk=="FlameLock" then
-                    ToggleFlameLock()
+                    if not tg then
+                        if FlameLockActive then
+                            StopFlameLock()
+                            FlameLockActive = false
+                        end
+                        print("Flame Lock: DISABLED (toggle in UI off)")
+                    else
+                        print("Flame Lock: ENABLED (press B to activate)")
+                        SendNotification("Flame Lock", "Enabled in UI. Press B to toggle ON/OFF.", 3)
+                    end
                 end
             end)
         end
@@ -2135,7 +1990,7 @@ for i,cat in ipairs(Cats) do
     end
     
     if nm=="CREDITS" then
-        -- Credits are handled inside the LBL section above
+        -- Credits handled in LBL section above
     end
     
     b.MouseButton1Click:Connect(function()
@@ -2240,18 +2095,15 @@ UpdateCamlock()
 print("Blushwovens script v28.9 loaded successfully!")
 print("Press Q to toggle Speedhack, Z to toggle Jump Power")
 print("Hold T to continuously Teleport to closest player to cursor")
-print("Press V to toggle Triggerbot")
-print("Press B to toggle Flame Lock")
+print("Press B to toggle Flame Lock (must be enabled in UI first)")
 print("Press RightShift to toggle UI visibility")
-`,
+    `,
 
-// ============================================
-// XENO VERSION (same as regular but adapted for Xeno)
-// ============================================
     xeno: `
 --[[
   XENO VERSION - Full PC executor with Drawing support
-  ADDED: Triggerbot, Flame Lock
+  ADDED: Flame Lock
+  REMOVED: Triggerbot
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -2280,19 +2132,17 @@ end
 
 SendNotification("Blushwovens", "Xeno - Script injected!", 5)
 
--- [SAME STATE AND FUNCTIONS AS REGULAR - INCLUDING TRIGGERBOT AND FLAME LOCK]
--- [The xeno version uses Drawing library for UI, same triggerbot/flamelock logic]
+-- [SAME STATE AND FUNCTIONS AS REGULAR - INCLUDING FLAME LOCK]
+-- [The xeno version uses Drawing library for UI]
 
-print("Blushwovens Xeno loaded! Press V for Triggerbot, B for Flame Lock")
+print("Blushwovens Xeno loaded! Press B for Flame Lock")
 `,
 
-// ============================================
-// DELTA VERSION (same but adapted for mobile)
-// ============================================
     delta: `
 --[[
   DELTA VERSION - Mobile executor with BillboardGui
-  ADDED: Triggerbot, Flame Lock
+  ADDED: Flame Lock
+  REMOVED: Triggerbot
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -2321,10 +2171,10 @@ end
 
 SendNotification("Blushwovens", "Delta Mobile - Script injected!", 5)
 
--- [SAME STATE AND FUNCTIONS AS REGULAR - INCLUDING TRIGGERBOT AND FLAME LOCK]
--- [Delta version uses BillboardGui for ESP, same triggerbot/flamelock logic]
+-- [SAME STATE AND FUNCTIONS AS REGULAR - INCLUDING FLAME LOCK]
+-- [Delta version uses BillboardGui for ESP]
 
-print("Blushwovens Delta loaded! Press V for Triggerbot, B for Flame Lock")
+print("Blushwovens Delta loaded! Press B for Flame Lock")
 `
 };
 
