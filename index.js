@@ -1,7 +1,5 @@
 // index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH SCRIPTS)
-// FIXED: Added debug logging for Discord login
-// FIXED: Added proper token validation and error handling
-// FIXED: Added reconnection logic and heartbeat monitoring
+// FIXED: Forced WebSocket connection with timeout and auto-reconnect
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -3160,7 +3158,7 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Web server running on port ${port}`));
 
 // ============================================
-// LOGIN (FIXED - WITH PROPER RECONNECTION AND ERROR HANDLING)
+// LOGIN (FIXED - FORCED WS CONNECTION WITH TIMEOUT)
 // ============================================
 console.log("🔍 Attempting to login to Discord...");
 console.log("🔑 TOKEN exists:", !!process.env.TOKEN);
@@ -3168,46 +3166,115 @@ console.log("🔑 TOKEN length:", process.env.TOKEN ? process.env.TOKEN.length :
 
 if (!process.env.TOKEN) {
     console.error("❌ CRITICAL: TOKEN environment variable is not set!");
-    console.error("❌ Please add TOKEN to your environment variables in Render.");
 } else {
-    if (process.env.TOKEN.length < 50) {
-        console.error("❌ WARNING: Token seems too short. Please check your token.");
-    }
+    // Force the client to use a specific gateway version and disable compression
+    client.options.ws = {
+        version: '10',
+        compress: false,
+        properties: {
+            os: 'linux',
+            browser: 'discord.js',
+            device: 'discord.js'
+        }
+    };
     
-    console.log("🔑 Attempting login with provided token...");
-    
-    // Add ready state listener before login
-    client.once(Events.ClientReady, () => {
-        console.log("✅ Discord client is ready and logged in!");
-    });
+    console.log("🔑 Attempting login with forced WS settings...");
     
     let reconnectAttempts = 0;
-    const maxReconnectAttempts = 10;
+    const maxReconnectAttempts = 15;
+    let loginTimer = null;
+    let readyReceived = false;
     
     const attemptLogin = () => {
-        client.login(process.env.TOKEN)
-            .then(() => {
-                console.log("✅ Discord login successful!");
-                reconnectAttempts = 0;
-            })
-            .catch((error) => {
-                console.error("❌ Discord login failed with error:", error.message);
-                console.error("❌ Full error:", error);
+        if (loginTimer) {
+            clearTimeout(loginTimer);
+            loginTimer = null;
+        }
+        
+        readyReceived = false;
+        loginTimer = setTimeout(() => {
+            if (!readyReceived) {
+                console.error("❌ Login timeout - no ready event received after 30 seconds.");
+                client.destroy();
                 if (reconnectAttempts < maxReconnectAttempts) {
                     reconnectAttempts++;
-                    const delay = Math.min(5000 * reconnectAttempts, 60000);
+                    const delay = Math.min(10000 * reconnectAttempts, 60000);
                     console.log(`🔄 Reconnect attempt ${reconnectAttempts} in ${delay/1000}s...`);
                     setTimeout(attemptLogin, delay);
-                } else {
-                    console.error("❌ Max reconnect attempts reached. Discord bot will not start.");
+                }
+            }
+        }, 30000);
+        
+        client.login(process.env.TOKEN)
+            .then(() => {
+                console.log("✅ Discord login promise resolved.");
+            })
+            .catch((error) => {
+                console.error("❌ Discord login failed:", error.message);
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    const delay = Math.min(10000 * reconnectAttempts, 60000);
+                    console.log(`🔄 Reconnect attempt ${reconnectAttempts} in ${delay/1000}s...`);
+                    setTimeout(attemptLogin, delay);
                 }
             });
     };
     
+    // Override the ready event listener
+    const originalOnce = client.once;
+    client.once = function(event, listener) {
+        if (event === Events.ClientReady) {
+            return originalOnce.call(client, event, (...args) => {
+                readyReceived = true;
+                if (loginTimer) {
+                    clearTimeout(loginTimer);
+                    loginTimer = null;
+                }
+                reconnectAttempts = 0;
+                console.log("✅ Discord client ready event received!");
+                listener(...args);
+            });
+        }
+        return originalOnce.call(client, event, listener);
+    };
+    
+    // Fallback ready listener
+    client.on(Events.ClientReady, () => {
+        if (!readyReceived) {
+            readyReceived = true;
+            if (loginTimer) {
+                clearTimeout(loginTimer);
+                loginTimer = null;
+            }
+            reconnectAttempts = 0;
+            console.log("✅ Discord client ready event received (fallback listener)!");
+        }
+    });
+    
+    // Raw WebSocket READY event logging
+    client.on('raw', (data) => {
+        if (data && data.t === 'READY') {
+            console.log("✅ Raw WebSocket READY event received!");
+        }
+    });
+    
+    // Start the login attempt
     attemptLogin();
+    
+    // Force a second login attempt if the first one hangs
+    setTimeout(() => {
+        if (!readyReceived && reconnectAttempts === 0) {
+            console.log("🔄 Forcing second login attempt after 15 seconds...");
+            client.destroy();
+            setTimeout(() => {
+                reconnectAttempts = 1;
+                attemptLogin();
+            }, 3000);
+        }
+    }, 15000);
 }
 
-// Handle disconnections and reconnect
+// Handle disconnections
 client.on(Events.ShardDisconnect, (event, id) => {
     console.warn(`⚠️ Shard ${id} disconnected. Reconnecting...`);
 });
@@ -3216,38 +3283,19 @@ client.on(Events.ShardReconnecting, (id) => {
     console.log(`🔄 Shard ${id} reconnecting...`);
 });
 
-client.on(Events.ShardResume, (id, replayed) => {
-    console.log(`✅ Shard ${id} resumed with ${replayed} replayed events.`);
-});
-
 client.on(Events.Error, (error) => {
     console.error("❌ Discord client error:", error.message);
-    if (!client.ws?.reconnecting) {
-        console.log("🔄 Attempting to reconnect on error...");
-        client.destroy();
-        setTimeout(() => {
-            client.login(process.env.TOKEN).catch(e => console.error("Reconnect failed:", e.message));
-        }, 5000);
-    }
 });
 
-client.on(Events.ShardError, (error) => {
-    console.error("❌ Shard error:", error.message);
-});
-
-// Heartbeat monitoring - check if client is still connected
+// Heartbeat monitoring
 setInterval(() => {
-    if (client && client.ws) {
-        try {
-            const status = client.ws.status;
-            console.log(`💓 Heartbeat check: Discord connection status = ${status}`);
-        } catch (e) {
-            console.log("💓 Heartbeat check: client not ready");
-        }
-    } else {
-        console.log("💓 Heartbeat check: client not initialized");
+    try {
+        const status = client.ws?.status || 'unknown';
+        console.log(`💓 Heartbeat: Discord status = ${status}`);
+    } catch (e) {
+        console.log("💓 Heartbeat check: client not ready");
     }
-}, 60000);
+}, 30000);
 
 process.on('unhandledRejection', (error) => {
     console.error('Unhandled rejection:', error);
