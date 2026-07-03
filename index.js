@@ -1,5 +1,7 @@
 // index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH SCRIPTS)
 // FIXED: Added debug logging for Discord login
+// FIXED: Added proper token validation and error handling
+// FIXED: Added reconnection logic and heartbeat monitoring
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -270,7 +272,7 @@ async function isBlacklisted(discordId, username) {
 }
 
 // ============================================
-// VERSION-SPECIFIC SCRIPTS (NO TRIGGERBOT)
+// VERSION-SPECIFIC SCRIPTS (FULL - NO TRIGGERBOT)
 // ============================================
 const SCRIPTS = {
     regular: `
@@ -3158,7 +3160,7 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Web server running on port ${port}`));
 
 // ============================================
-// LOGIN (FIXED - WITH DEBUGGING)
+// LOGIN (FIXED - WITH PROPER RECONNECTION AND ERROR HANDLING)
 // ============================================
 console.log("🔍 Attempting to login to Discord...");
 console.log("🔑 TOKEN exists:", !!process.env.TOKEN);
@@ -3168,27 +3170,89 @@ if (!process.env.TOKEN) {
     console.error("❌ CRITICAL: TOKEN environment variable is not set!");
     console.error("❌ Please add TOKEN to your environment variables in Render.");
 } else {
-    // Validate token format (basic check)
     if (process.env.TOKEN.length < 50) {
         console.error("❌ WARNING: Token seems too short. Please check your token.");
     }
     
     console.log("🔑 Attempting login with provided token...");
-    client.login(process.env.TOKEN)
-        .then(() => {
-            console.log("✅ Discord login successful!");
-        })
-        .catch((error) => {
-            console.error("❌ Discord login failed with error:", error.message);
-            console.error("❌ Full error:", error);
-            // Keep the web server running even if Discord login fails
-        });
+    
+    // Add ready state listener before login
+    client.once(Events.ClientReady, () => {
+        console.log("✅ Discord client is ready and logged in!");
+    });
+    
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    
+    const attemptLogin = () => {
+        client.login(process.env.TOKEN)
+            .then(() => {
+                console.log("✅ Discord login successful!");
+                reconnectAttempts = 0;
+            })
+            .catch((error) => {
+                console.error("❌ Discord login failed with error:", error.message);
+                console.error("❌ Full error:", error);
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    const delay = Math.min(5000 * reconnectAttempts, 60000);
+                    console.log(`🔄 Reconnect attempt ${reconnectAttempts} in ${delay/1000}s...`);
+                    setTimeout(attemptLogin, delay);
+                } else {
+                    console.error("❌ Max reconnect attempts reached. Discord bot will not start.");
+                }
+            });
+    };
+    
+    attemptLogin();
 }
+
+// Handle disconnections and reconnect
+client.on(Events.ShardDisconnect, (event, id) => {
+    console.warn(`⚠️ Shard ${id} disconnected. Reconnecting...`);
+});
+
+client.on(Events.ShardReconnecting, (id) => {
+    console.log(`🔄 Shard ${id} reconnecting...`);
+});
+
+client.on(Events.ShardResume, (id, replayed) => {
+    console.log(`✅ Shard ${id} resumed with ${replayed} replayed events.`);
+});
 
 client.on(Events.Error, (error) => {
     console.error("❌ Discord client error:", error.message);
+    if (!client.ws?.reconnecting) {
+        console.log("🔄 Attempting to reconnect on error...");
+        client.destroy();
+        setTimeout(() => {
+            client.login(process.env.TOKEN).catch(e => console.error("Reconnect failed:", e.message));
+        }, 5000);
+    }
 });
 
 client.on(Events.ShardError, (error) => {
     console.error("❌ Shard error:", error.message);
+});
+
+// Heartbeat monitoring - check if client is still connected
+setInterval(() => {
+    if (client && client.ws) {
+        try {
+            const status = client.ws.status;
+            console.log(`💓 Heartbeat check: Discord connection status = ${status}`);
+        } catch (e) {
+            console.log("💓 Heartbeat check: client not ready");
+        }
+    } else {
+        console.log("💓 Heartbeat check: client not initialized");
+    }
+}, 60000);
+
+process.on('unhandledRejection', (error) => {
+    console.error('Unhandled rejection:', error);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught exception:', error);
 });
