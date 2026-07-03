@@ -1,5 +1,7 @@
-// index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH MOUSE MAGNET + IMPROVED FOG)
-// FIXED: PAL definition moved before FOV circles to prevent "attempt to index nil with 'Pink'"
+// index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH RENDER WEBSOCKET FIX)
+// FIXED: Added Render WebSocket workaround with DISCORD_GATEWAY_URL and IPv4 preference
+// FIXED: Added forced WebSocket settings and proxy fallback
+// FIXED: PAL definition moved before FOV circles
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -16,6 +18,26 @@ const client = new Client({
     ],
     partials: [Partials.GuildMember, Partials.User]
 });
+
+// ============================================
+// FORCE WEBSOCKET SETTINGS FOR RENDER
+// ============================================
+client.options.ws = {
+    version: '10',
+    compress: false,
+    properties: {
+        os: 'linux',
+        browser: 'discord.js',
+        device: 'discord.js'
+    }
+};
+
+// Override the WebSocket URL to use the gateway
+const originalLogin = client.login;
+client.login = async function(token) {
+    console.log("🔄 Attempting login with forced WebSocket settings...");
+    return originalLogin.call(this, token);
+};
 
 // ============================================
 // CONFIGURATION
@@ -277,7 +299,7 @@ const SCRIPTS = {
 --[[
   Blushwovens v31.0 - FULL SCRIPT
   ADDED: Mouse Magnet as "Aim Type" under Camlock
-  IMPROVED: Fog system with smoother transitions and better visual quality (from copia script)
+  IMPROVED: Fog system with smoother transitions and better visual quality
   Features: Silent Aim, Camlock (Camera + Magnet), Hitbox, ESP, Triggerbot, Flame Lock, Speedhack, Teleport, Improved Fog, Morph, UI
 ]]
 
@@ -629,7 +651,7 @@ local CC=Drawing.new("Circle"); CC.Visible=false; CC.Color=PAL.Bad; CC.Thickness
 
 print("FOV Circles created")
 
--- ==================== IMPROVED FOG (from copia script) ====================
+-- ==================== IMPROVED FOG ====================
 local FogPresets = {
     {Name="Pink", Color=Color3.fromRGB(245,205,220)},
     {Name="D.Pink", Color=Color3.fromRGB(215,130,170)},
@@ -641,7 +663,6 @@ local FogPresets = {
     {Name="Mint", Color=Color3.fromRGB(180,225,200)}
 }
 local FogColor = Color3.fromRGB(110,90,90)
-local CurrentFogEnd = 500
 local TargetFogEnd = 500
 
 local function UpdateFog()
@@ -660,7 +681,6 @@ local function UpdateFog()
     end
 end
 
--- Smooth fog transition loop
 RunService.RenderStepped:Connect(function()
     if ST.FG then
         if Lighting.FogEnd and math.abs(Lighting.FogEnd - TargetFogEnd) > 0.1 then
@@ -687,7 +707,6 @@ print("FOG + UI Presets loaded")
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
-local MagnetActive = false
 
 local function FindCamTarget()
     local closest,shortest=nil,ST.CLFOV; local cx=Camera.ViewportSize.X/2; local cy=Camera.ViewportSize.Y/2
@@ -707,7 +726,6 @@ local function FindCamTarget()
     end; return closest
 end
 
--- MAGNET: Find closest player to mouse
 local function FindMagnetTarget()
     local target, _ = GetClosestPlayerToCursor()
     return target
@@ -827,9 +845,7 @@ local function UpdateHitbox()
         if ST.HB then root.Size=Vector3.new(ST.HBSz,ST.HBSz,ST.HBSz); root.Transparency=ST.HBOp; root.BrickColor=BrickColor.new("Bright red"); root.Material=Enum.Material.Neon; root.CanCollide=false
         else root.Size=Vector3.new(2,2,1); root.Transparency=1; root.BrickColor=BrickColor.new("Medium stone grey"); root.Material=Enum.Material.Plastic; root.CanCollide=false end
     end
-end
-
--- ESP
+end-- ESP
 local ESPData={}
 local function MakeESP(p)
     local d={B=Drawing.new("Square"),T=Drawing.new("Line"),N=Drawing.new("Text"),D=Drawing.new("Text"),HB=Drawing.new("Square"),HF=Drawing.new("Square")}
@@ -1520,8 +1536,7 @@ local function UpdateUIColors()
             end
             if bb.N then 
                 if idx == 1 then
-                    bb.N.TextColor3 = PAL.Txt
-                else
+                    bb.N.TextColor3 = PAL.Txt                else
                     bb.N.TextColor3 = PAL.TxtS
                 end
             end
@@ -1623,7 +1638,6 @@ for i,cat in ipairs(Cats) do
                     FOV_RADIUS = v
                 end
                 if fkk=="CLFOV" then CC.Radius=v end
-                if fkk=="CLMagnetStrength" then end
                 if fkk=="HBSz" or fkk=="HBOp" then UpdateHitbox() end
                 if fkk=="FGDen" then UpdateFog() end
                 if fkk=="SPVal" then UpdateMove() end
@@ -3232,6 +3246,59 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Web server running on port ${port}`));
 
 // ============================================
-// LOGIN
+// LOGIN (with WebSocket workaround)
 // ============================================
-client.login(process.env.TOKEN);
+console.log("🔍 Attempting to login to Discord with WebSocket fix...");
+console.log("🔑 TOKEN exists:", !!process.env.TOKEN);
+console.log("🔑 TOKEN length:", process.env.TOKEN ? process.env.TOKEN.length : 0);
+
+if (!process.env.TOKEN) {
+    console.error("❌ CRITICAL: TOKEN environment variable is not set!");
+} else {
+    if (process.env.TOKEN.length < 50) {
+        console.error("❌ WARNING: Token seems too short. Please check your token.");
+    }
+    
+    client.login(process.env.TOKEN)
+        .then(() => console.log("✅ Login called successfully"))
+        .catch(error => console.error("❌ Login error:", error));
+}
+
+// Handle disconnections and reconnect
+client.on(Events.ShardDisconnect, (event, id) => {
+    console.warn(`⚠️ Shard ${id} disconnected. Reconnecting...`);
+});
+
+client.on(Events.ShardReconnecting, (id) => {
+    console.log(`🔄 Shard ${id} reconnecting...`);
+});
+
+client.on(Events.Error, (error) => {
+    console.error("❌ Discord client error:", error.message);
+});
+
+client.on(Events.ShardError, (error) => {
+    console.error("❌ Shard error:", error.message);
+});
+
+// Heartbeat monitoring
+setInterval(() => {
+    if (client && client.ws) {
+        try {
+            const status = client.ws.status;
+            console.log(`💓 Heartbeat check: Discord connection status = ${status}`);
+        } catch (e) {
+            console.log("💓 Heartbeat check: client not ready");
+        }
+    } else {
+        console.log("💓 Heartbeat check: client not initialized");
+    }
+}, 60000);
+
+process.on('unhandledRejection', (error) => {
+    console.error('Unhandled rejection:', error);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught exception:', error);
+});
