@@ -1,6 +1,5 @@
 // index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH MOUSE MAGNET + IMPROVED FOG)
-// ADDED: Mouse Magnet as "Aim Type" under Camlock
-// IMPROVED: Fog system using copia script's implementation with smoother transitions
+// FIXED: PAL definition moved before FOV circles to prevent "attempt to index nil with 'Pink'"
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -576,8 +575,61 @@ local function SetWL(p,v)
     end
 end
 
+-- ==================== PAL ====================
+local PAL = {
+    Pink = Color3.fromRGB(245,205,220),
+    DarkPink = Color3.fromRGB(215,130,170),
+    Cream = Color3.fromRGB(255,248,240),
+    Olive = Color3.fromRGB(220,225,170),
+    Brown = Color3.fromRGB(80,60,50),
+    LightBrown = Color3.fromRGB(130,100,80),
+    Bg = Color3.fromRGB(255,248,240),
+    Surf = Color3.fromRGB(255,235,240),
+    SurfL = Color3.fromRGB(255,242,245),
+    Txt = Color3.fromRGB(60,45,35),
+    TxtS = Color3.fromRGB(100,80,70),
+    Brd = Color3.fromRGB(215,130,170),
+    Ok = Color3.fromRGB(170,220,140),
+    Bad = Color3.fromRGB(100,100,110),
+    Warn = Color3.fromRGB(255,190,120),
+    Gray = Color3.fromRGB(200,195,195),
+    White = Color3.fromRGB(255,255,255),
+    ButtonGreen = Color3.fromRGB(235,245,180),
+    ButtonText = Color3.fromRGB(60,45,35),
+    CardBackground = Color3.fromRGB(255,250,250),
+    CardStroke = Color3.fromRGB(215,130,170),
+    SpeechBubble = Color3.fromRGB(255,235,240),
+    Gold = Color3.fromRGB(235, 200, 120)
+}
+
+local UIAccentColor = Color3.fromRGB(215,130,170)
+local UISecondaryColor = Color3.fromRGB(245,205,220)
+
+local function CRN(p,r)
+    pcall(function() local c=Instance.new("UICorner"); c.CornerRadius=r or UDim.new(0,12); c.Parent=p end)
+end
+local function STR(p,t,c,tr)
+    pcall(function() local s=Instance.new("UIStroke"); s.Thickness=t or 1.5; s.Color=c or PAL.Brd; s.Transparency=tr or 0; s.Parent=p end)
+end
+
+local function W2S(pos)
+    if not pos then return nil end
+    if typeof(pos)=="CFrame" then pos=pos.Position end
+    if typeof(pos)~="Vector3" then return nil end
+    local ok,r=pcall(function() return Camera:WorldToViewportPoint(pos) end)
+    if ok and r and r.Z>0 then return {X=r.X,Y=r.Y,Z=r.Z} end
+    return nil
+end
+
+print("Functions loaded")
+
+-- FOV CIRCLES
+local AC=Drawing.new("Circle"); AC.Visible=false; AC.Color=PAL.Pink; AC.Thickness=1.5; AC.Transparency=0.7; AC.Radius=200; AC.Filled=false
+local CC=Drawing.new("Circle"); CC.Visible=false; CC.Color=PAL.Bad; CC.Thickness=1.5; CC.Transparency=0.7; CC.Radius=300; CC.Filled=false
+
+print("FOV Circles created")
+
 -- ==================== IMPROVED FOG (from copia script) ====================
--- Smoother transitions, better color blending, and visual quality
 local FogPresets = {
     {Name="Pink", Color=Color3.fromRGB(245,205,220)},
     {Name="D.Pink", Color=Color3.fromRGB(215,130,170)},
@@ -595,7 +647,6 @@ local TargetFogEnd = 500
 local function UpdateFog()
     if ST.FG then
         TargetFogEnd = 500 - (ST.FGDen * 4500)
-        -- Smooth transition
         if Lighting.FogEnd then
             Lighting.FogEnd = TargetFogEnd
         end
@@ -631,12 +682,6 @@ local UIPresets = {
 }
 
 print("FOG + UI Presets loaded")
-
--- FOV CIRCLES
-local AC=Drawing.new("Circle"); AC.Visible=false; AC.Color=PAL.Pink; AC.Thickness=1.5; AC.Transparency=0.7; AC.Radius=200; AC.Filled=false
-local CC=Drawing.new("Circle"); CC.Visible=false; CC.Color=PAL.Bad; CC.Thickness=1.5; CC.Transparency=0.7; CC.Radius=300; CC.Filled=false
-
-print("FOV Circles created")
 
 -- ==================== CAMLOCK (With Magnet Support) ====================
 local CamActive = false
@@ -754,15 +799,6 @@ local function ToggleCamlock()
     end
     
     UpdateCamlock()
-end
-
-local function W2S(pos)
-    if not pos then return nil end
-    if typeof(pos)=="CFrame" then pos=pos.Position end
-    if typeof(pos)~="Vector3" then return nil end
-    local ok,r=pcall(function() return Camera:WorldToViewportPoint(pos) end)
-    if ok and r and r.Z>0 then return {X=r.X,Y=r.Y,Z=r.Z} end
-    return nil
 end
 
 print("Functions loaded")
@@ -1272,44 +1308,7 @@ local CoreGui
 local s, e = pcall(function() return game:GetService("CoreGui") end)
 if s then CoreGui = e else CoreGui = LocalPlayer:WaitForChild("PlayerGui") end
 
--- ==================== PAL ====================
-local PAL = {
-    Pink = Color3.fromRGB(245,205,220),
-    DarkPink = Color3.fromRGB(215,130,170),
-    Cream = Color3.fromRGB(255,248,240),
-    Olive = Color3.fromRGB(220,225,170),
-    Brown = Color3.fromRGB(80,60,50),
-    LightBrown = Color3.fromRGB(130,100,80),
-    Bg = Color3.fromRGB(255,248,240),
-    Surf = Color3.fromRGB(255,235,240),
-    SurfL = Color3.fromRGB(255,242,245),
-    Txt = Color3.fromRGB(60,45,35),
-    TxtS = Color3.fromRGB(100,80,70),
-    Brd = Color3.fromRGB(215,130,170),
-    Ok = Color3.fromRGB(170,220,140),
-    Bad = Color3.fromRGB(100,100,110),
-    Warn = Color3.fromRGB(255,190,120),
-    Gray = Color3.fromRGB(200,195,195),
-    White = Color3.fromRGB(255,255,255),
-    ButtonGreen = Color3.fromRGB(235,245,180),
-    ButtonText = Color3.fromRGB(60,45,35),
-    CardBackground = Color3.fromRGB(255,250,250),
-    CardStroke = Color3.fromRGB(215,130,170),
-    SpeechBubble = Color3.fromRGB(255,235,240),
-    Gold = Color3.fromRGB(235, 200, 120)
-}
-
-local UIAccentColor = Color3.fromRGB(215,130,170)
-local UISecondaryColor = Color3.fromRGB(245,205,220)
-
-local function CRN(p,r)
-    pcall(function() local c=Instance.new("UICorner"); c.CornerRadius=r or UDim.new(0,12); c.Parent=p end)
-end
-local function STR(p,t,c,tr)
-    pcall(function() local s=Instance.new("UIStroke"); s.Thickness=t or 1.5; s.Color=c or PAL.Brd; s.Transparency=tr or 0; s.Parent=p end)
-end
-
--- ==================== BUILD UI (FULL) ====================
+-- ==================== BUILD UI ====================
 local SG=Instance.new("ScreenGui"); SG.Name="DH"; SG.ZIndexBehavior=Enum.ZIndexBehavior.Sibling; SG.ResetOnSpawn=false; SG.Parent=CoreGui
 
 local BO=Instance.new("Frame"); 
@@ -1624,7 +1623,7 @@ for i,cat in ipairs(Cats) do
                     FOV_RADIUS = v
                 end
                 if fkk=="CLFOV" then CC.Radius=v end
-                if fkk=="CLMagnetStrength" then end -- handled in loop
+                if fkk=="CLMagnetStrength" then end
                 if fkk=="HBSz" or fkk=="HBOp" then UpdateHitbox() end
                 if fkk=="FGDen" then UpdateFog() end
                 if fkk=="SPVal" then UpdateMove() end
