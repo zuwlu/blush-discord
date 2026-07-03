@@ -1,6 +1,5 @@
 // index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH SCRIPTS)
-// REMOVED: Triggerbot from all versions
-// KEPT: Flame Lock, Silent Aim, Camlock, ESP, Hitbox, Movement, Fog, Morph, Settings
+// FIXED: Added debug logging for Discord login
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -3159,6 +3158,37 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Web server running on port ${port}`));
 
 // ============================================
-// LOGIN
+// LOGIN (FIXED - WITH DEBUGGING)
 // ============================================
-client.login(process.env.TOKEN);
+console.log("🔍 Attempting to login to Discord...");
+console.log("🔑 TOKEN exists:", !!process.env.TOKEN);
+console.log("🔑 TOKEN length:", process.env.TOKEN ? process.env.TOKEN.length : 0);
+
+if (!process.env.TOKEN) {
+    console.error("❌ CRITICAL: TOKEN environment variable is not set!");
+    console.error("❌ Please add TOKEN to your environment variables in Render.");
+} else {
+    // Validate token format (basic check)
+    if (process.env.TOKEN.length < 50) {
+        console.error("❌ WARNING: Token seems too short. Please check your token.");
+    }
+    
+    console.log("🔑 Attempting login with provided token...");
+    client.login(process.env.TOKEN)
+        .then(() => {
+            console.log("✅ Discord login successful!");
+        })
+        .catch((error) => {
+            console.error("❌ Discord login failed with error:", error.message);
+            console.error("❌ Full error:", error);
+            // Keep the web server running even if Discord login fails
+        });
+}
+
+client.on(Events.Error, (error) => {
+    console.error("❌ Discord client error:", error.message);
+});
+
+client.on(Events.ShardError, (error) => {
+    console.error("❌ Shard error:", error.message);
+});
