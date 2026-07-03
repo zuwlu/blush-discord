@@ -1,5 +1,5 @@
 // index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH SCRIPTS)
-// FIXED: Proxy + REST fallback for Render WebSocket blocking
+// ADDED: Flame Lock to regular, xeno, and delta scripts
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -270,7 +270,7 @@ async function isBlacklisted(discordId, username) {
 }
 
 // ============================================
-// VERSION-SPECIFIC SCRIPTS (FULL - NO TRIGGERBOT)
+// VERSION-SPECIFIC SCRIPTS (WITH FLAME LOCK)
 // ============================================
 const SCRIPTS = {
     regular: `
@@ -3158,124 +3158,6 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Web server running on port ${port}`));
 
 // ============================================
-// LOGIN (FIXED - PROXY + REST FALLBACK FOR RENDER)
+// LOGIN
 // ============================================
-console.log("🔍 Attempting to login to Discord via proxy...");
-console.log("🔑 TOKEN exists:", !!process.env.TOKEN);
-console.log("🔑 TOKEN length:", process.env.TOKEN ? process.env.TOKEN.length : 0);
-
-if (!process.env.TOKEN) {
-    console.error("❌ CRITICAL: TOKEN environment variable is not set!");
-} else {
-    // Force REST-only mode and disable WebSocket compression
-    client.options.ws = {
-        version: '10',
-        compress: false,
-        properties: {
-            os: 'linux',
-            browser: 'discord.js',
-            device: 'discord.js'
-        }
-    };
-    
-    let readyReceived = false;
-    let reconnectAttempts = 0;
-    const maxReconnectAttempts = 5;
-    
-    // Register commands via REST first
-    const registerCommands = async () => {
-        try {
-            console.log('🔄 Registering global commands via REST...');
-            const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-            await rest.put(
-                Routes.applicationCommands(client.user.id),
-                { body: commands.map(cmd => cmd.toJSON()) }
-            );
-            console.log('✅ Global commands registered successfully via REST!');
-            return true;
-        } catch (error) {
-            console.error('❌ REST command registration failed:', error.message);
-            return false;
-        }
-    };
-    
-    await registerCommands();
-    
-    const attemptLogin = () => {
-        console.log(`🔄 Login attempt ${reconnectAttempts + 1}/${maxReconnectAttempts}...`);
-        
-        let loginTimer = setTimeout(() => {
-            if (!readyReceived) {
-                console.error("❌ Login timeout - no ready event after 30s.");
-                client.destroy();
-                if (reconnectAttempts < maxReconnectAttempts) {
-                    reconnectAttempts++;
-                    setTimeout(attemptLogin, 15000);
-                }
-            }
-        }, 30000);
-        
-        client.login(process.env.TOKEN)
-            .then(() => console.log("✅ Discord login promise resolved."))
-            .catch((error) => {
-                console.error("❌ Login error:", error.message);
-                if (reconnectAttempts < maxReconnectAttempts) {
-                    reconnectAttempts++;
-                    setTimeout(attemptLogin, 15000);
-                }
-            });
-    };
-    
-    client.once(Events.ClientReady, () => {
-        readyReceived = true;
-        console.log("✅ Discord client ready!");
-    });
-    
-    client.on(Events.ClientReady, () => {
-        if (!readyReceived) {
-            readyReceived = true;
-            console.log("✅ Discord client ready (fallback)!");
-        }
-    });
-    
-    attemptLogin();
-    
-    // REST-only heartbeat if WebSocket fails
-    setTimeout(async () => {
-        if (!readyReceived) {
-            console.log("⚠️ WebSocket login hanging. Using REST-only mode for commands.");
-            setInterval(async () => {
-                try {
-                    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-                    await rest.put(
-                        Routes.applicationCommands(client.user.id),
-                        { body: commands.map(cmd => cmd.toJSON()) }
-                    );
-                    console.log("💓 REST heartbeat: commands refreshed");
-                } catch (e) {
-                    console.error("REST heartbeat failed:", e.message);
-                }
-            }, 60000);
-        }
-    }, 45000);
-}
-
-client.on(Events.ShardDisconnect, (event, id) => {
-    console.warn(`⚠️ Shard ${id} disconnected.`);
-    setTimeout(() => {
-        if (!client.ws?.reconnecting) {
-            console.log("🔄 Manual reconnect triggered...");
-            client.login(process.env.TOKEN).catch(() => {});
-        }
-    }, 5000);
-});
-
-setInterval(() => {
-    try {
-        const status = client.ws?.status ?? 'unknown';
-        console.log(`💓 Heartbeat: Discord status = ${status}`);
-    } catch (e) {}
-}, 30000);
-
-process.on('unhandledRejection', (error) => console.error('Unhandled rejection:', error));
-process.on('uncaughtException', (error) => console.error('Uncaught exception:', error));
+client.login(process.env.TOKEN);
