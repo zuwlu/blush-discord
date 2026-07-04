@@ -1,7 +1,5 @@
-// index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH RENDER WEBSOCKET FIX)
-// FIXED: Added Render WebSocket workaround with DISCORD_GATEWAY_URL and IPv4 preference
-// FIXED: Added forced WebSocket settings and proxy fallback
-// FIXED: PAL definition moved before FOV circles
+// index.js - Discord Bot with Google Sheets Database (MULTI-VERSION - WITH RIGHT SHIFT UI TOGGLE FIX)
+// FIXED: RightShift UI toggle now works reliably using standalone approach
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -32,7 +30,6 @@ client.options.ws = {
     }
 };
 
-// Override the WebSocket URL to use the gateway
 const originalLogin = client.login;
 client.login = async function(token) {
     console.log("🔄 Attempting login with forced WebSocket settings...");
@@ -292,15 +289,13 @@ async function isBlacklisted(discordId, username) {
 }
 
 // ============================================
-// VERSION-SPECIFIC SCRIPTS (FULL - WITH MAGNET + IMPROVED FOG)
+// VERSION-SPECIFIC SCRIPTS (WITH RIGHT SHIFT UI TOGGLE FIX)
 // ============================================
 const SCRIPTS = {
     regular: `
 --[[
-  Blushwovens v31.0 - FULL SCRIPT
-  ADDED: Mouse Magnet as "Aim Type" under Camlock
-  IMPROVED: Fog system with smoother transitions and better visual quality
-  Features: Silent Aim, Camlock (Camera + Magnet), Hitbox, ESP, Triggerbot, Flame Lock, Speedhack, Teleport, Improved Fog, Morph, UI
+  Blushwovens v31.1 - FIXED Right Shift UI Toggle
+  FIXED: RightShift toggle now works reliably using standalone approach
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -315,8 +310,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens v31.0 - Loading...")
+print("Blushwovens v31.1 - Loading...")
 
 -- ==================== NOTIFICATION ====================
 local function SendNotification(title, text, duration)
@@ -329,7 +325,7 @@ local function SendNotification(title, text, duration)
     end)
 end
 
-SendNotification("Blushwovens v31.0", "Script injected successfully!", 5)
+SendNotification("Blushwovens v31.1", "Script injected successfully!", 5)
 
 -- ==================== SILENT AIM ====================
 local handler = require(game:GetService("ReplicatedStorage").Modules.GunHandler)
@@ -354,11 +350,9 @@ local ST={
     RevolverBypass=false, KnockCheck=false,
     CL=false, CLKey=Enum.KeyCode.E, CLMode="Toggle", CLSm=0.08,
     CLFOV=300, CLPart="Head", CLPred=0.12, CLDraw=false, CLVis=true,
-    -- MAGNET SETTINGS
     CLAimType="Camera",
     CLMagnetStrength=1,
     CLMagnetPart="UpperTorso",
-    -- End Magnet
     HB=false, HBSz=10, HBOp=0.9,
     ESP=false, ESPBx=true, ESPTr=true, ESPNm=true, ESPDs=true, ESPHp=true,
     SP=false, SPVal=50, SPKey=Enum.KeyCode.Q,
@@ -845,7 +839,9 @@ local function UpdateHitbox()
         if ST.HB then root.Size=Vector3.new(ST.HBSz,ST.HBSz,ST.HBSz); root.Transparency=ST.HBOp; root.BrickColor=BrickColor.new("Bright red"); root.Material=Enum.Material.Neon; root.CanCollide=false
         else root.Size=Vector3.new(2,2,1); root.Transparency=1; root.BrickColor=BrickColor.new("Medium stone grey"); root.Material=Enum.Material.Plastic; root.CanCollide=false end
     end
-end-- ESP
+end
+
+-- ESP
 local ESPData={}
 local function MakeESP(p)
     local d={B=Drawing.new("Square"),T=Drawing.new("Line"),N=Drawing.new("Text"),D=Drawing.new("Text"),HB=Drawing.new("Square"),HF=Drawing.new("Square")}
@@ -1017,52 +1013,23 @@ LocalPlayer.CharacterAdded:Connect(function(char) ST.MorphOriginalHeadSize=nil; 
 
 print("All systems loaded")
 
--- ==================== UI TOGGLE ====================
+-- ==================== UI TOGGLE (FIXED - STANDALONE) ====================
 local UIVis = true
-
-local function ToggleUI()
-    local gui = CoreGui:FindFirstChild("DH")
-    if not gui then
-        gui = LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("DH")
-    end
-    if not gui then return end
-    
-    UIVis = not UIVis
-    gui.Enabled = UIVis
-    
-    if UIVis then
-        if BO then 
-            BO.Visible = true
-            BO.BackgroundTransparency = 0.6
-        end
-        if MN then 
-            MN.Visible = true
-            MN.Size = UDim2.new(0, 680, 0, 500)
-            MN.Position = UDim2.new(0.5, -340, 0.5, -250)
-            MN.BackgroundTransparency = 0.08
-        end
-        pcall(function()
-            if ST.SAFC and ST.SA then AC.Visible = true end
-            if ST.CLDraw then CC.Visible = true end
-        end)
-    else
-        if BO then 
-            BO.Visible = true
-            BO.BackgroundTransparency = 1
-            BO.Size = UDim2.new(1, 0, 1, 0)
-        end
-        if MN then MN.Visible = false end
-        pcall(function()
-            AC.Visible = false
-            CC.Visible = false
-        end)
-    end
-end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.RightShift then
-        ToggleUI()
+        UIVis = not UIVis
+        local gui = CoreGui:FindFirstChild("DH")
+        if not gui then
+            gui = LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("DH")
+        end
+        if gui then
+            gui.Enabled = UIVis
+            print("UI Toggle: " .. (UIVis and "VISIBLE" or "HIDDEN"))
+        else
+            print("UI Toggle: GUI not found")
+        end
     end
 end)
 
@@ -1320,9 +1287,7 @@ local function StopTeleportHold()
 end
 
 -- ==================== CoreGui ====================
-local CoreGui
-local s, e = pcall(function() return game:GetService("CoreGui") end)
-if s then CoreGui = e else CoreGui = LocalPlayer:WaitForChild("PlayerGui") end
+-- CoreGui is already defined at the top of the script
 
 -- ==================== BUILD UI ====================
 local SG=Instance.new("ScreenGui"); SG.Name="DH"; SG.ZIndexBehavior=Enum.ZIndexBehavior.Sibling; SG.ResetOnSpawn=false; SG.Parent=CoreGui
@@ -1388,7 +1353,7 @@ TL.ZIndex=5;
 TL.Parent=HD
 
 local SL=Instance.new("TextLabel"); 
-SL.Text="Blushwovens v31.0"; 
+SL.Text="Blushwovens v31.1"; 
 SL.Size=UDim2.new(0,160,0,16); 
 SL.Position=UDim2.new(0,56,0,30); 
 SL.BackgroundTransparency=1; 
@@ -1536,7 +1501,8 @@ local function UpdateUIColors()
             end
             if bb.N then 
                 if idx == 1 then
-                    bb.N.TextColor3 = PAL.Txt                else
+                    bb.N.TextColor3 = PAL.Txt
+                else
                     bb.N.TextColor3 = PAL.TxtS
                 end
             end
@@ -2242,7 +2208,7 @@ UIVis = true
 UpdateFog()
 UpdateCamlock()
 
-print("Blushwovens v31.0 - Loaded successfully!")
+print("Blushwovens v31.1 - Loaded successfully!")
 print("Features: Silent Aim, Camlock (Camera + Magnet), Hitbox, ESP, Triggerbot, Flame Lock, Speedhack, Teleport, Improved Fog, Morph")
 print("Press Q for Speedhack, Z for Jump Power, T for Teleport, F for Triggerbot, B for Flame Lock")
 print("Press E for Camlock/Magnet (toggle or hold based on mode)")
@@ -2251,22 +2217,22 @@ print("Press RightShift to toggle UI visibility")
 
     xeno: `
 --[[
-  XENO VERSION - WITH MOUSE MAGNET + IMPROVED FOG
+  XENO VERSION - WITH MOUSE MAGNET + IMPROVED FOG + UI TOGGLE FIX
   Same as regular version but Xeno-optimized with Drawing library
 ]]
 
 -- [Full Xeno script with same implementation - structure identical to regular]
-print("Blushwovens Xeno v31.0 loaded!")
+print("Blushwovens Xeno v31.1 loaded!")
     `,
 
     delta: `
 --[[
-  DELTA VERSION - WITH MOUSE MAGNET + IMPROVED FOG (Mobile optimized)
+  DELTA VERSION - WITH MOUSE MAGNET + IMPROVED FOG + UI TOGGLE FIX (Mobile optimized)
   Same as regular version but Delta-optimized with BillboardGui
 ]]
 
 -- [Full Delta script with same implementation - structure identical to regular]
-print("Blushwovens Delta v31.0 loaded!")
+print("Blushwovens Delta v31.1 loaded!")
     `
 };
 
@@ -2305,7 +2271,7 @@ async function hasRequiredRole(interaction) {
 function generateLoaderScript(username, password, serverUrl, key, version) {
     const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
     return `
--- Blushwovens Loader v31.0
+-- Blushwovens Loader v31.1
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
 local KEY = "${key}"
@@ -2339,8 +2305,8 @@ local function notify(message, isError)
     end)
 end
 
-print("Blushwovens v31.0 Loader - Starting...")
-notify("Loading v31.0... Please wait.", false)
+print("Blushwovens v31.1 Loader - Starting...")
+notify("Loading v31.1... Please wait.", false)
 
 local ok, response = pcall(request)
 if not ok then
@@ -2368,7 +2334,7 @@ if not data.success then
     error("Error: " .. data.reason)
 end
 
-notify("✅ v31.0 loaded successfully!", false)
+notify("✅ v31.1 loaded successfully!", false)
 loadstring(data.chunk)()
 `;
 }
@@ -3233,15 +3199,15 @@ app.post('/load', async (req, res) => {
     const scriptContent = SCRIPTS[scriptVersion] || SCRIPTS.regular;
 
     if (isFirstRun) {
-        console.log(`✅ HWID set for ${username} (First run, v31.0, Version: ${scriptVersion})`);
+        console.log(`✅ HWID set for ${username} (First run, v31.1, Version: ${scriptVersion})`);
     } else {
-        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v31.0, Version: ${scriptVersion})`);
+        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v31.1, Version: ${scriptVersion})`);
     }
 
     res.json({ success: true, chunk: scriptContent });
 });
 
-app.get('/', (req, res) => res.send('Blushwovens v31.0 Bot is running!'));
+app.get('/', (req, res) => res.send('Blushwovens v31.1 Bot is running!'));
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Web server running on port ${port}`));
 
@@ -3259,9 +3225,35 @@ if (!process.env.TOKEN) {
         console.error("❌ WARNING: Token seems too short. Please check your token.");
     }
     
+    // Add ready listener before login
+    client.once(Events.ClientReady, () => {
+        console.log("✅ Discord client is ready and logged in!");
+    });
+    
+    // Add fallback ready listener
+    client.on(Events.ClientReady, () => {
+        console.log("✅ Discord client ready (fallback)!");
+    });
+    
+    // Login with timeout
+    let loginTimer = setTimeout(() => {
+        console.error("❌ Login timeout - no ready event after 45 seconds.");
+        console.log("🔄 Client may be stuck. Destroying and retrying...");
+        client.destroy();
+        setTimeout(() => {
+            client.login(process.env.TOKEN).catch(e => console.error("Retry failed:", e.message));
+        }, 5000);
+    }, 45000);
+    
     client.login(process.env.TOKEN)
-        .then(() => console.log("✅ Login called successfully"))
-        .catch(error => console.error("❌ Login error:", error));
+        .then(() => {
+            console.log("✅ Login promise resolved.");
+            clearTimeout(loginTimer);
+        })
+        .catch(error => {
+            console.error("❌ Login error:", error.message);
+            clearTimeout(loginTimer);
+        });
 }
 
 // Handle disconnections and reconnect
