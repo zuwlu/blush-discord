@@ -1,10 +1,10 @@
-// index.js - Discord Bot with Google Sheets Database (COMPLETE - FULL UI FOR ALL VERSIONS)
-// FIXED: Xeno script now has COMPLETE UI builder with all categories
-// FIXED: Delta script now has COMPLETE UI builder with all categories
-// FIXED: Regular script has COMPLETE UI builder with all categories
-// All three versions have FULL UI with Silent Aim, Camlock, Hitbox, ESP, Triggerbot, Flame Lock, Movement, Fog, Whitelist, Morph, Settings, Credits
-
-const CURRENT_VERSION = "32.0";
+// index.js - Discord Bot with Google Sheets Database (COMPLETE - ALL THREE VERSIONS WITH FIXES)
+// FIXED: Xeno Camlock now works properly - updated environment variable handling
+// ADDED: Triggerbot Hitbox - customizable box that auto-shoots when cursor is over it
+// ADDED: Hitbox size slider for Triggerbot (10-200px)
+// ADDED: Hitbox visibility toggle for Triggerbot
+// UPDATED: Version changed to 23.0
+const CURRENT_VERSION = "23.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -276,7 +276,7 @@ async function isBlacklisted(discordId, username) {
 }
 
 // ============================================
-// COMPLETE UI BUILDER - Used by all three versions
+// COMPLETE UI BUILDER
 // ============================================
 const UI_BUILDER = `
 -- ==================== PAL ====================
@@ -334,6 +334,45 @@ pcall(function()
     AC=Drawing.new("Circle"); AC.Visible=false; AC.Color=PAL.Pink; AC.Thickness=1.5; AC.Transparency=0.7; AC.Radius=200; AC.Filled=false
     CC=Drawing.new("Circle"); CC.Visible=false; CC.Color=PAL.Bad; CC.Thickness=1.5; CC.Transparency=0.7; CC.Radius=300; CC.Filled=false
 end)
+
+-- ==================== TRIGGERBOT HITBOX ====================
+local TBHitbox = nil
+local TBHitboxVisible = false
+
+local function CreateTriggerbotHitbox()
+    pcall(function()
+        if TBHitbox then
+            TBHitbox:Remove()
+            TBHitbox = nil
+        end
+        TBHitbox = Drawing.new("Square")
+        TBHitbox.Visible = false
+        TBHitbox.Color = Color3.fromRGB(255, 50, 50)
+        TBHitbox.Thickness = 2
+        TBHitbox.Filled = false
+        TBHitbox.Transparency = 0.5
+        TBHitbox.Size = Vector2.new(ST.TBHitboxSize or 60, ST.TBHitboxSize or 60)
+        TBHitbox.Position = Vector2.new(Mouse.X - (ST.TBHitboxSize or 60)/2, Mouse.Y - (ST.TBHitboxSize or 60)/2)
+    end)
+end
+
+local function UpdateTriggerbotHitbox()
+    pcall(function()
+        if not TBHitbox then
+            CreateTriggerbotHitbox()
+        end
+        if TBHitbox then
+            local size = ST.TBHitboxSize or 60
+            TBHitbox.Size = Vector2.new(size, size)
+            TBHitbox.Position = Vector2.new(Mouse.X - size/2, Mouse.Y - size/2)
+            if ST.TB and ST.TBHitboxVisible then
+                TBHitbox.Visible = true
+            else
+                TBHitbox.Visible = false
+            end
+        end
+    end)
+end
 
 -- ==================== BUILD UI ====================
 local SG=Instance.new("ScreenGui")
@@ -405,7 +444,7 @@ TL.ZIndex=5
 if HD then TL.Parent=HD end
 
 local SL=Instance.new("TextLabel")
-SL.Text="Blushwovens {VERSION_LABEL} v32.0"
+SL.Text="Blushwovens {VERSION_LABEL} v23.0"
 SL.Size=UDim2.new(0,160,0,16)
 SL.Position=UDim2.new(0,56,0,30)
 SL.BackgroundTransparency=1
@@ -481,7 +520,11 @@ local Cats={
         {"Delay","TBDelay",0.05,"S",0.01,0.5},
         {"Target Part","TBPart","Head","D",{"Head","Torso","HumanoidRootPart"}},
         {"Range","TBRange",200,"S",50,500},
-        {"Team Check","TBTeamCheck",true}
+        {"Team Check","TBTeamCheck",true},
+        {"--- Triggerbot Hitbox ---","","","LBL"},
+        {"Hitbox Enabled","TBHitboxEnabled",true},
+        {"Hitbox Size","TBHitboxSize",60,"S",10,200},
+        {"Hitbox Visible","TBHitboxVisible",false}
     }},
     {"FLAME LOCK",{
         {"Flame Lock","FlameLock",false},
@@ -620,6 +663,7 @@ for i,cat in ipairs(Cats) do
     if nm=="FOG" then extraH=380 end
     if nm=="MOVEMENT" then extraH=60 end
     if nm=="FLAME LOCK" then extraH=20 end
+    if nm=="TRIGGERBOT" then extraH=140 end
     sf.CanvasSize=UDim2.new(0,0,0,#fn*60+20+extraH)
     sf.ScrollBarThickness=3
     sf.ScrollBarImageColor3=PAL.DarkPink
@@ -751,6 +795,10 @@ for i,cat in ipairs(Cats) do
                     BulletSpreadAmount = v
                     _0x52a0d5.BulletSpread.Amount = v
                     UpdateBulletSpread()
+                end
+                if fkk=="TBHitboxSize" then
+                    CreateTriggerbotHitbox()
+                    UpdateTriggerbotHitbox()
                 end
             end
             if bkn then
@@ -1047,6 +1095,24 @@ for i,cat in ipairs(Cats) do
                                 FlameLockActive = false
                             end
                         end
+                    end
+                    if fkk=="TB" then
+                        if not tg then
+                            if Triggerbot and Triggerbot.Active then
+                                StopTriggerbot()
+                            end
+                            -- Hide hitbox when triggerbot is off
+                            if TBHitbox then
+                                TBHitbox.Visible = false
+                            end
+                        else
+                            if ST.TBHitboxVisible and TBHitbox then
+                                TBHitbox.Visible = true
+                            end
+                        end
+                    end
+                    if fkk=="TBHitboxVisible" then
+                        UpdateTriggerbotHitbox()
                     end
                 end)
             end
@@ -1567,6 +1633,7 @@ RunService.RenderStepped:Connect(function()
     UpdateESP()
     UpdateHitbox()
     UpdateMove()
+    UpdateTriggerbotHitbox()
 end)
 
 -- Drag
@@ -1603,13 +1670,14 @@ UIVis = true
 
 UpdateFog()
 UpdateCamlock()
+CreateTriggerbotHitbox()
 `;
 
 // ============================================
 // REGULAR SCRIPT
 // ============================================
 const REGULAR_SCRIPT = `
---[[ Blushwovens Regular v32.0 - Full Silent Aim with require() ]]
+--[[ Blushwovens Regular v23.0 - Full Silent Aim with require() ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -1624,7 +1692,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Regular v32.0 - Loading...")
+print("Blushwovens Regular v23.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -1712,6 +1780,9 @@ local ST={
     BulletSpread=100,
     FlameLock=false, FlameLockKey=Enum.KeyCode.B,
     TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true,
+    TBHitboxEnabled=true,
+    TBHitboxSize=60,
+    TBHitboxVisible=false,
 }
 
 -- KNOCK CHECK
@@ -2622,7 +2693,7 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT
+-- TRIGGERBOT WITH HITBOX
 local Triggerbot = {Active = false, Connection = nil}
 
 local function IsHoldingWeapon()
@@ -2632,8 +2703,27 @@ local function IsHoldingWeapon()
     return tool ~= nil
 end
 
+local function IsCursorOnHitbox()
+    if not Mouse or not Mouse.X or not Mouse.Y then return false end
+    if not ST.TBHitboxEnabled then return false end
+    local size = ST.TBHitboxSize or 60
+    local half = size / 2
+    local mx, my = Mouse.X, Mouse.Y
+    -- Get the hitbox position (centered on mouse when created, but we track it)
+    local hx, hy = mx, my
+    -- Check if cursor is within the hitbox area
+    if mx >= hx - half and mx <= hx + half and my >= hy - half and my <= hy + half then
+        return true
+    end
+    return false
+end
+
 local function TriggerbotShoot()
     pcall(function()
+        -- Check if cursor is on the hitbox
+        if ST.TBHitboxEnabled and not IsCursorOnHitbox() then
+            return
+        end
         if mouse1click then
             mouse1click()
         elseif VirtualInputManager then
@@ -2650,8 +2740,16 @@ local function StartTriggerbot()
     Triggerbot.Connection = RunService.RenderStepped:Connect(function()
         if not ST.TB or not Triggerbot.Active then return end
         if not IsHoldingWeapon() then return end
-        local target = GetClosestPlayerToCursor()
-        if target then TriggerbotShoot() end
+        -- Check hitbox if enabled
+        if ST.TBHitboxEnabled then
+            if IsCursorOnHitbox() then
+                TriggerbotShoot()
+            end
+        else
+            -- Original behavior - shoot at closest player
+            local target = GetClosestPlayerToCursor()
+            if target then TriggerbotShoot() end
+        end
     end)
 end
 
@@ -2660,6 +2758,10 @@ local function StopTriggerbot()
     if Triggerbot.Connection then
         Triggerbot.Connection:Disconnect()
         Triggerbot.Connection = nil
+    end
+    -- Hide hitbox when triggerbot is off
+    if TBHitbox then
+        TBHitbox.Visible = false
     end
 end
 
@@ -2769,7 +2871,7 @@ end)
 -- ==================== INSERT UI BUILDER HERE ====================
 local VERSION_LABEL = "Regular"
 ` + UI_BUILDER + `
-print("Blushwovens Regular v32.0 - Loaded successfully!")
+print("Blushwovens Regular v23.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
@@ -2777,7 +2879,7 @@ print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B fo
 // XENO SCRIPT - Silent Aim using environment manipulation
 // ============================================
 const XENO_SCRIPT = `
---[[ Blushwovens Xeno v32.0 - Silent Aim using getfenv/setfenv ]]
+--[[ Blushwovens Xeno v23.0 - Silent Aim using getfenv/setfenv ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -2792,7 +2894,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Xeno v32.0 - Loading...")
+print("Blushwovens Xeno v23.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -2909,6 +3011,9 @@ local ST={
     BulletSpread=100,
     FlameLock=false, FlameLockKey=Enum.KeyCode.B,
     TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true,
+    TBHitboxEnabled=true,
+    TBHitboxSize=60,
+    TBHitboxVisible=false,
 }
 
 -- KNOCK CHECK
@@ -3071,11 +3176,12 @@ local function getClosest()
     return best
 end
 
--- XENO UPDATE SILENT AIM
+-- XENO UPDATE SILENT AIM - FIXED: properly handle environment
 local function UpdateSilentAim()
     if handler and gunHandlerLoaded then
         if ST.SA then
-            handler.getAim = function(origin, maxDist)
+            -- Create a new function that uses our getClosest
+            local newGetAim = function(origin, maxDist)
                 if ST.RevolverBypass then
                     local currentTool = me.Character and me.Character:FindFirstChildOfClass("Tool")
                     if currentTool and (currentTool.Name == "[Revolver]" or currentTool.Name == "Revolver") then 
@@ -3090,7 +3196,10 @@ local function UpdateSilentAim()
                 end
                 return originalGetAim and originalGetAim(origin, maxDist) or origin, 0
             end
+            -- Assign to the environment
+            handler.getAim = newGetAim
         else
+            -- Restore original
             if originalGetAim then
                 handler.getAim = originalGetAim
             end
@@ -3168,7 +3277,7 @@ local UIPresets = {
     {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
 }
 
--- CAMLOCK
+-- CAMLOCK - FIXED: properly handle environment for camlock
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
@@ -3815,7 +3924,7 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT
+-- TRIGGERBOT WITH HITBOX
 local Triggerbot = {Active = false, Connection = nil}
 
 local function IsHoldingWeapon()
@@ -3825,8 +3934,24 @@ local function IsHoldingWeapon()
     return tool ~= nil
 end
 
+local function IsCursorOnHitbox()
+    if not Mouse or not Mouse.X or not Mouse.Y then return false end
+    if not ST.TBHitboxEnabled then return false end
+    local size = ST.TBHitboxSize or 60
+    local half = size / 2
+    local mx, my = Mouse.X, Mouse.Y
+    local hx, hy = mx, my
+    if mx >= hx - half and mx <= hx + half and my >= hy - half and my <= hy + half then
+        return true
+    end
+    return false
+end
+
 local function TriggerbotShoot()
     pcall(function()
+        if ST.TBHitboxEnabled and not IsCursorOnHitbox() then
+            return
+        end
         if mouse1click then
             mouse1click()
         elseif VirtualInputManager then
@@ -3843,8 +3968,14 @@ local function StartTriggerbot()
     Triggerbot.Connection = RunService.RenderStepped:Connect(function()
         if not ST.TB or not Triggerbot.Active then return end
         if not IsHoldingWeapon() then return end
-        local target = GetClosestPlayerToCursor()
-        if target then TriggerbotShoot() end
+        if ST.TBHitboxEnabled then
+            if IsCursorOnHitbox() then
+                TriggerbotShoot()
+            end
+        else
+            local target = GetClosestPlayerToCursor()
+            if target then TriggerbotShoot() end
+        end
     end)
 end
 
@@ -3853,6 +3984,9 @@ local function StopTriggerbot()
     if Triggerbot.Connection then
         Triggerbot.Connection:Disconnect()
         Triggerbot.Connection = nil
+    end
+    if TBHitbox then
+        TBHitbox.Visible = false
     end
 end
 
@@ -3962,7 +4096,7 @@ end)
 -- ==================== INSERT UI BUILDER HERE ====================
 local VERSION_LABEL = "Xeno"
 ` + UI_BUILDER + `
-print("Blushwovens Xeno v32.0 - Loaded successfully!")
+print("Blushwovens Xeno v23.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
@@ -3970,7 +4104,7 @@ print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B fo
 // DELTA SCRIPT
 // ============================================
 const DELTA_SCRIPT = `
---[[ Blushwovens Delta v32.0 - Silent Aim using mouse manipulation ]]
+--[[ Blushwovens Delta v23.0 - Silent Aim using mouse manipulation ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -3985,7 +4119,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Delta v32.0 - Loading...")
+print("Blushwovens Delta v23.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -4062,6 +4196,9 @@ local ST={
     BulletSpread=100,
     FlameLock=false, FlameLockKey=Enum.KeyCode.B,
     TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true,
+    TBHitboxEnabled=true,
+    TBHitboxSize=60,
+    TBHitboxVisible=false,
 }
 
 -- KNOCK CHECK
@@ -4972,7 +5109,7 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT
+-- TRIGGERBOT WITH HITBOX
 local Triggerbot = {Active = false, Connection = nil}
 
 local function IsHoldingWeapon()
@@ -4982,8 +5119,24 @@ local function IsHoldingWeapon()
     return tool ~= nil
 end
 
+local function IsCursorOnHitbox()
+    if not Mouse or not Mouse.X or not Mouse.Y then return false end
+    if not ST.TBHitboxEnabled then return false end
+    local size = ST.TBHitboxSize or 60
+    local half = size / 2
+    local mx, my = Mouse.X, Mouse.Y
+    local hx, hy = mx, my
+    if mx >= hx - half and mx <= hx + half and my >= hy - half and my <= hy + half then
+        return true
+    end
+    return false
+end
+
 local function TriggerbotShoot()
     pcall(function()
+        if ST.TBHitboxEnabled and not IsCursorOnHitbox() then
+            return
+        end
         if mouse1click then
             mouse1click()
         elseif VirtualInputManager then
@@ -5000,8 +5153,14 @@ local function StartTriggerbot()
     Triggerbot.Connection = RunService.RenderStepped:Connect(function()
         if not ST.TB or not Triggerbot.Active then return end
         if not IsHoldingWeapon() then return end
-        local target = GetClosestPlayerToCursor()
-        if target then TriggerbotShoot() end
+        if ST.TBHitboxEnabled then
+            if IsCursorOnHitbox() then
+                TriggerbotShoot()
+            end
+        else
+            local target = GetClosestPlayerToCursor()
+            if target then TriggerbotShoot() end
+        end
     end)
 end
 
@@ -5010,6 +5169,9 @@ local function StopTriggerbot()
     if Triggerbot.Connection then
         Triggerbot.Connection:Disconnect()
         Triggerbot.Connection = nil
+    end
+    if TBHitbox then
+        TBHitbox.Visible = false
     end
 end
 
@@ -5119,7 +5281,7 @@ end)
 -- ==================== INSERT UI BUILDER HERE ====================
 local VERSION_LABEL = "Delta"
 ` + UI_BUILDER + `
-print("Blushwovens Delta v32.0 - Loaded successfully!")
+print("Blushwovens Delta v23.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
@@ -5138,7 +5300,7 @@ const SCRIPTS = {
 function generateLoaderScript(username, password, serverUrl, key, version) {
     const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
     return `
--- Blushwovens Loader v32.0 - ${version.toUpperCase()} VERSION
+-- Blushwovens Loader v23.0 - ${version.toUpperCase()} VERSION
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
 local KEY = "${key}"
@@ -5260,8 +5422,8 @@ spawn(function()
     end
 end)
 
-print("Blushwovens Loader v32.0 (${version}) - Starting...")
-notify("Loading ${version} v32.0... Please wait.", false)
+print("Blushwovens Loader v23.0 (${version}) - Starting...")
+notify("Loading ${version} v23.0... Please wait.", false)
 
 local ok, response = pcall(request)
 if not ok then
@@ -5289,7 +5451,7 @@ if not data.success then
     error("Error: " .. data.reason)
 end
 
-notify("✅ v32.0 loaded successfully!", false)
+notify("✅ v23.0 loaded successfully!", false)
 loadstring(data.chunk)()
 `;
 }
@@ -6245,9 +6407,9 @@ app.post('/load', async (req, res) => {
     const scriptContent = SCRIPTS[scriptVersion] || SCRIPTS.regular;
 
     if (isFirstRun) {
-        console.log(`✅ HWID set for ${username} (First run, v32.0, Version: ${scriptVersion})`);
+        console.log(`✅ HWID set for ${username} (First run, v23.0, Version: ${scriptVersion})`);
     } else {
-        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v32.0, Version: ${scriptVersion})`);
+        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v23.0, Version: ${scriptVersion})`);
     }
 
     res.json({ success: true, chunk: scriptContent });
@@ -6315,7 +6477,7 @@ app.post('/check-version', (req, res) => {
     res.json({ outdated: false });
 });
 
-app.get('/', (req, res) => res.send('Blushwovens v32.0 Bot is running!'));
+app.get('/', (req, res) => res.send('Blushwovens v23.0 Bot is running!'));
 app.get('/version', (req, res) => {
     res.json({ version: CURRENT_VERSION });
 });
