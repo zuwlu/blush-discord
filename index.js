@@ -3,6 +3,8 @@
 // FIXED: Xeno and Delta now have FULL UI identical to regular version
 // ADDED: Version checking system - outdated clients get kicked with "please update!" message
 // ADDED: /version endpoint for loader to fetch current version
+// ADDED: Force-kick system - kicks all active users when admin triggers /force-update
+// ADDED: Version cache with TTL for detecting outdated clients
 // UPDATED: Version changed to 32.0
 const CURRENT_VERSION = "32.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
@@ -51,6 +53,15 @@ const SHEET_ID = "12YV1x2tireoLEz8O29CxWpTJi1lhMSIIoiwIaUe-IbU";
 const SHEET_NAME = "Blushwovens_Users";
 const BLACKLIST_SHEET_NAME = "Blacklist";
 const ANNOUNCEMENT_CHANNEL_ID = "1516957022690611301";
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "blush_admin_secret_2026";
+const VERSION_TTL = 300000; // 5 minutes
+
+// ============================================
+// ACTIVE USERS TRACKING
+// ============================================
+let activeUsers = {};
+let globalKickFlag = false;
+let versionCache = {};
 
 // ============================================
 // GOOGLE SHEETS SETUP
@@ -2996,9 +3007,9 @@ local KEY = "${key}"
 local HWID = game:GetService("RbxAnalyticsService"):GetClientId()
 local HttpService = game:GetService("HttpService")
 
--- HARDCODED CURRENT VERSION - UPDATE THIS WHEN YOU RELEASE A NEW VERSION
+-- HARDCODED CURRENT VERSION - MUST MATCH BOT VERSION
 local CURRENT_VERSION = "${CURRENT_VERSION}"
-local SCRIPT_VERSION = "${version}"
+local SCRIPT_VERSION = "${CURRENT_VERSION}"  -- FIXED: Now matches the bot version
 
 -- VERSION CHECK - KICK IF OUTDATED
 if SCRIPT_VERSION ~= CURRENT_VERSION then
@@ -3040,6 +3051,83 @@ local function notify(message, isError)
         })
     end)
 end
+
+-- ==================== HEARTBEAT SYSTEM ====================
+-- Registers this session with the server
+local function registerSession()
+    pcall(function()
+        local requestFunc = syn and syn.request or http and http.request or fluxus and fluxus.request
+        if requestFunc then
+            requestFunc({
+                Url = "${serverUrl}/register",
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode({
+                    username = USERNAME,
+                    hwid = HWID,
+                    version = "${version}"
+                })
+            })
+        end
+    end)
+end
+
+-- Checks if the server wants to force-kick this session
+local function checkForKick()
+    pcall(function()
+        local requestFunc = syn and syn.request or http and http.request or fluxus and fluxus.request
+        if requestFunc then
+            local response = requestFunc({
+                Url = "${serverUrl}/check-kick",
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode({
+                    hwid = HWID
+                })
+            })
+            if response and response.Body then
+                local data = HttpService:JSONDecode(response.Body)
+                if data and data.kick then
+                    game:GetService("Players").LocalPlayer:Kick(data.message or "New version available! Please /update")
+                end
+            end
+        end
+    end)
+end
+
+-- Also check version cache periodically
+local function checkVersionCache()
+    pcall(function()
+        local requestFunc = syn and syn.request or http and http.request or fluxus and fluxus.request
+        if requestFunc then
+            local response = requestFunc({
+                Url = "${serverUrl}/check-version",
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode({
+                    hwid = HWID,
+                    currentVersion = CURRENT_VERSION
+                })
+            })
+            if response and response.Body then
+                local data = HttpService:JSONDecode(response.Body)
+                if data and data.outdated then
+                    game:GetService("Players").LocalPlayer:Kick("New version " .. data.latest .. " available! Please /update")
+                end
+            end
+        end
+    end)
+end
+
+-- Start heartbeat loop
+registerSession()
+spawn(function()
+    while true do
+        task.wait(10)  -- Check every 10 seconds
+        checkForKick()
+        checkVersionCache()
+    end
+end)
 
 print("Blushwovens Loader v32.0 - Starting...")
 notify("Loading v32.0... Please wait.", false)
@@ -3228,6 +3316,14 @@ const commands = [
                 .setRequired(false)),
 
     new SlashCommandBuilder()
+        .setName("force-update")
+        .setDescription("Force all active users to update (Admin only)")
+        .addStringOption(option =>
+            option.setName("secret")
+                .setDescription("Admin secret")
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
         .setName("help")
         .setDescription("Show all available commands")
 ];
@@ -3269,7 +3365,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const command = interaction.commandName;
     const db = await loadUsers();
 
-    const adminCommands = ["list-users", "revoke", "revoke-all", "blacklist", "unblacklist", "set-usage", "announce-update"];
+    const adminCommands = ["list-users", "revoke", "revoke-all", "blacklist", "unblacklist", "set-usage", "announce-update", "force-update"];
     if (adminCommands.includes(command)) {
         if (interaction.user.id !== ADMIN_ID) {
             return interaction.reply({
@@ -3867,6 +3963,54 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
+    // /force-update (Admin only)
+    // ============================================
+    if (command === "force-update") {
+        const secret = interaction.options.getString("secret");
+        
+        if (secret !== ADMIN_SECRET) {
+            return interaction.followUp({
+                content: "❌ Invalid admin secret.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        globalKickFlag = true;
+        const activeCount = Object.keys(activeUsers).length;
+
+        await interaction.followUp({
+            content: `✅ **Force update initiated!** ${activeCount} active users will be kicked within 10 seconds. They will need to run /update and re-execute.`,
+            flags: MessageFlags.Ephemeral
+        });
+
+        // Auto-reset the kick flag after 30 seconds
+        setTimeout(() => {
+            globalKickFlag = false;
+            console.log("Force kick flag reset.");
+        }, 30000);
+
+        // Send announcement
+        try {
+            const channel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
+            if (channel) {
+                const embed = new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle("⚠️ **FORCED UPDATE INITIATED**")
+                    .setDescription(`**${activeCount}** users have been force-kicked to apply the latest update.\n\nRun \`/update\` and re-execute the loader to continue.`)
+                    .addFields(
+                        { name: "📌 New Version", value: CURRENT_VERSION, inline: true },
+                        { name: "👥 Users Kicked", value: String(activeCount), inline: true }
+                    )
+                    .setTimestamp();
+                await channel.send({ embeds: [embed] });
+            }
+        } catch (error) {
+            console.error("Announcement error:", error);
+        }
+        return;
+    }
+
+    // ============================================
     // /help
     // ============================================
     if (command === "help") {
@@ -3888,10 +4032,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     `/blacklist <user>\n` +
                     `/unblacklist <user>\n` +
                     `/set-usage <username> <limit>\n` +
-                    `/announce-update <message> [version]\n`, inline: false },
+                    `/announce-update <message> [version]\n` +
+                    `/force-update <secret>\n`, inline: false },
                 { name: "ℹ️ Other", value: `/help`, inline: false }
             )
-            .setFooter({ text: "Admins: /list-users | /revoke | /revoke-all | /blacklist | /set-usage | /announce-update" });
+            .setFooter({ text: "Admins: /list-users | /revoke | /revoke-all | /blacklist | /set-usage | /announce-update | /force-update" });
 
         await interaction.followUp({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
@@ -3972,10 +4117,92 @@ app.post('/load', async (req, res) => {
     res.json({ success: true, chunk: scriptContent });
 });
 
+// ============================================
+// ACTIVE USER REGISTRATION
+// ============================================
+app.post('/register', (req, res) => {
+    const { username, hwid, version } = req.body;
+    if (username && hwid) {
+        activeUsers[hwid] = { 
+            username, 
+            version: version || "regular",
+            timestamp: Date.now() 
+        };
+        // Clean up old entries (older than 5 minutes)
+        for (const key in activeUsers) {
+            if (Date.now() - activeUsers[key].timestamp > 300000) {
+                delete activeUsers[key];
+            }
+        }
+        console.log(`📝 Registered: ${username} (${hwid}) - Active users: ${Object.keys(activeUsers).length}`);
+        res.json({ success: true, active: Object.keys(activeUsers).length });
+    } else {
+        res.json({ success: false, reason: "Missing username or hwid" });
+    }
+});
+
+// ============================================
+// KICK CHECK ENDPOINT
+// ============================================
+app.post('/check-kick', (req, res) => {
+    const { hwid } = req.body;
+    if (globalKickFlag) {
+        // Update timestamp to keep user active
+        if (hwid && activeUsers[hwid]) {
+            activeUsers[hwid].timestamp = Date.now();
+        }
+        return res.json({ 
+            kick: true, 
+            message: "⚠️ New version available! Please run /update and re-execute." 
+        });
+    }
+    // Update timestamp
+    if (hwid && activeUsers[hwid]) {
+        activeUsers[hwid].timestamp = Date.now();
+    }
+    res.json({ kick: false });
+});
+
+// ============================================
+// VERSION CACHE CHECK
+// ============================================
+app.post('/check-version', (req, res) => {
+    const { hwid, currentVersion } = req.body;
+    const cacheKey = hwid || "unknown";
+    
+    // Clean up old cache entries
+    for (const key in versionCache) {
+        if (Date.now() - versionCache[key].timestamp > VERSION_TTL) {
+            delete versionCache[key];
+        }
+    }
+    
+    if (versionCache[cacheKey] && versionCache[cacheKey].version !== CURRENT_VERSION) {
+        return res.json({ 
+            outdated: true, 
+            latest: CURRENT_VERSION,
+            message: `New version ${CURRENT_VERSION} available!`
+        });
+    }
+    
+    versionCache[cacheKey] = { 
+        version: currentVersion || CURRENT_VERSION, 
+        timestamp: Date.now() 
+    };
+    res.json({ outdated: false });
+});
+
 app.get('/', (req, res) => res.send('Blushwovens v32.0 Bot is running!'));
 app.get('/version', (req, res) => {
     res.json({ version: CURRENT_VERSION });
 });
+app.get('/active-users', (req, res) => {
+    res.json({ 
+        active: Object.keys(activeUsers).length,
+        users: activeUsers 
+    });
+});
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Web server running on port ${port}`));
 
