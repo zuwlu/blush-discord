@@ -3,7 +3,8 @@
 // FIXED: Xeno and Delta now have FULL UI identical to regular version
 // ADDED: Version checking system - outdated clients get kicked with "please update!" message
 // ADDED: /version endpoint for loader to fetch current version
-const CURRENT_VERSION = "31.3";
+// UPDATED: Version changed to 32.0
+const CURRENT_VERSION = "32.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -295,11 +296,12 @@ async function isBlacklisted(discordId, username) {
 // ============================================
 // VERSION-SPECIFIC SCRIPTS (FULL - ALL THREE VERSIONS WITH FULL UI)
 // FIXED: Added safe nil checks throughout all versions
+// UPDATED: Version strings changed to 32.0
 // ============================================
 const SCRIPTS = {
     regular: `
 --[[
-  Blushwovens v31.3 - REGULAR VERSION (Madium)
+  Blushwovens v32.0 - REGULAR VERSION (Madium)
   FULL IMPLEMENTATION WITH ALL FEATURES + FULL UI
   FIXED: Safe nil checks on all FindFirstChild calls
 ]]
@@ -341,7 +343,7 @@ local function safeGetService(serviceName)
     return nil
 end
 
-print("Blushwovens v31.3 - Regular - Loading...")
+print("Blushwovens v32.0 - Regular - Loading...")
 
 -- ==================== NOTIFICATION ====================
 local function SendNotification(title, text, duration)
@@ -357,7 +359,7 @@ local function SendNotification(title, text, duration)
     end)
 end
 
-SendNotification("Blushwovens v31.3", "Script injected successfully!", 5)
+SendNotification("Blushwovens v32.0", "Script injected successfully!", 5)
 
 -- ==================== SILENT AIM ====================
 local handler = nil
@@ -1624,7 +1626,7 @@ TL.ZIndex=5
 if HD then TL.Parent=HD end
 
 local SL=Instance.new("TextLabel")
-SL.Text="Blushwovens v31.3"
+SL.Text="Blushwovens v32.0"
 SL.Size=UDim2.new(0,160,0,16)
 SL.Position=UDim2.new(0,56,0,30)
 SL.BackgroundTransparency=1
@@ -2859,7 +2861,7 @@ UIVis = true
 UpdateFog()
 UpdateCamlock()
 
-print("Blushwovens Regular v31.3 - Loaded successfully!")
+print("Blushwovens Regular v32.0 - Loaded successfully!")
 print("Features: Silent Aim, Camlock (Camera + Magnet), Hitbox, ESP, Triggerbot, Flame Lock, Speedhack, Teleport, Bullet Spread, Improved Fog, Morph")
 print("Press Q for Speedhack, Z for Jump Power, T for Teleport (hold), F for Triggerbot, B for Flame Lock")
 print("Press E for Camlock/Magnet, Press RightShift to toggle UI")
@@ -2867,7 +2869,7 @@ print("Press E for Camlock/Magnet, Press RightShift to toggle UI")
 
     xeno: `
 --[[
-  XENO VERSION - Full PC executor with Drawing support
+  XENO VERSION v32.0 - Full PC executor with Drawing support
   SAME FULL UI AS REGULAR VERSION - ALL FEATURES AND CONTROLS INCLUDED
   FIXED: Safe nil checks on all FindFirstChild calls
 ]]
@@ -2909,7 +2911,7 @@ local function safeGetService(serviceName)
     return nil
 end
 
-print("Blushwovens Xeno v31.3 - Loading...")
+print("Blushwovens Xeno v32.0 - Loading...")
 
 -- [FULL IMPLEMENTATION IDENTICAL TO REGULAR VERSION ABOVE]
 -- Xeno supports Drawing library for ESP and FOV circles
@@ -2918,14 +2920,14 @@ print("Blushwovens Xeno v31.3 - Loading...")
 
 -- ... (full regular script content goes here - same as regular version with all fixes) ...
 
-print("Blushwovens Xeno v31.3 - Loaded successfully!")
+print("Blushwovens Xeno v32.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump Power, T for Teleport, F for Triggerbot, B for Flame Lock")
 print("Press E for Camlock/Magnet, Press RightShift to toggle UI")
     `,
 
     delta: `
 --[[
-  DELTA VERSION - Mobile executor with BillboardGui
+  DELTA VERSION v32.0 - Mobile executor with BillboardGui
   SAME FULL UI AS REGULAR VERSION - ALL FEATURES AND CONTROLS INCLUDED
   FIXED: Safe nil checks on all FindFirstChild calls
   NOTE: Drawing library replaced with BillboardGui-based ESP for mobile compatibility
@@ -2968,7 +2970,7 @@ local function safeGetService(serviceName)
     return nil
 end
 
-print("Blushwovens Delta v31.3 - Loading...")
+print("Blushwovens Delta v32.0 - Loading...")
 
 -- [FULL IMPLEMENTATION IDENTICAL TO REGULAR VERSION ABOVE]
 -- Delta uses BillboardGui for ESP instead of Drawing library
@@ -2978,7 +2980,7 @@ print("Blushwovens Delta v31.3 - Loading...")
 
 -- ... (full regular script content goes here - same as regular version with all fixes) ...
 
-print("Blushwovens Delta v31.3 - Loaded successfully!")
+print("Blushwovens Delta v32.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump Power, T for Teleport, F for Triggerbot, B for Flame Lock")
 print("Press E for Camlock/Magnet, Press RightShift to toggle UI")
     `
@@ -2987,7 +2989,7 @@ print("Press E for Camlock/Magnet, Press RightShift to toggle UI")
 function generateLoaderScript(username, password, serverUrl, key, version) {
     const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
     return `
--- Blushwovens Loader v31.3 - WITH VERSION CHECK
+-- Blushwovens Loader v32.0 - WITH VERSION CHECK
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
 local KEY = "${key}"
@@ -3039,8 +3041,8 @@ local function notify(message, isError)
     end)
 end
 
-print("Blushwovens Loader v31.3 - Starting...")
-notify("Loading v31.3... Please wait.", false)
+print("Blushwovens Loader v32.0 - Starting...")
+notify("Loading v32.0... Please wait.", false)
 
 local ok, response = pcall(request)
 if not ok then
@@ -3068,7 +3070,7 @@ if not data.success then
     error("Error: " .. data.reason)
 end
 
-notify("✅ v31.3 loaded successfully!", false)
+notify("✅ v32.0 loaded successfully!", false)
 loadstring(data.chunk)()
 `;
 }
@@ -3962,15 +3964,18 @@ app.post('/load', async (req, res) => {
     const scriptContent = SCRIPTS[scriptVersion] || SCRIPTS.regular;
 
     if (isFirstRun) {
-        console.log(`✅ HWID set for ${username} (First run, v31.3, Version: ${scriptVersion})`);
+        console.log(`✅ HWID set for ${username} (First run, v32.0, Version: ${scriptVersion})`);
     } else {
-        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v31.3, Version: ${scriptVersion})`);
+        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v32.0, Version: ${scriptVersion})`);
     }
 
     res.json({ success: true, chunk: scriptContent });
 });
 
-app.get('/', (req, res) => res.send('Blushwovens v31.3 Bot is running!'));
+app.get('/', (req, res) => res.send('Blushwovens v32.0 Bot is running!'));
+app.get('/version', (req, res) => {
+    res.json({ version: CURRENT_VERSION });
+});
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Web server running on port ${port}`));
 
