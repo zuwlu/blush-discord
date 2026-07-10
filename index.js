@@ -5,6 +5,7 @@
 // ADDED: Hitbox visibility toggle for Triggerbot
 // FIXED: BulletSpread nil check in all three versions
 // FIXED: W2S function added to Regular version (ESP fix)
+// ADDED: Script version tracking (column M) - per-user build version enforcement
 // UPDATED: Version changed to 24.0
 const CURRENT_VERSION = "24.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
@@ -92,16 +93,16 @@ async function loadUsers() {
     try {
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SHEET_ID,
-            range: `${SHEET_NAME}!A:L`,
+            range: `${SHEET_NAME}!A:M`,
         });
         const rows = response.data.values || [];
         if (rows.length === 0) {
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SHEET_ID,
-                range: `${SHEET_NAME}!A1:L1`,
+                range: `${SHEET_NAME}!A1:M1`,
                 valueInputOption: "USER_ENTERED",
                 requestBody: {
-                    values: [["discordId", "username", "password", "discordTag", "key", "hwid", "created", "expires", "maxUses", "used", "active", "version"]]
+                    values: [["discordId", "username", "password", "discordTag", "key", "hwid", "created", "expires", "maxUses", "used", "active", "version", "scriptVersion"]]
                 }
             });
             return { users: {} };
@@ -123,7 +124,8 @@ async function loadUsers() {
                     maxUses: parseInt(row[8]) || 0,
                     used: parseInt(row[9]) || 0,
                     active: row[10] === "TRUE" || row[10] === "true" || false,
-                    version: row[11] || "regular"
+                    version: row[11] || "regular",
+                    scriptVersion: row[12] || CURRENT_VERSION
                 };
             }
         }
@@ -148,11 +150,12 @@ async function saveUser(userId, userData) {
             String(userData.maxUses || 0),
             String(userData.used || 0),
             userData.active ? "TRUE" : "FALSE",
-            userData.version || "regular"
+            userData.version || "regular",
+            userData.scriptVersion || CURRENT_VERSION
         ];
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SHEET_ID,
-            range: `${SHEET_NAME}!A:L`,
+            range: `${SHEET_NAME}!A:M`,
         });
         const rows = response.data.values || [];
         let rowIndex = -1;
@@ -165,14 +168,14 @@ async function saveUser(userId, userData) {
         if (rowIndex === -1) {
             await sheets.spreadsheets.values.append({
                 spreadsheetId: SHEET_ID,
-                range: `${SHEET_NAME}!A:L`,
+                range: `${SHEET_NAME}!A:M`,
                 valueInputOption: "USER_ENTERED",
                 requestBody: { values: [rowData] }
             });
         } else {
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SHEET_ID,
-                range: `${SHEET_NAME}!A${rowIndex + 1}:L${rowIndex + 1}`,
+                range: `${SHEET_NAME}!A${rowIndex + 1}:M${rowIndex + 1}`,
                 valueInputOption: "USER_ENTERED",
                 requestBody: { values: [rowData] }
             });
@@ -275,6 +278,27 @@ async function isBlacklisted(discordId, username) {
         if (blacklist.users[id].username === username) return true;
     }
     return false;
+}
+
+// ============================================
+// MIGRATION FUNCTION - Run once to set scriptVersion for existing users
+// ============================================
+async function migrateScriptVersion() {
+    try {
+        console.log("🔄 Running scriptVersion migration...");
+        const db = await loadUsers();
+        let count = 0;
+        for (const userId in db.users) {
+            if (!db.users[userId].scriptVersion || db.users[userId].scriptVersion === "") {
+                db.users[userId].scriptVersion = CURRENT_VERSION;
+                await saveUser(userId, db.users[userId]);
+                count++;
+            }
+        }
+        console.log(`✅ Migration complete - ${count} users updated to scriptVersion ${CURRENT_VERSION}`);
+    } catch (error) {
+        console.error("❌ Migration error:", error);
+    }
 }
 
 // ============================================
@@ -3980,7 +4004,8 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT WITH HITBOXlocal Triggerbot = {Active = false, Connection = nil}
+-- TRIGGERBOT WITH HITBOX
+local Triggerbot = {Active = false, Connection = nil}
 local TBHitbox = nil
 local TBHitboxVisible = false
 
@@ -5454,6 +5479,7 @@ local HttpService = game:GetService("HttpService")
 local CURRENT_VERSION = "${CURRENT_VERSION}"
 local SCRIPT_VERSION = "${CURRENT_VERSION}"
 
+-- Check if loader version matches bot version
 if SCRIPT_VERSION ~= CURRENT_VERSION then
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification", {
@@ -5479,7 +5505,7 @@ local function request(url, body)
             password = PASSWORD, 
             key = KEY, 
             hwid = HWID,
-            version = "${version}"
+            version = "${CURRENT_VERSION}"  -- Send the build version
         })
     })
 end
@@ -5589,6 +5615,9 @@ if not data.success then
     elseif data.reason == "Blacklisted" then
         notify("You are blacklisted from this service.", true)
         game:GetService("Players").LocalPlayer:Kick("Blacklisted.")
+    elseif data.reason == "Version mismatch" then
+        notify("Your loader version does not match your account. Run /update in Discord.", true)
+        game:GetService("Players").LocalPlayer:Kick("Version mismatch. Run /update.")
     else
         notify("Error: " .. data.reason, true)
     end
@@ -5767,6 +5796,18 @@ const commands = [
                 .setRequired(true)),
 
     new SlashCommandBuilder()
+        .setName("force-version")
+        .setDescription("Force set a user's script version (Admin only)")
+        .addStringOption(option =>
+            option.setName("username")
+                .setDescription("The username")
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName("version")
+                .setDescription("The version to force (e.g., 24.0)")
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
         .setName("help")
         .setDescription("Show all available commands")
 ];
@@ -5796,6 +5837,9 @@ client.once(Events.ClientReady, async () => {
     console.log(`🏠 Guild ID: ${GUILD_ID}`);
     console.log(`📋 Sheet ID: ${SHEET_ID}`);
     console.log(`📌 Current version: ${CURRENT_VERSION}`);
+    
+    // Run migration to set scriptVersion for existing users
+    await migrateScriptVersion();
     await registerGlobalCommands();
 });
 
@@ -5808,7 +5852,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const command = interaction.commandName;
     const db = await loadUsers();
 
-    const adminCommands = ["list-users", "revoke", "revoke-all", "blacklist", "unblacklist", "set-usage", "announce-update", "force-update"];
+    const adminCommands = ["list-users", "revoke", "revoke-all", "blacklist", "unblacklist", "set-usage", "announce-update", "force-update", "force-version"];
     if (adminCommands.includes(command)) {
         if (interaction.user.id !== ADMIN_ID) {
             return interaction.reply({
@@ -5875,7 +5919,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
             maxUses: 0,
             used: 0,
             active: true,
-            version: version
+            version: version,
+            scriptVersion: CURRENT_VERSION  // Set initial script version
         };
 
         db.users[interaction.user.id] = userData;
@@ -5894,6 +5939,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                          `**📅 Created:** ${new Date().toISOString().split("T")[0]}\n` +
                          `**⏰ Time:** ${new Date().toISOString().split("T")[1].slice(0, 8)} UTC\n` +
                          `**📌 Version:** ${version}\n` +
+                         `**📌 Script Version:** ${CURRENT_VERSION}\n` +
                          `**👥 Total Users:** ${Object.keys(db.users).length}`
             });
         } catch (error) {
@@ -5943,7 +5989,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 { name: "📅 Created", value: new Date(userData.created).toISOString().split("T")[0], inline: true },
                 { name: "🔄 Used", value: `${userData.used}/${userData.maxUses === 0 ? "∞" : userData.maxUses}`, inline: true },
                 { name: "💻 HWID", value: userData.hwid || "Not set", inline: true },
-                { name: "📌 Version", value: userData.version || "regular", inline: true },
+                { name: "📌 Executor", value: userData.version || "regular", inline: true },
+                { name: "📌 Script Version", value: userData.scriptVersion || CURRENT_VERSION, inline: true },
                 { name: "📌 Status", value: userData.active ? "✅ Active" : "❌ Inactive", inline: true },
                 { name: "⏰ Expires", value: userData.expires ? new Date(userData.expires).toISOString().split("T")[0] : "Never", inline: true }
             )
@@ -6027,7 +6074,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await saveUser(interaction.user.id, userData);
 
         await interaction.followUp({
-            content: `✅ Your version has been updated to **${newVersion}**. Run \`/update\` to get the new loader.`,
+            content: `✅ Your executor version has been updated to **${newVersion}**. Run \`/update\` to get the new loader.`,
             flags: MessageFlags.Ephemeral
         });
         return;
@@ -6050,14 +6097,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (versionOption) {
             version = versionOption;
             userData.version = version;
-            await saveUser(interaction.user.id, userData);
         }
+        
+        // Update script version to current
+        userData.scriptVersion = CURRENT_VERSION;
+        await saveUser(interaction.user.id, userData);
 
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
         const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, version);
 
         await interaction.followUp({
-            content: `✅ **Latest loader script sent!** (Version: ${version})`,
+            content: `✅ **Latest loader script sent!** (Version: ${version}, Script Version: ${CURRENT_VERSION})`,
             flags: MessageFlags.Ephemeral
         });
 
@@ -6084,7 +6134,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         for (const userId in db.users) {
             const user = db.users[userId];
             const maxUsesDisplay = user.maxUses === 0 ? "∞" : user.maxUses;
-            userList.push(`**${user.username}** | Key: \`${user.key}\` | HWID: ${user.hwid || "Not set"} | Uses: ${user.used}/${maxUsesDisplay} | Version: ${user.version || "regular"} | ${user.active ? "✅ Active" : "❌ Revoked"}`);
+            userList.push(`**${user.username}** | Key: \`${user.key}\` | HWID: ${user.hwid || "Not set"} | Uses: ${user.used}/${maxUsesDisplay} | Executor: ${user.version || "regular"} | Script: ${user.scriptVersion || "N/A"} | ${user.active ? "✅ Active" : "❌ Revoked"}`);
         }
 
         if (userList.length === 0) {
@@ -6453,6 +6503,37 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // ============================================
+    // /force-version (Admin only)
+    // ============================================
+    if (command === "force-version") {
+        const targetUsername = interaction.options.getString("username");
+        const newVersion = interaction.options.getString("version");
+        let found = false;
+
+        for (const userId in db.users) {
+            if (db.users[userId].username === targetUsername) {
+                db.users[userId].scriptVersion = newVersion;
+                await saveUser(userId, db.users[userId]);
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            return interaction.followUp({
+                content: "❌ User not found.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        await interaction.followUp({
+            content: `✅ User \`${targetUsername}\` now has script version \`${newVersion}\`.`,
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    // ============================================
     // /help
     // ============================================
     if (command === "help") {
@@ -6475,10 +6556,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     `/unblacklist <user>\n` +
                     `/set-usage <username> <limit>\n` +
                     `/announce-update <message> [version]\n` +
-                    `/force-update <secret>\n`, inline: false },
+                    `/force-update <secret>\n` +
+                    `/force-version <username> <version>\n`, inline: false },
                 { name: "ℹ️ Other", value: `/help`, inline: false }
             )
-            .setFooter({ text: "Admins: /list-users | /revoke | /revoke-all | /blacklist | /set-usage | /announce-update | /force-update" });
+            .setFooter({ text: "Admins: /list-users | /revoke | /revoke-all | /blacklist | /set-usage | /announce-update | /force-update | /force-version" });
 
         await interaction.followUp({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
@@ -6492,7 +6574,7 @@ const app = express();
 app.use(express.json());
 
 app.post('/load', async (req, res) => {
-    const { username, password, key, hwid, version } = req.body;
+    const { username, password, key, hwid, version: loaderVersion } = req.body;
     const db = await loadUsers();
 
     let userData = null;
@@ -6533,6 +6615,19 @@ app.post('/load', async (req, res) => {
         return res.json({ success: false, reason: "Usage limit reached" });
     }
 
+    // ============================================
+    // SCRIPT VERSION CHECK - Compare loader version against stored scriptVersion
+    // ============================================
+    const storedScriptVersion = userData.scriptVersion || CURRENT_VERSION;
+    
+    if (loaderVersion !== storedScriptVersion) {
+        return res.json({ 
+            success: false, 
+            reason: "Version mismatch",
+            message: `Your loader is v${loaderVersion}, but your account requires v${storedScriptVersion}. Run /update in Discord.`
+        });
+    }
+
     const isFirstRun = !userData.hwid;
 
     if (!userData.hwid) {
@@ -6542,18 +6637,19 @@ app.post('/load', async (req, res) => {
     }
 
     userData.used++;
-    if (version) {
-        userData.version = version;
+    // Update script version if it's different (ensures consistency)
+    if (userData.scriptVersion !== CURRENT_VERSION) {
+        userData.scriptVersion = CURRENT_VERSION;
     }
     await saveUser(userId, userData);
 
-    const scriptVersion = version || userData.version || "regular";
+    const scriptVersion = userData.version || "regular";
     const scriptContent = SCRIPTS[scriptVersion] || SCRIPTS.regular;
 
     if (isFirstRun) {
-        console.log(`✅ HWID set for ${username} (First run, v24.0, Version: ${scriptVersion})`);
+        console.log(`✅ HWID set for ${username} (First run, v${CURRENT_VERSION}, Executor: ${scriptVersion})`);
     } else {
-        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v24.0, Version: ${scriptVersion})`);
+        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v${CURRENT_VERSION}, Executor: ${scriptVersion})`);
     }
 
     res.json({ success: true, chunk: scriptContent });
