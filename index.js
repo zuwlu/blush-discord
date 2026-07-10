@@ -1,6 +1,5 @@
 // index.js - Discord Bot with Google Sheets Database (COMPLETE - ALL THREE VERSIONS WITH FIXES)
 // FIXED: ESP now works in all three versions (added W2S, fixed PAL reference)
-// ADDED: Camlock now locks onto a specific target until death
 // ADDED: MatrixHub-style Triggerbot with multiple modes and player hitbox detection
 // ADDED: Full UI color customization (every UI element) - NOW ACTUALLY WORKS
 // FIXED: UI Colors now properly apply to all elements
@@ -10,14 +9,13 @@
 // FIXED: VERSION_LABEL now properly displays "Regular", "Xeno", or "Delta"
 // FIXED: Triggerbot hitbox X and Y offset sliders added
 // FIXED: Triggerbot hitbox now properly follows players
-// FIXED: Whitelist now works properly (BackgroundColor3 nil fix)
-// FIXED: UI color application now works for all elements
-// ADDED: EXO UNIFIED UI Framework integrated
-// ADDED: Flame Camlock features merged into Camlock (offsets, shake, hip-height, walk-speed)
-// ADDED: Ragebot section with full ragebot features from EXO UNIFIED
-// ADDED: Dual UI mode (UI One = Original, UI Two = EXO UNIFIED style)
-// UPDATED: Version changed to 26.0
-const CURRENT_VERSION = "26.0";
+// FIXED: Whitelist now works properly (nil checks for all color properties)
+// FIXED: ESP now works properly (added missing W2S, fixed PAL reference)
+// FIXED: IsPlayerValidForTarget nil value error fixed
+// FIXED: Flame Camlock moved to FLAME LOCK tab (not Camlock)
+// ADDED: UI Mode buttons instead of dropdown for Original/Exo/Flame
+// UPDATED: Version changed to 26.1
+const CURRENT_VERSION = "26.1";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -373,7 +371,7 @@ local UI_Colors = {
     ESPDist = Color3.fromRGB(220,225,170),
     FOVCircle = Color3.fromRGB(245,205,220),
     FOVCircle2 = Color3.fromRGB(100,100,110),
-    UI_Mode = "Original", -- "Original", "Exo", "Flame"
+    UI_Mode = "Original",
 }
 
 -- EXO UNIFIED Theme System
@@ -481,7 +479,6 @@ end
 local function SetUIMode(mode)
     UI_Colors.UI_Mode = mode
     if mode == "Original" then
-        -- Use original colors
         UI_Colors.Background = Color3.fromRGB(255,248,240)
         UI_Colors.Accent = Color3.fromRGB(215,130,170)
         UI_Colors.Secondary = Color3.fromRGB(245,205,220)
@@ -502,7 +499,6 @@ local function SetUIMode(mode)
         UI_Colors.FOVCircle = Color3.fromRGB(245,205,220)
         UI_Colors.FOVCircle2 = Color3.fromRGB(100,100,110)
     elseif mode == "Exo" then
-        -- Use EXO UNIFIED theme colors
         UI_Colors.Background = PAL.ExoOutline
         UI_Colors.Accent = PAL.ExoAccent
         UI_Colors.Secondary = PAL.ExoInline
@@ -523,7 +519,6 @@ local function SetUIMode(mode)
         UI_Colors.FOVCircle = PAL.ExoAccent
         UI_Colors.FOVCircle2 = Color3.fromRGB(100,100,110)
     elseif mode == "Flame" then
-        -- Use Flame Camlock pink theme
         UI_Colors.Background = FlameTheme.background
         UI_Colors.Accent = FlameTheme.medium_pink
         UI_Colors.Secondary = FlameTheme.light_pink
@@ -562,7 +557,6 @@ local function UpdateUIFromColors()
         PAL.SurfL = UI_Colors.FrameBg
         PAL.Bad = Color3.fromRGB(100,100,110)
         PAL.Gray = Color3.fromRGB(200,195,195)
-        
         if MN then
             MN.BackgroundColor3 = UI_Colors.Background
             local stroke = MN:FindFirstChildOfClass("UIStroke")
@@ -585,7 +579,6 @@ local function UpdateUIFromColors()
         end
         if TL then TL.TextColor3 = UI_Colors.Text end
         if SL then SL.TextColor3 = UI_Colors.TextSecondary end
-        
         for idx, btn in ipairs(Btn) do
             if btn and btn.I then
                 if idx == 1 then btn.I.TextColor3 = UI_Colors.Accent else btn.I.TextColor3 = UI_Colors.TextSecondary end
@@ -594,10 +587,8 @@ local function UpdateUIFromColors()
                 if idx == 1 then btn.N.TextColor3 = UI_Colors.Text else btn.N.TextColor3 = UI_Colors.TextSecondary end
             end
         end
-        
         if AC then AC.Color = UI_Colors.FOVCircle end
         if CC then CC.Color = UI_Colors.FOVCircle2 end
-        
         for p, d in pairs(ESPData or {}) do
             pcall(function()
                 if d and d.B then d.B.Color = UI_Colors.ESPBox end
@@ -666,7 +657,6 @@ local function UpdateTriggerbotHitbox()
             local xOff = ST.TBHitboxXOffset or 0
             local yOff = ST.TBHitboxYOffset or 0
             TBHitbox.Size = Vector2.new(size, size)
-            
             local target = GetValidTriggerTarget()
             if target and ST.TB and ST.TBHitboxVisible then
                 local screenPos, onScreen = Camera:WorldToViewportPoint(target.Position)
@@ -820,14 +810,6 @@ local Cats={
         {"--- Magnet Settings ---","","","LBL"},
         {"Magnet Target Part","CLMagnetPart","UpperTorso","D",{"UpperTorso","LowerTorso","Head","HumanoidRootPart"}},
         {"Magnet Strength","CLMagnetStrength",1,"S",0.1,5},
-        {"--- Flame Camlock Settings ---","","","LBL"},
-        {"Horizontal Offset","CLHOffset",0,"S",-50,50},
-        {"Vertical Offset","CLVOffset",0,"S",-50,50},
-        {"Camera Shake","CLShake",0,"S",0,5},
-        {"Hip Height Mod","CLHipHeight",false},
-        {"Hip Height Value","CLHipHeightVal",0,"S",-10,10},
-        {"Walk Speed Mod","CLWalkSpeed",false},
-        {"Walk Speed Value","CLWalkSpeedVal",22,"S",16,150},
         {"--- Target Lock Settings ---","","","LBL"},
         {"Lock Target Until Death","CLLockTarget",true}
     }},
@@ -871,7 +853,16 @@ local Cats={
     }},
     {"FLAME LOCK",{
         {"Flame Lock","FlameLock",false},
-        {"Flame Lock Key","FlameLockKey",Enum.KeyCode.B,"K"}
+        {"Flame Lock Key","FlameLockKey",Enum.KeyCode.B,"K"},
+        {"--- Flame Camlock Settings ---","","","LBL"},
+        {"Flame Camlock","FlameCamlock",false},
+        {"Horizontal Offset","FCamHOffset",0,"S",-50,50},
+        {"Vertical Offset","FCamVOffset",0,"S",-50,50},
+        {"Camera Shake","FCamShake",0,"S",0,5},
+        {"Hip Height Mod","FCamHipHeight",false},
+        {"Hip Height Value","FCamHipHeightVal",0,"S",-10,10},
+        {"Walk Speed Mod","FCamWalkSpeed",false},
+        {"Walk Speed Value","FCamWalkSpeedVal",22,"S",16,150},
     }},
     {"MOVEMENT",{
         {"Speedhack","SP",false},
@@ -891,7 +882,9 @@ local Cats={
     {"MORPH",{{"Headless","MorphHeadless",false},{"Username","MorphTarget","","TB"},{"Apply Morph","MorphApply",false,"BTN"}}},
     {"UI COLORS",{
         {"--- UI Mode Selection ---","","","LBL2"},
-        {"UI Mode","UIMode","Original","D",{"Original","Exo","Flame"}},
+        {"Original UI","UIModeOrig",false,"BTN"},
+        {"Exo UI","UIModeExo",false,"BTN"},
+        {"Flame UI","UIModeFlame",false,"BTN"},
         {"--- EXO Themes (Exo mode only) ---","","","LBL2"},
         {"Exo Theme","ExoTheme","Default","D",{"Default","Headshot","Midnight","Ocean","Sunset","Forest","Blood","Gold"}},
         {"--- Background Colors ---","","","LBL2"},
@@ -938,6 +931,7 @@ local SettingsRGBSliders = {}
 local Dropdowns = {}
 local ToggleButtons = {}
 local ColorPickers = {}
+local UIModeButtons = {}
 
 local function UpdateUIColors()
     UpdateUIFromColors()
@@ -1015,7 +1009,7 @@ for i,cat in ipairs(Cats) do
     if nm=="SILENT AIM" then extraH=100 end
     if nm=="FOG" then extraH=380 end
     if nm=="MOVEMENT" then extraH=60 end
-    if nm=="FLAME LOCK" then extraH=20 end
+    if nm=="FLAME LOCK" then extraH=140 end
     if nm=="TRIGGERBOT" then extraH=140 end
     if nm=="UI COLORS" then extraH=900 end
     if nm=="RAGE" then extraH=300 end
@@ -1092,7 +1086,6 @@ for i,cat in ipairs(Cats) do
             lb.TextXAlignment=Enum.TextXAlignment.Center
             lb.ZIndex=6
         elseif ftt=="C" then
-            -- Color picker button
             local cp=Instance.new("TextButton")
             cp.Size=UDim2.new(0,70,0,26)
             cp.Position=UDim2.new(1,-84,0.5,-13)
@@ -1387,11 +1380,11 @@ for i,cat in ipairs(Cats) do
                 if fkk=="FGDen" then UpdateFog() end
                 if fkk=="SPVal" then UpdateMove() end
                 if fkk=="JPVal" then UpdateMove() end
-                if fkk=="CLHOffset" or fkk=="CLVOffset" or fkk=="CLShake" then 
-                    -- Apply Flame Camlock offset changes
+                if fkk=="FCamHOffset" or fkk=="FCamVOffset" or fkk=="FCamShake" then 
+                    -- Flame Camlock offset changes applied in render loop
                 end
-                if fkk=="CLHipHeightVal" then 
-                    if ST.CLHipHeight then
+                if fkk=="FCamHipHeightVal" then 
+                    if ST.FCamHipHeight then
                         local char = LocalPlayer.Character
                         if char then
                             local hum = safeFindFirstChild(char, "Humanoid")
@@ -1399,8 +1392,8 @@ for i,cat in ipairs(Cats) do
                         end
                     end
                 end
-                if fkk=="CLWalkSpeedVal" then
-                    if ST.CLWalkSpeed then
+                if fkk=="FCamWalkSpeedVal" then
+                    if ST.FCamWalkSpeed then
                         local char = LocalPlayer.Character
                         if char then
                             local hum = safeFindFirstChild(char, "Humanoid")
@@ -1417,15 +1410,9 @@ for i,cat in ipairs(Cats) do
                     CreateTriggerbotHitbox()
                     UpdateTriggerbotHitbox()
                 end
-                if fkk=="RagebotRange" or fkk=="RagebotDelay" then
-                    -- Ragebot settings updated
-                end
-                if fkk=="KillAuraRange" or fkk=="KillAuraDelay" then
-                    -- Kill Aura settings updated
-                end
-                if fkk=="RageTeleportRange" then
-                    -- Teleport range updated
-                end
+                if fkk=="RagebotRange" or fkk=="RagebotDelay" then end
+                if fkk=="KillAuraRange" or fkk=="KillAuraDelay" then end
+                if fkk=="RageTeleportRange" then end
             end
             if bkn then
                 bkn.InputBegan:Connect(function(inp) 
@@ -1531,80 +1518,67 @@ for i,cat in ipairs(Cats) do
             ddList.CanvasSize = UDim2.new(0, 0, 0, #opts * 26)
             
             for k, opt in ipairs(opts) do
-                local ob = Instance.new("TextButton")
-                ob.Size = UDim2.new(1, 0, 0, 24)
-                ob.Position = UDim2.new(0, 0, 0, (k-1) * 24)
-                ob.BackgroundColor3 = UI_Colors.FrameBg
-                ob.BackgroundTransparency = 0
-                ob.Text = opt
-                ob.Font = Enum.Font.Gotham
-                ob.TextSize = 10
-                ob.TextColor3 = UI_Colors.TextSecondary
-                ob.ZIndex = 26
-                if ddList then ob.Parent = ddList end
-                CRN(ob, UDim.new(0, 4))
-                
+                local ob=Instance.new("TextButton")
+                ob.Size=UDim2.new(1,0,0,24)
+                ob.Position=UDim2.new(0,0,0,(k-1)*24)
+                ob.BackgroundColor3=UI_Colors.FrameBg
+                ob.BackgroundTransparency=0
+                ob.Text=opt
+                ob.Font=Enum.Font.Gotham
+                ob.TextSize=10
+                ob.TextColor3=UI_Colors.TextSecondary
+                ob.ZIndex=26
+                if ddList then ob.Parent=ddList end
+                CRN(ob,UDim.new(0,4))
                 if ob then
                     ob.MouseButton1Click:Connect(function()
-                        ST[fkk] = opt
-                        ddMain.Text = opt
-                        ddList.Visible = false
-                        ddArrow.Text = "▼"
-                        if fkk == "SAPart" then
-                            aimPart = opt
-                        end
-                        if fkk == "CLPart" then UpdateCamlock() end
-                        if fkk == "CLAimType" then 
+                        ST[fkk]=opt
+                        ddMain.Text=opt
+                        ddList.Visible=false
+                        ddArrow.Text="▼"
+                        if fkk=="SAPart" then aimPart=opt end
+                        if fkk=="CLPart" then UpdateCamlock() end
+                        if fkk=="CLAimType" then 
                             UpdateCamlock()
                             if ST.CLLockTarget then
-                                CamlockTarget = nil
-                                CamlockTargetName = nil
+                                CamlockTarget=nil
+                                CamlockTargetName=nil
                             end
                         end
-                        if fkk == "TBMode" then
+                        if fkk=="TBMode" then
                             if ST.TB then
                                 StopTriggerbot()
                                 StartTriggerbot()
                             end
                         end
-                        if fkk == "RagebotPart" then
-                            -- Update ragebot target part
-                        end
-                        if fkk == "RagebotMode" then
-                            -- Update ragebot mode
-                        end
-                        if fkk == "UIMode" then
-                            SetUIMode(opt)
-                            UpdateUIFromColors()
-                        end
-                        if fkk == "ExoTheme" then
+                        if fkk=="RagebotPart" then end
+                        if fkk=="RagebotMode" then end
+                        if fkk=="ExoTheme" then
                             ApplyExoTheme(opt)
-                            if UI_Colors.UI_Mode == "Exo" then
-                                SetUIMode("Exo")
-                            end
+                            if UI_Colors.UI_Mode=="Exo" then SetUIMode("Exo") end
                         end
                     end)
                     ob.MouseEnter:Connect(function()
-                        ob.BackgroundColor3 = UI_Colors.Accent
-                        ob.BackgroundTransparency = 0.2
+                        ob.BackgroundColor3=UI_Colors.Accent
+                        ob.BackgroundTransparency=0.2
                     end)
                     ob.MouseLeave:Connect(function()
-                        ob.BackgroundColor3 = UI_Colors.FrameBg
-                        ob.BackgroundTransparency = 0
+                        ob.BackgroundColor3=UI_Colors.FrameBg
+                        ob.BackgroundTransparency=0
                     end)
                 end
             end
             
             if ddMain then
                 ddMain.MouseButton1Click:Connect(function()
-                    ddList.Visible = not ddList.Visible
-                    ddArrow.Text = ddList.Visible and "▲" or "▼"
+                    ddList.Visible=not ddList.Visible
+                    ddArrow.Text=ddList.Visible and "▲" or "▼"
                     for key, dropdown in pairs(Dropdowns) do
-                        if key ~= fkk and dropdown and dropdown.List then
-                            dropdown.List.Visible = false
+                        if key~=fkk and dropdown and dropdown.List then
+                            dropdown.List.Visible=false
                             if dropdown.Main and dropdown.Main:FindFirstChildOfClass("TextLabel") then
-                                local arrow = dropdown.Main:FindFirstChildOfClass("TextLabel")
-                                if arrow then arrow.Text = "▼" end
+                                local arrow=dropdown.Main:FindFirstChildOfClass("TextLabel")
+                                if arrow then arrow.Text="▼" end
                             end
                         end
                     end
@@ -1612,20 +1586,20 @@ for i,cat in ipairs(Cats) do
             end
             
             UserInputService.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if input.UserInputType==Enum.UserInputType.MouseButton1 then
                     task.wait(0.1)
-                    local mousePos = UserInputService:GetMouseLocation()
+                    local mousePos=UserInputService:GetMouseLocation()
                     if ddList.Visible then
-                        local absPos = ddList.AbsolutePosition
-                        local absSize = ddList.AbsoluteSize
-                        if not (mousePos.X >= absPos.X and mousePos.X <= absPos.X + absSize.X and
-                                mousePos.Y >= absPos.Y and mousePos.Y <= absPos.Y + absSize.Y) then
-                            local mainPos = ddMain.AbsolutePosition
-                            local mainSize = ddMain.AbsoluteSize
-                            if not (mousePos.X >= mainPos.X and mousePos.X <= mainPos.X + mainSize.X and
-                                    mousePos.Y >= mainPos.Y and mousePos.Y <= mainPos.Y + mainSize.Y) then
-                                ddList.Visible = false
-                                ddArrow.Text = "▼"
+                        local absPos=ddList.AbsolutePosition
+                        local absSize=ddList.AbsoluteSize
+                        if not (mousePos.X>=absPos.X and mousePos.X<=absPos.X+absSize.X and
+                                mousePos.Y>=absPos.Y and mousePos.Y<=absPos.Y+absSize.Y) then
+                            local mainPos=ddMain.AbsolutePosition
+                            local mainSize=ddMain.AbsoluteSize
+                            if not (mousePos.X>=mainPos.X and mousePos.X<=mainPos.X+mainSize.X and
+                                    mousePos.Y>=mainPos.Y and mousePos.Y<=mainPos.Y+mainSize.Y) then
+                                ddList.Visible=false
+                                ddArrow.Text="▼"
                             end
                         end
                     end
@@ -1648,9 +1622,9 @@ for i,cat in ipairs(Cats) do
             if fr then tb.Parent=fr end
             CRN(tb,UDim.new(0,6))
             STR(tb,1,UI_Colors.ToggleOn,0.3)
-            if fkk == "MorphTarget" then
-                MorphInput = tb
-                tb.FocusLost:Connect(function() ST.MorphTarget = tb.Text end)
+            if fkk=="MorphTarget" then
+                MorphInput=tb
+                tb.FocusLost:Connect(function() ST.MorphTarget=tb.Text end)
             else
                 tb.FocusLost:Connect(function() ST[fkk]=tb.Text end)
             end
@@ -1669,7 +1643,7 @@ for i,cat in ipairs(Cats) do
             CRN(ab,UDim.new(0,6))
             STR(ab,1.5,UI_Colors.ToggleOn,0.3)
             
-            if fkk == "MorphApply" then
+            if fkk=="MorphApply" then
                 if ab then
                     ab.MouseButton1Click:Connect(function() 
                         if MorphInput and MorphInput.Text~="" then 
@@ -1679,22 +1653,43 @@ for i,cat in ipairs(Cats) do
                     end)
                 end
             end
-            if fkk == "UI_Apply" then
+            if fkk=="UI_Apply" then
                 if ab then
-                    ab.Text = "Apply Colors"
+                    ab.Text="Apply Colors"
                     ab.MouseButton1Click:Connect(function()
                         UpdateUIFromColors()
                         for key, data in pairs(ColorPickers) do
                             if data and data.Preview then
-                                data.Preview.BackgroundColor3 = data.Color
+                                data.Preview.BackgroundColor3=data.Color
                             end
                         end
                         print("UI Colors Applied!")
                     end)
                 end
             end
+            -- UI Mode buttons
+            if fkk=="UIModeOrig" then
+                ab.Text="Original"
+                ab.MouseButton1Click:Connect(function()
+                    SetUIMode("Original")
+                    UpdateUIFromColors()
+                end)
+            end
+            if fkk=="UIModeExo" then
+                ab.Text="Exo"
+                ab.MouseButton1Click:Connect(function()
+                    SetUIMode("Exo")
+                    UpdateUIFromColors()
+                end)
+            end
+            if fkk=="UIModeFlame" then
+                ab.Text="Flame"
+                ab.MouseButton1Click:Connect(function()
+                    SetUIMode("Flame")
+                    UpdateUIFromColors()
+                end)
+            end
         else
-            -- Toggle button
             local tb=Instance.new("TextButton")
             tb.Size=UDim2.new(0,48,0,26)
             tb.Position=UDim2.new(1,-62,0.5,-13)
@@ -1716,30 +1711,27 @@ for i,cat in ipairs(Cats) do
             STR(tk,1,UI_Colors.ToggleOn,0)
             
             if not ToggleButtons[fkk] then
-                ToggleButtons[fkk] = {}
+                ToggleButtons[fkk]={}
             end
-            ToggleButtons[fkk].Button = tb
-            ToggleButtons[fkk].Knob = tk
-            ToggleButtons[fkk].State = fdd
+            ToggleButtons[fkk].Button=tb
+            ToggleButtons[fkk].Knob=tk
+            ToggleButtons[fkk].State=fdd
             
             local tg=fdd
             if tb then
                 tb.MouseButton1Click:Connect(function()
                     tg=not tg
                     ST[fkk]=tg
-                    ToggleButtons[fkk].State = tg
+                    ToggleButtons[fkk].State=tg
                     
                     AnimateToggle(tb, tk, tg)
                     
-                    if fkk == "SA" or fkk == "RevolverBypass" or fkk == "KnockCheck" then
-                        UpdateSilentAim()
-                    end
-                    
+                    if fkk=="SA" or fkk=="RevolverBypass" or fkk=="KnockCheck" then UpdateSilentAim() end
                     if fkk=="SAFC" then 
                         if AC then AC.Visible=tg end
                         if tg then
-                            if AC then AC.Radius = ST.SAFOV end
-                            FOV_RADIUS = ST.SAFOV
+                            if AC then AC.Radius=ST.SAFOV end
+                            FOV_RADIUS=ST.SAFOV
                         end
                     end
                     if fkk=="CL" then UpdateCamlock() end
@@ -1750,91 +1742,69 @@ for i,cat in ipairs(Cats) do
                     if fkk=="MorphHeadless" then 
                         if LocalPlayer.Character then ApplyHeadless(LocalPlayer.Character) end 
                     end
-                    if fkk=="SP" or fkk=="JP" then 
-                        UpdateMove() 
-                    end
+                    if fkk=="SP" or fkk=="JP" then UpdateMove() end
                     if fkk=="BulletSpreadEnabled" then
-                        ST.BulletSpreadEnabled = tg
+                        ST.BulletSpreadEnabled=tg
                         UpdateBulletSpread()
                     end
                     if fkk=="FlameLock" then
                         if not tg then
                             if FlameLockActive then
                                 StopFlameLock()
-                                FlameLockActive = false
+                                FlameLockActive=false
                             end
                         end
                     end
-                    if fkk=="CLHipHeight" then
-                        local char = LocalPlayer.Character
+                    if fkk=="FlameCamlock" then
+                        -- Flame Camlock handled in render loop with separate variables
+                        if tg then
+                            StartFlameCamlock()
+                        else
+                            StopFlameCamlock()
+                        end
+                    end
+                    if fkk=="FCamHipHeight" then
+                        local char=LocalPlayer.Character
                         if char then
-                            local hum = safeFindFirstChild(char, "Humanoid")
+                            local hum=safeFindFirstChild(char,"Humanoid")
                             if hum then
-                                if tg then
-                                    hum.HipHeight = ST.CLHipHeightVal
-                                else
-                                    hum.HipHeight = 0
-                                end
+                                if tg then hum.HipHeight=ST.FCamHipHeightVal else hum.HipHeight=0 end
                             end
                         end
                     end
-                    if fkk=="CLWalkSpeed" then
-                        local char = LocalPlayer.Character
+                    if fkk=="FCamWalkSpeed" then
+                        local char=LocalPlayer.Character
                         if char then
-                            local hum = safeFindFirstChild(char, "Humanoid")
+                            local hum=safeFindFirstChild(char,"Humanoid")
                             if hum then
-                                if tg then
-                                    hum.WalkSpeed = ST.CLWalkSpeedVal
-                                else
-                                    hum.WalkSpeed = 16
-                                end
+                                if tg then hum.WalkSpeed=ST.FCamWalkSpeedVal else hum.WalkSpeed=16 end
                             end
                         end
                     end
                     if fkk=="TB" then
                         if not tg then
-                            if Triggerbot and Triggerbot.Active then
-                                StopTriggerbot()
-                            end
-                            if TBHitbox then
-                                TBHitbox.Visible = false
-                            end
+                            if Triggerbot and Triggerbot.Active then StopTriggerbot() end
+                            if TBHitbox then TBHitbox.Visible=false end
                         else
-                            if ST.TBHitboxVisible and TBHitbox then
-                                TBHitbox.Visible = true
-                            end
+                            if ST.TBHitboxVisible and TBHitbox then TBHitbox.Visible=true end
                             StartTriggerbot()
                         end
                     end
-                    if fkk=="TBHitboxVisible" then
-                        UpdateTriggerbotHitbox()
-                    end
+                    if fkk=="TBHitboxVisible" then UpdateTriggerbotHitbox() end
                     if fkk=="CLLockTarget" then
                         if not tg then
-                            CamlockTarget = nil
-                            CamlockTargetName = nil
+                            CamlockTarget=nil
+                            CamlockTargetName=nil
                         end
                     end
                     if fkk=="RagebotEnabled" then
-                        if tg then
-                            StartRagebot()
-                        else
-                            StopRagebot()
-                        end
+                        if tg then StartRagebot() else StopRagebot() end
                     end
                     if fkk=="KillAuraEnabled" then
-                        if tg then
-                            StartKillAura()
-                        else
-                            StopKillAura()
-                        end
+                        if tg then StartKillAura() else StopKillAura() end
                     end
                     if fkk=="RageTeleport" then
-                        if tg then
-                            StartRageTeleport()
-                        else
-                            StopRageTeleport()
-                        end
+                        if tg then StartRageTeleport() else StopRageTeleport() end
                     end
                 end)
             end
@@ -2013,32 +1983,30 @@ for i,cat in ipairs(Cats) do
     end
     
     -- WHITELIST tab - FIXED
-    if nm=="WHITELIST" and WP then
-        -- Will be populated on click - see category click handler below
-    end
+    if nm=="WHITELIST" and WP then end
     
     -- Category click handler
     if b then
         b.MouseButton1Click:Connect(function()
             for _,bb in ipairs(Btn) do
                 if bb and bb.B then
-                    local t1 = TweenService:Create(bb.B, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundTransparency = 1})
+                    local t1=TweenService:Create(bb.B,TweenInfo.new(0.2,Enum.EasingStyle.Quad),{BackgroundTransparency=1})
                     t1:Play()
                 end
-                if bb and bb.I then bb.I.TextColor3 = UI_Colors.TextSecondary end
-                if bb and bb.N then bb.N.TextColor3 = UI_Colors.TextSecondary end
+                if bb and bb.I then bb.I.TextColor3=UI_Colors.TextSecondary end
+                if bb and bb.N then bb.N.TextColor3=UI_Colors.TextSecondary end
             end
             if b then
-                local t2 = TweenService:Create(b, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.75})
+                local t2=TweenService:Create(b,TweenInfo.new(0.2,Enum.EasingStyle.Quad),{BackgroundTransparency=0.75})
                 t2:Play()
             end
-            if ib then ib.TextColor3 = UI_Colors.Accent end
-            if nb then nb.TextColor3 = UI_Colors.Text end
+            if ib then ib.TextColor3=UI_Colors.Accent end
+            if nb then nb.TextColor3=UI_Colors.Text end
             for _,pp in ipairs(Pgs) do if pp then pp.Visible=false end end
             if pg then pg.Visible=true end
             
             if nm=="WHITELIST" and WP then
-                local oldWs = safeFindFirstChild(WP, "WLScroll")
+                local oldWs=safeFindFirstChild(WP,"WLScroll")
                 if oldWs then oldWs:Destroy() end
                 local ok,sc=pcall(function() 
                     local s=Instance.new("ScrollingFrame")
@@ -2079,7 +2047,7 @@ for i,cat in ipairs(Cats) do
                         local wb=Instance.new("TextButton")
                         wb.Size=UDim2.new(0,85,0,20)
                         wb.Position=UDim2.new(1,-93,0.5,-10)
-                        local grayColor = UI_Colors.Gray or Color3.fromRGB(200,195,195)
+                        local grayColor=UI_Colors.Gray or Color3.fromRGB(200,195,195)
                         wb.BackgroundColor3=iw and UI_Colors.ToggleOn or grayColor
                         wb.BackgroundTransparency=iw and 0.15 or 0.3
                         wb.Text=iw and "WHITELISTED" or "WHITELIST"
@@ -2095,7 +2063,7 @@ for i,cat in ipairs(Cats) do
                                 if cw then 
                                     SetWL(plr,false)
                                     wb.Text="WHITELIST"
-                                    local grayColor = UI_Colors.Gray or Color3.fromRGB(200,195,195)
+                                    local grayColor=UI_Colors.Gray or Color3.fromRGB(200,195,195)
                                     wb.BackgroundColor3=grayColor
                                     wb.BackgroundTransparency=0.3
                                     wb.TextColor3=UI_Colors.White
@@ -2120,7 +2088,7 @@ for i,cat in ipairs(Cats) do
 end
 
 if SB then
-    SB.CanvasSize = UDim2.new(0, 0, 0, #Cats * 56 + 20)
+    SB.CanvasSize=UDim2.new(0,0,0,#Cats*56+20)
 end
 
 -- Initialize ESP
@@ -2149,32 +2117,36 @@ end)
 -- Render loop
 RunService.RenderStepped:Connect(function()
     if AC then
-        AC.Radius = ST.SAFOV
+        AC.Radius=ST.SAFOV
     end
-    FOV_RADIUS = ST.SAFOV
+    FOV_RADIUS=ST.SAFOV
     
     if ST.SAFC and ST.SA then
         if AC then
-            AC.Visible = true
-            AC.Position = Vector2.new(Mouse.X, Mouse.Y + 36)
+            AC.Visible=true
+            AC.Position=Vector2.new(Mouse.X,Mouse.Y+36)
         end
     else
-        if AC then AC.Visible = false end
+        if AC then AC.Visible=false end
     end
     
     if CC then
-        CC.Radius = ST.CLFOV
+        CC.Radius=ST.CLFOV
         if ST.CLDraw then 
-            CC.Visible = true
-            CC.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+            CC.Visible=true
+            CC.Position=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
         else 
-            CC.Visible = false
+            CC.Visible=false
         end
     end
     UpdateESP()
     UpdateHitbox()
     UpdateMove()
     UpdateTriggerbotHitbox()
+    -- Flame Camlock render loop
+    if ST.FlameCamlock and FlameCamlockActive then
+        RunFlameCamlock()
+    end
 end)
 
 -- Drag
@@ -2204,10 +2176,10 @@ UserInputService.InputEnded:Connect(function(inp)
     end 
 end)
 
-if MN then MN.Visible = true end
-if BO then BO.Visible = true end
-if BO then BO.BackgroundTransparency = 0.6 end
-UIVis = true
+if MN then MN.Visible=true end
+if BO then BO.Visible=true end
+if BO then BO.BackgroundTransparency=0.6 end
+UIVis=true
 
 UpdateFog()
 UpdateCamlock()
@@ -2239,7 +2211,8 @@ print("Blushwovens Regular v26.0 - Loading...")
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
         return parent:FindFirstChild(childName)
-    end    return nil
+    end
+    return nil
 end
 
 local function safeWaitForChild(parent, childName, timeout)
@@ -2313,13 +2286,6 @@ local ST={
     CLAimType="Camera",
     CLMagnetStrength=1,
     CLMagnetPart="UpperTorso",
-    CLHOffset=0,
-    CLVOffset=0,
-    CLShake=0,
-    CLHipHeight=false,
-    CLHipHeightVal=0,
-    CLWalkSpeed=false,
-    CLWalkSpeedVal=22,
     CLLockTarget=true,
     HB=false, HBSz=10, HBOp=0.9,
     ESP=false, ESPBx=true, ESPTr=true, ESPNm=true, ESPDs=true, ESPHp=true,
@@ -2332,13 +2298,20 @@ local ST={
     BulletSpreadEnabled=true,
     BulletSpread=100,
     FlameLock=false, FlameLockKey=Enum.KeyCode.B,
+    FlameCamlock=false,
+    FCamHOffset=0,
+    FCamVOffset=0,
+    FCamShake=0,
+    FCamHipHeight=false,
+    FCamHipHeightVal=0,
+    FCamWalkSpeed=false,
+    FCamWalkSpeedVal=22,
     TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true, TBVisCheck=true, TBMode="Hold",
     TBHitboxEnabled=true,
     TBHitboxSize=60,
     TBHitboxXOffset=0,
     TBHitboxYOffset=0,
     TBHitboxVisible=false,
-    -- Ragebot
     RagebotEnabled=false,
     RagebotMode="Always",
     RagebotKeybind=Enum.KeyCode.F,
@@ -2359,8 +2332,11 @@ local ST={
 -- Camlock Target Variables
 local CamlockTarget = nil
 local CamlockTargetName = nil
-local OriginalWalkSpeedCache = 16
-local OriginalHipHeightCache = 0
+
+-- Flame Camlock Variables
+local FlameCamlockTarget = nil
+local FlameCamlockActive = false
+local FlameCamlockConnection = nil
 
 -- Ragebot Variables
 local RagebotActive = false
@@ -2401,6 +2377,26 @@ local function IsKnocked(char)
 end
 
 -- WHITELIST
+local WL={}
+local function IsWL(p) 
+    if not p then return false end
+    if not p.UserId then return false end
+    if SilentAimWhitelist[p.UserId] == true then return true end
+    return WL[p.UserId]==true 
+end
+local function SetWL(p,v) 
+    if not p then return end
+    if not p.UserId then return end
+    if v then 
+        WL[p.UserId]=true
+        SilentAimWhitelist[p.UserId]=true
+    else 
+        WL[p.UserId]=nil
+        SilentAimWhitelist[p.UserId]=nil
+    end
+end
+
+-- WHITELIST - Main whitelist check function
 local function IsSilentAimWhitelisted(player)
     if not player then return false end
     if not player.UserId then return false end
@@ -2581,26 +2577,6 @@ if handler and gunHandlerLoaded then
     handler.getAim = originalGetAim
 end
 
--- WHITELIST
-local WL={}
-local function IsWL(p) 
-    if not p then return false end
-    if not p.UserId then return false end
-    if SilentAimWhitelist[p.UserId] == true then return true end
-    return WL[p.UserId]==true 
-end
-local function SetWL(p,v) 
-    if not p then return end
-    if not p.UserId then return end
-    if v then 
-        WL[p.UserId]=true
-        SilentAimWhitelist[p.UserId]=true
-    else 
-        WL[p.UserId]=nil
-        SilentAimWhitelist[p.UserId]=nil
-    end
-end
-
 -- FOG
 local FogPresets = {
     {Name="Pink", Color=Color3.fromRGB(245,205,220)},
@@ -2639,7 +2615,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- UI PRESETS (preserved for compatibility)
+-- UI PRESETS
 local UIPresets = {
     {Name="Pink", Accent=Color3.fromRGB(215,130,170), Second=Color3.fromRGB(245,205,220)},
     {Name="Purple", Accent=Color3.fromRGB(140,100,220), Second=Color3.fromRGB(180,150,240)},
@@ -2651,7 +2627,7 @@ local UIPresets = {
     {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
 }
 
--- CAMLOCK - WITH TARGET LOCK AND FLAME CAMLOCK FEATURES
+-- CAMLOCK - WITH TARGET LOCK
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
@@ -2721,61 +2697,6 @@ local function FindMagnetTarget()
     return target
 end
 
--- FLAME CAMLOCK MAGNET CURSOR LOOP (with offsets and shake)
-local function MagnetCursorLoop()
-    if not CamActive then return end
-    if not MagnetTarget or not MagnetTarget.Character then
-        MagnetTarget = FindMagnetTarget()
-        if not MagnetTarget then return end
-    end
-    local partName = ST.CLMagnetPart or "UpperTorso"
-    local targetPart = safeFindFirstChild(MagnetTarget.Character, partName)
-    if not targetPart then
-        targetPart = safeFindFirstChild(MagnetTarget.Character, "UpperTorso")
-        if not targetPart then
-            targetPart = safeFindFirstChild(MagnetTarget.Character, "Head")
-            if not targetPart then
-                MagnetTarget = nil
-                return
-            end
-        end
-    end
-    
-    local targetPos = targetPart.Position
-    
-    -- Apply prediction if enabled
-    if ST.CLPred > 0 then
-        targetPos = targetPos + (targetPart.Velocity * ST.CLPred)
-    end
-    
-    -- Apply Flame Camlock offsets
-    local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
-    targetPos = targetPos + Camera.CFrame:VectorToWorldSpace(offsetVector)
-    
-    -- Apply shake if enabled
-    if ST.CLShake and ST.CLShake > 0 then
-        local sX = math.random(-100, 100) / 100 * ST.CLShake
-        local sY = math.random(-100, 100) / 100 * ST.CLShake
-        local sZ = math.random(-100, 100) / 100 * ST.CLShake
-        targetPos = targetPos + Vector3.new(sX, sY, sZ)
-    end
-    
-    local targetVec, onScreen = Camera:WorldToViewportPoint(targetPos)
-    if onScreen then
-        local mouseLocation = UserInputService:GetMouseLocation()
-        local delta = (Vector2.new(targetVec.X, targetVec.Y) - mouseLocation) * ST.CLMagnetStrength
-        if mousemoverel then
-            mousemoverel(delta.X, delta.Y)
-        end
-    end
-    
-    local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
-    if not hum or hum.Health <= 0 then
-        CamActive = false
-        MagnetTarget = nil
-    end
-end
-
 local function UpdateCamlock()
     if CamConn then CamConn:Disconnect(); CamConn = nil end
     if not ST.CL then return end
@@ -2783,7 +2704,34 @@ local function UpdateCamlock()
     if ST.CLAimType == "Magnet" then
         CamConn = RunService.RenderStepped:Connect(function()
             if not CamActive then return end
-            MagnetCursorLoop()
+            if not MagnetTarget or not MagnetTarget.Character then
+                MagnetTarget = FindMagnetTarget()
+                if not MagnetTarget then return end
+            end
+            local partName = ST.CLMagnetPart or "UpperTorso"
+            local targetPart = safeFindFirstChild(MagnetTarget.Character, partName)
+            if not targetPart then
+                targetPart = safeFindFirstChild(MagnetTarget.Character, "UpperTorso")
+                if not targetPart then
+                    targetPart = safeFindFirstChild(MagnetTarget.Character, "Head")
+                    if not targetPart then
+                        MagnetTarget = nil
+                        return
+                    end
+                end
+            end
+            local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            local mouseLocation = UserInputService:GetMouseLocation()
+            local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+            local delta = (targetVec - mouseLocation) * ST.CLMagnetStrength
+            if mousemoverel then
+                mousemoverel(delta.X, delta.Y)
+            end
+            local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
+            if not hum or hum.Health <= 0 then
+                CamActive = false
+                MagnetTarget = nil
+            end
         end)
     elseif ST.CLAimType == "MagnetCursor" then
         CamConn = RunService.RenderStepped:Connect(function()
@@ -2804,30 +2752,11 @@ local function UpdateCamlock()
                     end
                 end
             end
-            
-            local targetPos = targetPart.Position
-            
-            -- Apply prediction
-            if ST.CLPred > 0 then
-                targetPos = targetPos + (targetPart.Velocity * ST.CLPred)
-            end
-            
-            -- Apply offsets
-            local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
-            targetPos = targetPos + Camera.CFrame:VectorToWorldSpace(offsetVector)
-            
-            -- Apply shake
-            if ST.CLShake and ST.CLShake > 0 then
-                local sX = math.random(-100, 100) / 100 * ST.CLShake
-                local sY = math.random(-100, 100) / 100 * ST.CLShake
-                local sZ = math.random(-100, 100) / 100 * ST.CLShake
-                targetPos = targetPos + Vector3.new(sX, sY, sZ)
-            end
-            
-            local targetVec, onScreen = Camera:WorldToViewportPoint(targetPos)
+            local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
             if onScreen then
                 local mouseLocation = UserInputService:GetMouseLocation()
-                local delta = (Vector2.new(targetVec.X, targetVec.Y) - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
+                local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                local delta = (targetVec - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
                 if mousemoverel then
                     mousemoverel(delta.X, delta.Y)
                 end
@@ -2839,7 +2768,6 @@ local function UpdateCamlock()
             end
         end)
     else
-        -- Camera mode
         CamConn = RunService.RenderStepped:Connect(function()
             if CamActive then
                 local t = FindBestCamTarget()
@@ -2848,25 +2776,10 @@ local function UpdateCamlock()
                     if part then
                         local pos = part.Position
                         local hum = safeFindFirstChild(t.Character, "Humanoid")
-                        
-                        -- Apply prediction
                         if ST.CLPred > 0 and hum then
                             local predictionTime = GetPredictionTime()
                             pos = pos + (hum.MoveDirection * ST.CLPred * 10 * predictionTime * 2)
                         end
-                        
-                        -- Apply offsets for camera mode
-                        local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
-                        pos = pos + Camera.CFrame:VectorToWorldSpace(offsetVector)
-                        
-                        -- Apply shake
-                        if ST.CLShake and ST.CLShake > 0 then
-                            local sX = math.random(-100, 100) / 100 * ST.CLShake
-                            local sY = math.random(-100, 100) / 100 * ST.CLShake
-                            local sZ = math.random(-100, 100) / 100 * ST.CLShake
-                            pos = pos + Vector3.new(sX, sY, sZ)
-                        end
-                        
                         Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), ST.CLSm)
                     end
                 end
@@ -2897,6 +2810,63 @@ local function ToggleCamlock()
         CamlockTargetName = nil
     end
     UpdateCamlock()
+end
+
+-- FLAME CAMLOCK
+local function GetFlameCamlockTarget()
+    local target = nil
+    local shortestDistance = math.huge
+    local mousePos = UserInputService:GetMouseLocation()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local hrp = player.Character.HumanoidRootPart
+            local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            if onScreen then
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                if distance < shortestDistance then
+                    target = player
+                    shortestDistance = distance
+                end
+            end
+        end
+    end
+    return target
+end
+
+local function RunFlameCamlock()
+    if not ST.FlameCamlock then return end
+    FlameCamlockTarget = GetFlameCamlockTarget()
+    if FlameCamlockTarget and FlameCamlockTarget.Character and FlameCamlockTarget.Character:FindFirstChild("HumanoidRootPart") then
+        local targetPart = FlameCamlockTarget.Character.HumanoidRootPart
+        local targetPosition = targetPart.Position
+        
+        if ST.CLPred > 0 then
+            targetPosition = targetPosition + (targetPart.Velocity * ST.CLPred)
+        end
+        
+        local offsetVector = Vector3.new(ST.FCamHOffset or 0, ST.FCamVOffset or 0, 0)
+        targetPosition = targetPosition + Camera.CFrame:VectorToWorldSpace(offsetVector)
+        
+        if ST.FCamShake and ST.FCamShake > 0 then
+            local sX = math.random(-100, 100) / 100 * ST.FCamShake
+            local sY = math.random(-100, 100) / 100 * ST.FCamShake
+            local sZ = math.random(-100, 100) / 100 * ST.FCamShake
+            targetPosition = targetPosition + Vector3.new(sX, sY, sZ)
+        end
+        
+        local currentCameraCFrame = Camera.CFrame
+        local targetCFrame = CFrame.new(currentCameraCFrame.Position, targetPosition)
+        Camera.CFrame = currentCameraCFrame:Lerp(targetCFrame, 0.5)
+    end
+end
+
+local function StartFlameCamlock()
+    FlameCamlockActive = true
+end
+
+local function StopFlameCamlock()
+    FlameCamlockActive = false
+    FlameCamlockTarget = nil
 end
 
 -- RAGEBOT FUNCTIONS
@@ -2945,7 +2915,6 @@ local function RagebotShoot(target)
             if not part then return end
         end
         
-        -- Move cursor to target and click
         local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
         if onScreen then
             if mousemoverel then
@@ -3291,14 +3260,12 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     local hum = safeWaitForChild(char, "Humanoid")
     if hum then
         OriginalWalkSpeed = hum.WalkSpeed
-        OriginalWalkSpeedCache = hum.WalkSpeed
-        OriginalHipHeightCache = hum.HipHeight
         hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if ST and ST.SP and SpeedActive then
                 hum.WalkSpeed = ST.SPVal
             end
-            if ST and ST.CLWalkSpeed then
-                hum.WalkSpeed = ST.CLWalkSpeedVal
+            if ST and ST.FCamWalkSpeed then
+                hum.WalkSpeed = ST.FCamWalkSpeedVal
             end
         end)
         hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
@@ -3308,8 +3275,8 @@ LocalPlayer.CharacterAdded:Connect(function(char)
             end
         end)
         hum:GetPropertyChangedSignal("HipHeight"):Connect(function()
-            if ST and ST.CLHipHeight then
-                hum.HipHeight = ST.CLHipHeightVal
+            if ST and ST.FCamHipHeight then
+                hum.HipHeight = ST.FCamHipHeightVal
             end
         end)
     end
@@ -3321,14 +3288,12 @@ if char then
     local hum = safeFindFirstChild(char, "Humanoid")
     if hum then
         OriginalWalkSpeed = hum.WalkSpeed
-        OriginalWalkSpeedCache = hum.WalkSpeed
-        OriginalHipHeightCache = hum.HipHeight
         hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if ST and ST.SP and SpeedActive then
                 hum.WalkSpeed = ST.SPVal
             end
-            if ST and ST.CLWalkSpeed then
-                hum.WalkSpeed = ST.CLWalkSpeedVal
+            if ST and ST.FCamWalkSpeed then
+                hum.WalkSpeed = ST.FCamWalkSpeedVal
             end
         end)
         hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
@@ -3338,8 +3303,8 @@ if char then
             end
         end)
         hum:GetPropertyChangedSignal("HipHeight"):Connect(function()
-            if ST and ST.CLHipHeight then
-                hum.HipHeight = ST.CLHipHeightVal
+            if ST and ST.FCamHipHeight then
+                hum.HipHeight = ST.FCamHipHeightVal
             end
         end)
     end
@@ -3624,7 +3589,7 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT - MATRIXHUBS STYLE WITH PLAYER HITBOX AND OFFSETS
+-- TRIGGERBOT
 local Triggerbot = {Active = false, Connection = nil}
 local TBHitbox = nil
 local TBHitboxVisible = false
@@ -3918,10 +3883,10 @@ end)
 local VERSION_LABEL = "Regular"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
--- Initialize Ragebot if enabled
 if ST.RagebotEnabled then StartRagebot() end
 if ST.KillAuraEnabled then StartKillAura() end
 if ST.RageTeleport then StartRageTeleport() end
+if ST.FlameCamlock then StartFlameCamlock() end
 print("Blushwovens Regular v26.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
@@ -4054,13 +4019,6 @@ local ST={
     CLAimType="Camera",
     CLMagnetStrength=1,
     CLMagnetPart="UpperTorso",
-    CLHOffset=0,
-    CLVOffset=0,
-    CLShake=0,
-    CLHipHeight=false,
-    CLHipHeightVal=0,
-    CLWalkSpeed=false,
-    CLWalkSpeedVal=22,
     CLLockTarget=true,
     HB=false, HBSz=10, HBOp=0.9,
     ESP=false, ESPBx=true, ESPTr=true, ESPNm=true, ESPDs=true, ESPHp=true,
@@ -4073,13 +4031,20 @@ local ST={
     BulletSpreadEnabled=true,
     BulletSpread=100,
     FlameLock=false, FlameLockKey=Enum.KeyCode.B,
+    FlameCamlock=false,
+    FCamHOffset=0,
+    FCamVOffset=0,
+    FCamShake=0,
+    FCamHipHeight=false,
+    FCamHipHeightVal=0,
+    FCamWalkSpeed=false,
+    FCamWalkSpeedVal=22,
     TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true, TBVisCheck=true, TBMode="Hold",
     TBHitboxEnabled=true,
     TBHitboxSize=60,
     TBHitboxXOffset=0,
     TBHitboxYOffset=0,
     TBHitboxVisible=false,
-    -- Ragebot
     RagebotEnabled=false,
     RagebotMode="Always",
     RagebotKeybind=Enum.KeyCode.F,
@@ -4100,8 +4065,11 @@ local ST={
 -- Camlock Target Variables
 local CamlockTarget = nil
 local CamlockTargetName = nil
-local OriginalWalkSpeedCache = 16
-local OriginalHipHeightCache = 0
+
+-- Flame Camlock Variables
+local FlameCamlockTarget = nil
+local FlameCamlockActive = false
+local FlameCamlockConnection = nil
 
 -- Ragebot Variables
 local RagebotActive = false
@@ -4142,6 +4110,25 @@ local function IsKnocked(char)
 end
 
 -- WHITELIST
+local WL={}
+local function IsWL(p) 
+    if not p then return false end
+    if not p.UserId then return false end
+    if SilentAimWhitelist[p.UserId] == true then return true end
+    return WL[p.UserId]==true 
+end
+local function SetWL(p,v) 
+    if not p then return end
+    if not p.UserId then return end
+    if v then 
+        WL[p.UserId]=true
+        SilentAimWhitelist[p.UserId]=true
+    else 
+        WL[p.UserId]=nil
+        SilentAimWhitelist[p.UserId]=nil
+    end
+end
+
 local function IsSilentAimWhitelisted(player)
     if not player then return false end
     if not player.UserId then return false end
@@ -4319,26 +4306,6 @@ local function UpdateSilentAim()
     end
 end
 
--- WHITELIST
-local WL={}
-local function IsWL(p) 
-    if not p then return false end
-    if not p.UserId then return false end
-    if SilentAimWhitelist[p.UserId] == true then return true end
-    return WL[p.UserId]==true 
-end
-local function SetWL(p,v) 
-    if not p then return end
-    if not p.UserId then return end
-    if v then 
-        WL[p.UserId]=true
-        SilentAimWhitelist[p.UserId]=true
-    else 
-        WL[p.UserId]=nil
-        SilentAimWhitelist[p.UserId]=nil
-    end
-end
-
 -- FOG
 local FogPresets = {
     {Name="Pink", Color=Color3.fromRGB(245,205,220)},
@@ -4389,7 +4356,7 @@ local UIPresets = {
     {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
 }
 
--- CAMLOCK - WITH TARGET LOCK AND FLAME CAMLOCK FEATURES
+-- CAMLOCK - WITH TARGET LOCK
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
@@ -4459,58 +4426,6 @@ local function FindMagnetTarget()
     return target
 end
 
--- FLAME CAMLOCK MAGNET CURSOR LOOP (with offsets and shake)
-local function MagnetCursorLoop()
-    if not CamActive then return end
-    if not MagnetTarget or not MagnetTarget.Character then
-        MagnetTarget = FindMagnetTarget()
-        if not MagnetTarget then return end
-    end
-    local partName = ST.CLMagnetPart or "UpperTorso"
-    local targetPart = safeFindFirstChild(MagnetTarget.Character, partName)
-    if not targetPart then
-        targetPart = safeFindFirstChild(MagnetTarget.Character, "UpperTorso")
-        if not targetPart then
-            targetPart = safeFindFirstChild(MagnetTarget.Character, "Head")
-            if not targetPart then
-                MagnetTarget = nil
-                return
-            end
-        end
-    end
-    
-    local targetPos = targetPart.Position
-    
-    if ST.CLPred > 0 then
-        targetPos = targetPos + (targetPart.Velocity * ST.CLPred)
-    end
-    
-    local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
-    targetPos = targetPos + Camera.CFrame:VectorToWorldSpace(offsetVector)
-    
-    if ST.CLShake and ST.CLShake > 0 then
-        local sX = math.random(-100, 100) / 100 * ST.CLShake
-        local sY = math.random(-100, 100) / 100 * ST.CLShake
-        local sZ = math.random(-100, 100) / 100 * ST.CLShake
-        targetPos = targetPos + Vector3.new(sX, sY, sZ)
-    end
-    
-    local targetVec, onScreen = Camera:WorldToViewportPoint(targetPos)
-    if onScreen then
-        local mouseLocation = UserInputService:GetMouseLocation()
-        local delta = (Vector2.new(targetVec.X, targetVec.Y) - mouseLocation) * ST.CLMagnetStrength
-        if mousemoverel then
-            mousemoverel(delta.X, delta.Y)
-        end
-    end
-    
-    local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
-    if not hum or hum.Health <= 0 then
-        CamActive = false
-        MagnetTarget = nil
-    end
-end
-
 local function UpdateCamlock()
     if CamConn then CamConn:Disconnect(); CamConn = nil end
     if not ST.CL then return end
@@ -4518,7 +4433,34 @@ local function UpdateCamlock()
     if ST.CLAimType == "Magnet" then
         CamConn = RunService.RenderStepped:Connect(function()
             if not CamActive then return end
-            MagnetCursorLoop()
+            if not MagnetTarget or not MagnetTarget.Character then
+                MagnetTarget = FindMagnetTarget()
+                if not MagnetTarget then return end
+            end
+            local partName = ST.CLMagnetPart or "UpperTorso"
+            local targetPart = safeFindFirstChild(MagnetTarget.Character, partName)
+            if not targetPart then
+                targetPart = safeFindFirstChild(MagnetTarget.Character, "UpperTorso")
+                if not targetPart then
+                    targetPart = safeFindFirstChild(MagnetTarget.Character, "Head")
+                    if not targetPart then
+                        MagnetTarget = nil
+                        return
+                    end
+                end
+            end
+            local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            local mouseLocation = UserInputService:GetMouseLocation()
+            local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+            local delta = (targetVec - mouseLocation) * ST.CLMagnetStrength
+            if mousemoverel then
+                mousemoverel(delta.X, delta.Y)
+            end
+            local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
+            if not hum or hum.Health <= 0 then
+                CamActive = false
+                MagnetTarget = nil
+            end
         end)
     elseif ST.CLAimType == "MagnetCursor" then
         CamConn = RunService.RenderStepped:Connect(function()
@@ -4539,27 +4481,11 @@ local function UpdateCamlock()
                     end
                 end
             end
-            
-            local targetPos = targetPart.Position
-            
-            if ST.CLPred > 0 then
-                targetPos = targetPos + (targetPart.Velocity * ST.CLPred)
-            end
-            
-            local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
-            targetPos = targetPos + Camera.CFrame:VectorToWorldSpace(offsetVector)
-            
-            if ST.CLShake and ST.CLShake > 0 then
-                local sX = math.random(-100, 100) / 100 * ST.CLShake
-                local sY = math.random(-100, 100) / 100 * ST.CLShake
-                local sZ = math.random(-100, 100) / 100 * ST.CLShake
-                targetPos = targetPos + Vector3.new(sX, sY, sZ)
-            end
-            
-            local targetVec, onScreen = Camera:WorldToViewportPoint(targetPos)
+            local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
             if onScreen then
                 local mouseLocation = UserInputService:GetMouseLocation()
-                local delta = (Vector2.new(targetVec.X, targetVec.Y) - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
+                local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                local delta = (targetVec - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
                 if mousemoverel then
                     mousemoverel(delta.X, delta.Y)
                 end
@@ -4579,22 +4505,10 @@ local function UpdateCamlock()
                     if part then
                         local pos = part.Position
                         local hum = safeFindFirstChild(t.Character, "Humanoid")
-                        
                         if ST.CLPred > 0 and hum then
                             local predictionTime = GetPredictionTime()
                             pos = pos + (hum.MoveDirection * ST.CLPred * 10 * predictionTime * 2)
                         end
-                        
-                        local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
-                        pos = pos + Camera.CFrame:VectorToWorldSpace(offsetVector)
-                        
-                        if ST.CLShake and ST.CLShake > 0 then
-                            local sX = math.random(-100, 100) / 100 * ST.CLShake
-                            local sY = math.random(-100, 100) / 100 * ST.CLShake
-                            local sZ = math.random(-100, 100) / 100 * ST.CLShake
-                            pos = pos + Vector3.new(sX, sY, sZ)
-                        end
-                        
                         Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), ST.CLSm)
                     end
                 end
@@ -4627,7 +4541,64 @@ local function ToggleCamlock()
     UpdateCamlock()
 end
 
--- RAGEBOT FUNCTIONS (same as Regular)
+-- FLAME CAMLOCK
+local function GetFlameCamlockTarget()
+    local target = nil
+    local shortestDistance = math.huge
+    local mousePos = UserInputService:GetMouseLocation()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local hrp = player.Character.HumanoidRootPart
+            local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            if onScreen then
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                if distance < shortestDistance then
+                    target = player
+                    shortestDistance = distance
+                end
+            end
+        end
+    end
+    return target
+end
+
+local function RunFlameCamlock()
+    if not ST.FlameCamlock then return end
+    FlameCamlockTarget = GetFlameCamlockTarget()
+    if FlameCamlockTarget and FlameCamlockTarget.Character and FlameCamlockTarget.Character:FindFirstChild("HumanoidRootPart") then
+        local targetPart = FlameCamlockTarget.Character.HumanoidRootPart
+        local targetPosition = targetPart.Position
+        
+        if ST.CLPred > 0 then
+            targetPosition = targetPosition + (targetPart.Velocity * ST.CLPred)
+        end
+        
+        local offsetVector = Vector3.new(ST.FCamHOffset or 0, ST.FCamVOffset or 0, 0)
+        targetPosition = targetPosition + Camera.CFrame:VectorToWorldSpace(offsetVector)
+        
+        if ST.FCamShake and ST.FCamShake > 0 then
+            local sX = math.random(-100, 100) / 100 * ST.FCamShake
+            local sY = math.random(-100, 100) / 100 * ST.FCamShake
+            local sZ = math.random(-100, 100) / 100 * ST.FCamShake
+            targetPosition = targetPosition + Vector3.new(sX, sY, sZ)
+        end
+        
+        local currentCameraCFrame = Camera.CFrame
+        local targetCFrame = CFrame.new(currentCameraCFrame.Position, targetPosition)
+        Camera.CFrame = currentCameraCFrame:Lerp(targetCFrame, 0.5)
+    end
+end
+
+local function StartFlameCamlock()
+    FlameCamlockActive = true
+end
+
+local function StopFlameCamlock()
+    FlameCamlockActive = false
+    FlameCamlockTarget = nil
+end
+
+-- RAGEBOT FUNCTIONS
 local function GetRageTarget()
     local closest = nil
     local closestDist = ST.RagebotRange or 30
@@ -5018,14 +4989,12 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     local hum = safeWaitForChild(char, "Humanoid")
     if hum then
         OriginalWalkSpeed = hum.WalkSpeed
-        OriginalWalkSpeedCache = hum.WalkSpeed
-        OriginalHipHeightCache = hum.HipHeight
         hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if ST and ST.SP and SpeedActive then
                 hum.WalkSpeed = ST.SPVal
             end
-            if ST and ST.CLWalkSpeed then
-                hum.WalkSpeed = ST.CLWalkSpeedVal
+            if ST and ST.FCamWalkSpeed then
+                hum.WalkSpeed = ST.FCamWalkSpeedVal
             end
         end)
         hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
@@ -5035,8 +5004,8 @@ LocalPlayer.CharacterAdded:Connect(function(char)
             end
         end)
         hum:GetPropertyChangedSignal("HipHeight"):Connect(function()
-            if ST and ST.CLHipHeight then
-                hum.HipHeight = ST.CLHipHeightVal
+            if ST and ST.FCamHipHeight then
+                hum.HipHeight = ST.FCamHipHeightVal
             end
         end)
     end
@@ -5048,14 +5017,12 @@ if char then
     local hum = safeFindFirstChild(char, "Humanoid")
     if hum then
         OriginalWalkSpeed = hum.WalkSpeed
-        OriginalWalkSpeedCache = hum.WalkSpeed
-        OriginalHipHeightCache = hum.HipHeight
         hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if ST and ST.SP and SpeedActive then
                 hum.WalkSpeed = ST.SPVal
             end
-            if ST and ST.CLWalkSpeed then
-                hum.WalkSpeed = ST.CLWalkSpeedVal
+            if ST and ST.FCamWalkSpeed then
+                hum.WalkSpeed = ST.FCamWalkSpeedVal
             end
         end)
         hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
@@ -5065,8 +5032,8 @@ if char then
             end
         end)
         hum:GetPropertyChangedSignal("HipHeight"):Connect(function()
-            if ST and ST.CLHipHeight then
-                hum.HipHeight = ST.CLHipHeightVal
+            if ST and ST.FCamHipHeight then
+                hum.HipHeight = ST.FCamHipHeightVal
             end
         end)
     end
@@ -5351,7 +5318,7 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT - MATRIXHUBS STYLE WITH PLAYER HITBOX AND OFFSETS
+-- TRIGGERBOT
 local Triggerbot = {Active = false, Connection = nil}
 local TBHitbox = nil
 local TBHitboxVisible = false
@@ -5648,6 +5615,7 @@ UpdateBulletSpread()
 if ST.RagebotEnabled then StartRagebot() end
 if ST.KillAuraEnabled then StartKillAura() end
 if ST.RageTeleport then StartRageTeleport() end
+if ST.FlameCamlock then StartFlameCamlock() end
 print("Blushwovens Xeno v26.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
@@ -5740,13 +5708,6 @@ local ST={
     CLAimType="Camera",
     CLMagnetStrength=1,
     CLMagnetPart="UpperTorso",
-    CLHOffset=0,
-    CLVOffset=0,
-    CLShake=0,
-    CLHipHeight=false,
-    CLHipHeightVal=0,
-    CLWalkSpeed=false,
-    CLWalkSpeedVal=22,
     CLLockTarget=true,
     HB=false, HBSz=10, HBOp=0.9,
     ESP=false, ESPBx=true, ESPTr=true, ESPNm=true, ESPDs=true, ESPHp=true,
@@ -5759,13 +5720,20 @@ local ST={
     BulletSpreadEnabled=true,
     BulletSpread=100,
     FlameLock=false, FlameLockKey=Enum.KeyCode.B,
+    FlameCamlock=false,
+    FCamHOffset=0,
+    FCamVOffset=0,
+    FCamShake=0,
+    FCamHipHeight=false,
+    FCamHipHeightVal=0,
+    FCamWalkSpeed=false,
+    FCamWalkSpeedVal=22,
     TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true, TBVisCheck=true, TBMode="Hold",
     TBHitboxEnabled=true,
     TBHitboxSize=60,
     TBHitboxXOffset=0,
     TBHitboxYOffset=0,
     TBHitboxVisible=false,
-    -- Ragebot
     RagebotEnabled=false,
     RagebotMode="Always",
     RagebotKeybind=Enum.KeyCode.F,
@@ -5786,8 +5754,11 @@ local ST={
 -- Camlock Target Variables
 local CamlockTarget = nil
 local CamlockTargetName = nil
-local OriginalWalkSpeedCache = 16
-local OriginalHipHeightCache = 0
+
+-- Flame Camlock Variables
+local FlameCamlockTarget = nil
+local FlameCamlockActive = false
+local FlameCamlockConnection = nil
 
 -- Ragebot Variables
 local RagebotActive = false
@@ -5808,6 +5779,12 @@ local function IsPlayerValidForTarget(player)
     return true
 end
 
+local function IsSilentAimWhitelisted(player)
+    if not player then return false end
+    if not player.UserId then return false end
+    return SilentAimWhitelist[player.UserId] == true
+end
+
 -- KNOCK CHECK
 local function IsKnocked(char)
     if not char then return false end
@@ -5819,10 +5796,23 @@ local function IsKnocked(char)
 end
 
 -- WHITELIST
-local function IsSilentAimWhitelisted(player)
-    if not player then return false end
-    if not player.UserId then return false end
-    return SilentAimWhitelist[player.UserId] == true
+local WL={}
+local function IsWL(p) 
+    if not p then return false end
+    if not p.UserId then return false end
+    if SilentAimWhitelist[p.UserId] == true then return true end
+    return WL[p.UserId]==true 
+end
+local function SetWL(p,v) 
+    if not p then return end
+    if not p.UserId then return end
+    if v then 
+        WL[p.UserId]=true
+        SilentAimWhitelist[p.UserId]=true
+    else 
+        WL[p.UserId]=nil
+        SilentAimWhitelist[p.UserId]=nil
+    end
 end
 
 -- PING PREDICTION
@@ -6001,26 +5991,6 @@ local function UpdateSilentAim()
     end
 end
 
--- WHITELIST
-local WL={}
-local function IsWL(p) 
-    if not p then return false end
-    if not p.UserId then return false end
-    if SilentAimWhitelist[p.UserId] == true then return true end
-    return WL[p.UserId]==true 
-end
-local function SetWL(p,v) 
-    if not p then return end
-    if not p.UserId then return end
-    if v then 
-        WL[p.UserId]=true
-        SilentAimWhitelist[p.UserId]=true
-    else 
-        WL[p.UserId]=nil
-        SilentAimWhitelist[p.UserId]=nil
-    end
-end
-
 -- FOG
 local FogPresets = {
     {Name="Pink", Color=Color3.fromRGB(245,205,220)},
@@ -6071,7 +6041,7 @@ local UIPresets = {
     {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
 }
 
--- CAMLOCK - WITH TARGET LOCK AND FLAME CAMLOCK FEATURES
+-- CAMLOCK - WITH TARGET LOCK
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
@@ -6141,58 +6111,6 @@ local function FindMagnetTarget()
     return target
 end
 
--- FLAME CAMLOCK MAGNET CURSOR LOOP (with offsets and shake)
-local function MagnetCursorLoop()
-    if not CamActive then return end
-    if not MagnetTarget or not MagnetTarget.Character then
-        MagnetTarget = FindMagnetTarget()
-        if not MagnetTarget then return end
-    end
-    local partName = ST.CLMagnetPart or "UpperTorso"
-    local targetPart = safeFindFirstChild(MagnetTarget.Character, partName)
-    if not targetPart then
-        targetPart = safeFindFirstChild(MagnetTarget.Character, "UpperTorso")
-        if not targetPart then
-            targetPart = safeFindFirstChild(MagnetTarget.Character, "Head")
-            if not targetPart then
-                MagnetTarget = nil
-                return
-            end
-        end
-    end
-    
-    local targetPos = targetPart.Position
-    
-    if ST.CLPred > 0 then
-        targetPos = targetPos + (targetPart.Velocity * ST.CLPred)
-    end
-    
-    local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
-    targetPos = targetPos + Camera.CFrame:VectorToWorldSpace(offsetVector)
-    
-    if ST.CLShake and ST.CLShake > 0 then
-        local sX = math.random(-100, 100) / 100 * ST.CLShake
-        local sY = math.random(-100, 100) / 100 * ST.CLShake
-        local sZ = math.random(-100, 100) / 100 * ST.CLShake
-        targetPos = targetPos + Vector3.new(sX, sY, sZ)
-    end
-    
-    local targetVec, onScreen = Camera:WorldToViewportPoint(targetPos)
-    if onScreen then
-        local mouseLocation = UserInputService:GetMouseLocation()
-        local delta = (Vector2.new(targetVec.X, targetVec.Y) - mouseLocation) * ST.CLMagnetStrength
-        if mousemoverel then
-            mousemoverel(delta.X, delta.Y)
-        end
-    end
-    
-    local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
-    if not hum or hum.Health <= 0 then
-        CamActive = false
-        MagnetTarget = nil
-    end
-end
-
 local function UpdateCamlock()
     if CamConn then CamConn:Disconnect(); CamConn = nil end
     if not ST.CL then return end
@@ -6200,7 +6118,34 @@ local function UpdateCamlock()
     if ST.CLAimType == "Magnet" then
         CamConn = RunService.RenderStepped:Connect(function()
             if not CamActive then return end
-            MagnetCursorLoop()
+            if not MagnetTarget or not MagnetTarget.Character then
+                MagnetTarget = FindMagnetTarget()
+                if not MagnetTarget then return end
+            end
+            local partName = ST.CLMagnetPart or "UpperTorso"
+            local targetPart = safeFindFirstChild(MagnetTarget.Character, partName)
+            if not targetPart then
+                targetPart = safeFindFirstChild(MagnetTarget.Character, "UpperTorso")
+                if not targetPart then
+                    targetPart = safeFindFirstChild(MagnetTarget.Character, "Head")
+                    if not targetPart then
+                        MagnetTarget = nil
+                        return
+                    end
+                end
+            end
+            local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            local mouseLocation = UserInputService:GetMouseLocation()
+            local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+            local delta = (targetVec - mouseLocation) * ST.CLMagnetStrength
+            if mousemoverel then
+                mousemoverel(delta.X, delta.Y)
+            end
+            local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
+            if not hum or hum.Health <= 0 then
+                CamActive = false
+                MagnetTarget = nil
+            end
         end)
     elseif ST.CLAimType == "MagnetCursor" then
         CamConn = RunService.RenderStepped:Connect(function()
@@ -6221,27 +6166,11 @@ local function UpdateCamlock()
                     end
                 end
             end
-            
-            local targetPos = targetPart.Position
-            
-            if ST.CLPred > 0 then
-                targetPos = targetPos + (targetPart.Velocity * ST.CLPred)
-            end
-            
-            local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
-            targetPos = targetPos + Camera.CFrame:VectorToWorldSpace(offsetVector)
-            
-            if ST.CLShake and ST.CLShake > 0 then
-                local sX = math.random(-100, 100) / 100 * ST.CLShake
-                local sY = math.random(-100, 100) / 100 * ST.CLShake
-                local sZ = math.random(-100, 100) / 100 * ST.CLShake
-                targetPos = targetPos + Vector3.new(sX, sY, sZ)
-            end
-            
-            local targetVec, onScreen = Camera:WorldToViewportPoint(targetPos)
+            local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
             if onScreen then
                 local mouseLocation = UserInputService:GetMouseLocation()
-                local delta = (Vector2.new(targetVec.X, targetVec.Y) - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
+                local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                local delta = (targetVec - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
                 if mousemoverel then
                     mousemoverel(delta.X, delta.Y)
                 end
@@ -6261,22 +6190,10 @@ local function UpdateCamlock()
                     if part then
                         local pos = part.Position
                         local hum = safeFindFirstChild(t.Character, "Humanoid")
-                        
                         if ST.CLPred > 0 and hum then
                             local predictionTime = GetPredictionTime()
                             pos = pos + (hum.MoveDirection * ST.CLPred * 10 * predictionTime * 2)
                         end
-                        
-                        local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
-                        pos = pos + Camera.CFrame:VectorToWorldSpace(offsetVector)
-                        
-                        if ST.CLShake and ST.CLShake > 0 then
-                            local sX = math.random(-100, 100) / 100 * ST.CLShake
-                            local sY = math.random(-100, 100) / 100 * ST.CLShake
-                            local sZ = math.random(-100, 100) / 100 * ST.CLShake
-                            pos = pos + Vector3.new(sX, sY, sZ)
-                        end
-                        
                         Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), ST.CLSm)
                     end
                 end
@@ -6309,7 +6226,64 @@ local function ToggleCamlock()
     UpdateCamlock()
 end
 
--- RAGEBOT FUNCTIONS (same as Regular)
+-- FLAME CAMLOCK
+local function GetFlameCamlockTarget()
+    local target = nil
+    local shortestDistance = math.huge
+    local mousePos = UserInputService:GetMouseLocation()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local hrp = player.Character.HumanoidRootPart
+            local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            if onScreen then
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                if distance < shortestDistance then
+                    target = player
+                    shortestDistance = distance
+                end
+            end
+        end
+    end
+    return target
+end
+
+local function RunFlameCamlock()
+    if not ST.FlameCamlock then return end
+    FlameCamlockTarget = GetFlameCamlockTarget()
+    if FlameCamlockTarget and FlameCamlockTarget.Character and FlameCamlockTarget.Character:FindFirstChild("HumanoidRootPart") then
+        local targetPart = FlameCamlockTarget.Character.HumanoidRootPart
+        local targetPosition = targetPart.Position
+        
+        if ST.CLPred > 0 then
+            targetPosition = targetPosition + (targetPart.Velocity * ST.CLPred)
+        end
+        
+        local offsetVector = Vector3.new(ST.FCamHOffset or 0, ST.FCamVOffset or 0, 0)
+        targetPosition = targetPosition + Camera.CFrame:VectorToWorldSpace(offsetVector)
+        
+        if ST.FCamShake and ST.FCamShake > 0 then
+            local sX = math.random(-100, 100) / 100 * ST.FCamShake
+            local sY = math.random(-100, 100) / 100 * ST.FCamShake
+            local sZ = math.random(-100, 100) / 100 * ST.FCamShake
+            targetPosition = targetPosition + Vector3.new(sX, sY, sZ)
+        end
+        
+        local currentCameraCFrame = Camera.CFrame
+        local targetCFrame = CFrame.new(currentCameraCFrame.Position, targetPosition)
+        Camera.CFrame = currentCameraCFrame:Lerp(targetCFrame, 0.5)
+    end
+end
+
+local function StartFlameCamlock()
+    FlameCamlockActive = true
+end
+
+local function StopFlameCamlock()
+    FlameCamlockActive = false
+    FlameCamlockTarget = nil
+end
+
+-- RAGEBOT FUNCTIONS
 local function GetRageTarget()
     local closest = nil
     local closestDist = ST.RagebotRange or 30
@@ -6698,14 +6672,12 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     local hum = safeWaitForChild(char, "Humanoid")
     if hum then
         OriginalWalkSpeed = hum.WalkSpeed
-        OriginalWalkSpeedCache = hum.WalkSpeed
-        OriginalHipHeightCache = hum.HipHeight
         hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if ST and ST.SP and SpeedActive then
                 hum.WalkSpeed = ST.SPVal
             end
-            if ST and ST.CLWalkSpeed then
-                hum.WalkSpeed = ST.CLWalkSpeedVal
+            if ST and ST.FCamWalkSpeed then
+                hum.WalkSpeed = ST.FCamWalkSpeedVal
             end
         end)
         hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
@@ -6715,8 +6687,8 @@ LocalPlayer.CharacterAdded:Connect(function(char)
             end
         end)
         hum:GetPropertyChangedSignal("HipHeight"):Connect(function()
-            if ST and ST.CLHipHeight then
-                hum.HipHeight = ST.CLHipHeightVal
+            if ST and ST.FCamHipHeight then
+                hum.HipHeight = ST.FCamHipHeightVal
             end
         end)
     end
@@ -6728,14 +6700,12 @@ if char then
     local hum = safeFindFirstChild(char, "Humanoid")
     if hum then
         OriginalWalkSpeed = hum.WalkSpeed
-        OriginalWalkSpeedCache = hum.WalkSpeed
-        OriginalHipHeightCache = hum.HipHeight
         hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if ST and ST.SP and SpeedActive then
                 hum.WalkSpeed = ST.SPVal
             end
-            if ST and ST.CLWalkSpeed then
-                hum.WalkSpeed = ST.CLWalkSpeedVal
+            if ST and ST.FCamWalkSpeed then
+                hum.WalkSpeed = ST.FCamWalkSpeedVal
             end
         end)
         hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
@@ -6745,8 +6715,8 @@ if char then
             end
         end)
         hum:GetPropertyChangedSignal("HipHeight"):Connect(function()
-            if ST and ST.CLHipHeight then
-                hum.HipHeight = ST.CLHipHeightVal
+            if ST and ST.FCamHipHeight then
+                hum.HipHeight = ST.FCamHipHeightVal
             end
         end)
     end
@@ -7031,7 +7001,7 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT - MATRIXHUBS STYLE WITH PLAYER HITBOX AND OFFSETS
+-- TRIGGERBOT
 local Triggerbot = {Active = false, Connection = nil}
 local TBHitbox = nil
 local TBHitboxVisible = false
@@ -7328,6 +7298,7 @@ UpdateBulletSpread()
 if ST.RagebotEnabled then StartRagebot() end
 if ST.KillAuraEnabled then StartKillAura() end
 if ST.RageTeleport then StartRageTeleport() end
+if ST.FlameCamlock then StartFlameCamlock() end
 print("Blushwovens Delta v26.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
@@ -8491,12 +8462,13 @@ app.post('/load', async (req, res) => {
     }
 
     // ============================================
-    // SCRIPT VERSION CHECK - Direct string comparison
+    // SCRIPT VERSION CHECK - Direct string comparison with kick
     // ============================================
     const storedScriptVersion = userData.scriptVersion || CURRENT_VERSION;
     const normalizedLoaderVersion = loaderVersion || CURRENT_VERSION;
 
     if (normalizedLoaderVersion !== storedScriptVersion) {
+        console.log(`❌ Version mismatch for ${username}: loader=${normalizedLoaderVersion}, stored=${storedScriptVersion}`);
         return res.json({ 
             success: false, 
             reason: "Version mismatch",
