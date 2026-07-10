@@ -2,10 +2,14 @@
 // FIXED: ESP now works in all three versions (added W2S, fixed PAL reference)
 // ADDED: Camlock now locks onto a specific target until death
 // ADDED: MatrixHub-style Triggerbot with multiple modes and player hitbox detection
-// ADDED: Full UI color customization (every UI element)
+// ADDED: Full UI color customization (every UI element) - NOW ACTUALLY WORKS
+// FIXED: UI Colors now properly apply to all elements
 // ADDED: Magnet Camlock mode (cursor follows target)
 // FIXED: Dropdown menus now render above toggles (z-index fix)
 // FIXED: Max FOV increased to 1000
+// FIXED: VERSION_LABEL now properly displays "Regular", "Xeno", or "Delta"
+// FIXED: Triggerbot hitbox X and Y offset sliders added
+// FIXED: Triggerbot hitbox now properly follows players
 // UPDATED: Version changed to 25.0
 const CURRENT_VERSION = "25.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
@@ -375,6 +379,7 @@ local function UpdateUIFromColors()
         end
         if HD then
             HD.BackgroundColor3 = UI_Colors.Accent
+            HD.BackgroundTransparency = 0.25
             local stroke = HD:FindFirstChildOfClass("UIStroke")
             if stroke then stroke.Color = UI_Colors.Border end
         end
@@ -391,12 +396,12 @@ local function UpdateUIFromColors()
         if SL then SL.TextColor3 = UI_Colors.TextSecondary end
         
         -- Update category buttons
-        for _, btn in ipairs(Btn) do
+        for idx, btn in ipairs(Btn) do
             if btn and btn.I then
-                if btn == Btn[1] then btn.I.TextColor3 = UI_Colors.Accent else btn.I.TextColor3 = UI_Colors.TextSecondary end
+                if idx == 1 then btn.I.TextColor3 = UI_Colors.Accent else btn.I.TextColor3 = UI_Colors.TextSecondary end
             end
             if btn and btn.N then
-                if btn == Btn[1] then btn.N.TextColor3 = UI_Colors.Text else btn.N.TextColor3 = UI_Colors.TextSecondary end
+                if idx == 1 then btn.N.TextColor3 = UI_Colors.Text else btn.N.TextColor3 = UI_Colors.TextSecondary end
             end
         end
         
@@ -442,7 +447,7 @@ pcall(function()
     CC=Drawing.new("Circle"); CC.Visible=false; CC.Color=UI_Colors.FOVCircle2; CC.Thickness=1.5; CC.Transparency=0.7; CC.Radius=300; CC.Filled=false
 end)
 
--- ==================== TRIGGERBOT HITBOX (PLAYER-BASED) ====================
+-- ==================== TRIGGERBOT HITBOX (PLAYER-BASED WITH OFFSETS) ====================
 local TBHitbox = nil
 local TBHitboxVisible = false
 
@@ -459,7 +464,6 @@ local function CreateTriggerbotHitbox()
         TBHitbox.Filled = false
         TBHitbox.Transparency = 0.5
         TBHitbox.Size = Vector2.new(ST.TBHitboxSize or 60, ST.TBHitboxSize or 60)
-        -- Position will be updated to follow the target player's head
         TBHitbox.Position = Vector2.new(0, 0)
     end)
 end
@@ -471,14 +475,15 @@ local function UpdateTriggerbotHitbox()
         end
         if TBHitbox then
             local size = ST.TBHitboxSize or 60
+            local xOff = ST.TBHitboxXOffset or 0
+            local yOff = ST.TBHitboxYOffset or 0
             TBHitbox.Size = Vector2.new(size, size)
             
-            -- Get the current trigger target and position the hitbox on them
             local target = GetValidTriggerTarget()
             if target and ST.TB and ST.TBHitboxVisible then
                 local screenPos, onScreen = Camera:WorldToViewportPoint(target.Position)
                 if onScreen then
-                    TBHitbox.Position = Vector2.new(screenPos.X - size/2, screenPos.Y - size/2)
+                    TBHitbox.Position = Vector2.new(screenPos.X - size/2 + xOff, screenPos.Y - size/2 + yOff)
                     TBHitbox.Visible = true
                 else
                     TBHitbox.Visible = false
@@ -530,12 +535,12 @@ STR(HD,1,UI_Colors.Border,0.5)
 local avatarFrame=Instance.new("Frame")
 avatarFrame.Size=UDim2.new(0,32,0,32)
 avatarFrame.Position=UDim2.new(0,16,0.5,-16)
-avatarFrame.BackgroundColor3=PAL.White
+avatarFrame.BackgroundColor3=UI_Colors.CardBg
 avatarFrame.BorderSizePixel=0
 avatarFrame.ZIndex=5
 if HD then avatarFrame.Parent=HD end
 CRN(avatarFrame,UDim.new(1,0))
-STR(avatarFrame,1.5,PAL.White,0)
+STR(avatarFrame,1.5,UI_Colors.Border,0)
 
 local avatarImage=Instance.new("ImageLabel")
 avatarImage.Size=UDim2.new(1,0,1,0)
@@ -644,6 +649,8 @@ local Cats={
         {"--- Triggerbot Hitbox ---","","","LBL"},
         {"Hitbox Enabled","TBHitboxEnabled",true},
         {"Hitbox Size","TBHitboxSize",60,"S",10,200},
+        {"Hitbox X Offset","TBHitboxXOffset",0,"S",-200,200},
+        {"Hitbox Y Offset","TBHitboxYOffset",0,"S",-200,200},
         {"Hitbox Visible","TBHitboxVisible",false}
     }},
     {"FLAME LOCK",{
@@ -890,11 +897,9 @@ for i,cat in ipairs(Cats) do
             CRN(preview,UDim.new(1,0))
             STR(preview,1,UI_Colors.Border,0.5)
             
-            local ColorSliders={Label=nil,Fill=nil,Knob=nil}
-            
             -- Store color data
             if not ColorPickers[fkk] then
-                ColorPickers[fkk] = {Color=fdd, Sliders={}, Preview=preview, Button=cp}
+                ColorPickers[fkk] = {Color=fdd, Preview=preview, Button=cp}
             end
             ColorPickers[fkk].Preview = preview
             
@@ -987,7 +992,7 @@ for i,cat in ipairs(Cats) do
                         sliderKnob.ZIndex=23
                         if sliderBg then sliderKnob.Parent=sliderBg end
                         CRN(sliderKnob,UDim.new(1,0))
-                        STR(sliderKnob,1.5,UI_Colors.Gold,0)
+                        STR(sliderKnob,1.5,UI_Colors.ToggleOn,0)
                         
                         local function updateSlider(inp)
                             if not sliderBg or not sliderBg.AbsolutePosition then return end
@@ -1002,6 +1007,31 @@ for i,cat in ipairs(Cats) do
                             preview.BackgroundColor3=newColor
                             ColorPickers[fkk].Color=newColor
                             cp.BackgroundColor3=newColor
+                            -- Immediately update UI_Colors
+                            local colorMap = {
+                                UI_BG="Background",
+                                UI_FrameBg="FrameBg",
+                                UI_CardBg="CardBg",
+                                UI_Accent="Accent",
+                                UI_Secondary="Secondary",
+                                UI_Border="Border",
+                                UI_Text="Text",
+                                UI_TextSec="TextSecondary",
+                                UI_ToggleOn="ToggleOn",
+                                UI_ToggleOff="ToggleOff",
+                                UI_SliderBg="SliderBg",
+                                UI_SliderFill="SliderFill",
+                                UI_ESPBox="ESPBox",
+                                UI_ESPLine="ESPLine",
+                                UI_ESPText="ESPText",
+                                UI_ESPDist="ESPDist",
+                                UI_FOV1="FOVCircle",
+                                UI_FOV2="FOVCircle2"
+                            }
+                            if colorMap[fkk] then
+                                UI_Colors[colorMap[fkk]] = newColor
+                            end
+                            UpdateUIFromColors()
                         end
                         
                         sliderKnob.InputBegan:Connect(function(inp)
@@ -1033,11 +1063,9 @@ for i,cat in ipairs(Cats) do
                         return {Label=sliderLabel, Fill=sliderFill, Knob=sliderKnob}
                     end
                     
-                    local sliders={}
-                    sliders.R=createColorSlider(popup,40,"R","R")
-                    sliders.G=createColorSlider(popup,72,"G","G")
-                    sliders.B=createColorSlider(popup,104,"B","B")
-                    ColorPickers[fkk].Sliders=sliders
+                    createColorSlider(popup,40,"R","R")
+                    createColorSlider(popup,72,"G","G")
+                    createColorSlider(popup,104,"B","B")
                     
                     local applyBtn=Instance.new("TextButton")
                     applyBtn.Size=UDim2.new(0,100,0,30)
@@ -1058,7 +1086,6 @@ for i,cat in ipairs(Cats) do
                         ColorPickers[fkk].Color=newColor
                         preview.BackgroundColor3=newColor
                         cp.BackgroundColor3=newColor
-                        -- Update the UI_Colors table
                         local colorMap = {
                             UI_BG="Background",
                             UI_FrameBg="FrameBg",
@@ -1148,7 +1175,7 @@ for i,cat in ipairs(Cats) do
                     _0x52a0d5.BulletSpread.Amount = v
                     UpdateBulletSpread()
                 end
-                if fkk=="TBHitboxSize" then
+                if fkk=="TBHitboxSize" or fkk=="TBHitboxXOffset" or fkk=="TBHitboxYOffset" then
                     CreateTriggerbotHitbox()
                     UpdateTriggerbotHitbox()
                 end
@@ -1240,7 +1267,7 @@ for i,cat in ipairs(Cats) do
             ddList.BackgroundTransparency = 0
             ddList.BorderSizePixel = 0
             ddList.Visible = false
-            ddList.ZIndex = 25 -- Increased ZIndex to appear above toggles
+            ddList.ZIndex = 25
             ddList.CanvasSize = UDim2.new(0, 0, 0, #opts * 26)
             ddList.ScrollBarThickness = 3
             if ddContainer then ddList.Parent = ddContainer end
@@ -1282,7 +1309,6 @@ for i,cat in ipairs(Cats) do
                         if fkk == "CLPart" then UpdateCamlock() end
                         if fkk == "CLAimType" then 
                             UpdateCamlock()
-                            -- Reset target when switching aim type
                             if ST.CLLockTarget then
                                 CamlockTarget = nil
                                 CamlockTargetName = nil
@@ -1310,7 +1336,6 @@ for i,cat in ipairs(Cats) do
                 ddMain.MouseButton1Click:Connect(function()
                     ddList.Visible = not ddList.Visible
                     ddArrow.Text = ddList.Visible and "▲" or "▼"
-                    -- Close other dropdowns
                     for key, dropdown in pairs(Dropdowns) do
                         if key ~= fkk and dropdown and dropdown.List then
                             dropdown.List.Visible = false
@@ -1396,7 +1421,6 @@ for i,cat in ipairs(Cats) do
                     ab.Text = "Apply Colors"
                     ab.MouseButton1Click:Connect(function()
                         UpdateUIFromColors()
-                        -- Update all color picker previews
                         for key, data in pairs(ColorPickers) do
                             if data and data.Preview then
                                 data.Preview.BackgroundColor3 = data.Color
@@ -1993,6 +2017,8 @@ local ST={
     TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true, TBVisCheck=true, TBMode="Hold",
     TBHitboxEnabled=true,
     TBHitboxSize=60,
+    TBHitboxXOffset=0,
+    TBHitboxYOffset=0,
     TBHitboxVisible=false,
 }
 
@@ -3016,7 +3042,7 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT - MATRIXHUBS STYLE WITH PLAYER HITBOX
+-- TRIGGERBOT - MATRIXHUBS STYLE WITH PLAYER HITBOX AND OFFSETS
 local Triggerbot = {Active = false, Connection = nil}
 local TBHitbox = nil
 local TBHitboxVisible = false
@@ -3045,13 +3071,15 @@ local function UpdateTriggerbotHitbox()
         end
         if TBHitbox then
             local size = ST.TBHitboxSize or 60
+            local xOff = ST.TBHitboxXOffset or 0
+            local yOff = ST.TBHitboxYOffset or 0
             TBHitbox.Size = Vector2.new(size, size)
             
             local target = GetValidTriggerTarget()
             if target and ST.TB and ST.TBHitboxVisible then
                 local screenPos, onScreen = Camera:WorldToViewportPoint(target.Position)
                 if onScreen then
-                    TBHitbox.Position = Vector2.new(screenPos.X - size/2, screenPos.Y - size/2)
+                    TBHitbox.Position = Vector2.new(screenPos.X - size/2 + xOff, screenPos.Y - size/2 + yOff)
                     TBHitbox.Visible = true
                 else
                     TBHitbox.Visible = false
@@ -3446,6 +3474,8 @@ local ST={
     TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true, TBVisCheck=true, TBMode="Hold",
     TBHitboxEnabled=true,
     TBHitboxSize=60,
+    TBHitboxXOffset=0,
+    TBHitboxYOffset=0,
     TBHitboxVisible=false,
 }
 
@@ -4457,7 +4487,7 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT - MATRIXHUBS STYLE WITH PLAYER HITBOX
+-- TRIGGERBOT - MATRIXHUBS STYLE WITH PLAYER HITBOX AND OFFSETS
 local Triggerbot = {Active = false, Connection = nil}
 local TBHitbox = nil
 local TBHitboxVisible = false
@@ -4486,13 +4516,15 @@ local function UpdateTriggerbotHitbox()
         end
         if TBHitbox then
             local size = ST.TBHitboxSize or 60
+            local xOff = ST.TBHitboxXOffset or 0
+            local yOff = ST.TBHitboxYOffset or 0
             TBHitbox.Size = Vector2.new(size, size)
             
             local target = GetValidTriggerTarget()
             if target and ST.TB and ST.TBHitboxVisible then
                 local screenPos, onScreen = Camera:WorldToViewportPoint(target.Position)
                 if onScreen then
-                    TBHitbox.Position = Vector2.new(screenPos.X - size/2, screenPos.Y - size/2)
+                    TBHitbox.Position = Vector2.new(screenPos.X - size/2 + xOff, screenPos.Y - size/2 + yOff)
                     TBHitbox.Visible = true
                 else
                     TBHitbox.Visible = false
@@ -4846,6 +4878,8 @@ local ST={
     TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true, TBVisCheck=true, TBMode="Hold",
     TBHitboxEnabled=true,
     TBHitboxSize=60,
+    TBHitboxXOffset=0,
+    TBHitboxYOffset=0,
     TBHitboxVisible=false,
 }
 
@@ -5851,7 +5885,7 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT - MATRIXHUBS STYLE WITH PLAYER HITBOX
+-- TRIGGERBOT - MATRIXHUBS STYLE WITH PLAYER HITBOX AND OFFSETS
 local Triggerbot = {Active = false, Connection = nil}
 local TBHitbox = nil
 local TBHitboxVisible = false
@@ -5880,13 +5914,15 @@ local function UpdateTriggerbotHitbox()
         end
         if TBHitbox then
             local size = ST.TBHitboxSize or 60
+            local xOff = ST.TBHitboxXOffset or 0
+            local yOff = ST.TBHitboxYOffset or 0
             TBHitbox.Size = Vector2.new(size, size)
             
             local target = GetValidTriggerTarget()
             if target and ST.TB and ST.TBHitboxVisible then
                 local screenPos, onScreen = Camera:WorldToViewportPoint(target.Position)
                 if onScreen then
-                    TBHitbox.Position = Vector2.new(screenPos.X - size/2, screenPos.Y - size/2)
+                    TBHitbox.Position = Vector2.new(screenPos.X - size/2 + xOff, screenPos.Y - size/2 + yOff)
                     TBHitbox.Visible = true
                 else
                     TBHitbox.Visible = false
