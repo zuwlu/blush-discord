@@ -11,11 +11,11 @@
 // FIXED: Triggerbot hitbox now properly follows players
 // FIXED: Whitelist now works properly (nil checks for all color properties)
 // FIXED: ESP now works properly (added missing W2S, fixed PAL reference)
-// FIXED: IsPlayerValidForTarget nil value error fixed
+// FIXED: IsPlayerValidForTarget nil value error fixed (moved IsWL above)
 // FIXED: Flame Camlock moved to FLAME LOCK tab (not Camlock)
 // ADDED: UI Mode buttons instead of dropdown for Original/Exo/Flame
-// UPDATED: Version changed to 26.1
-const CURRENT_VERSION = "26.1";
+// UPDATED: Version changed to 26.2
+const CURRENT_VERSION = "26.2";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -743,7 +743,7 @@ TL.ZIndex=5
 if HD then TL.Parent=HD end
 
 local SL=Instance.new("TextLabel")
-SL.Text="Blushwovens {VERSION_LABEL} v26.1"
+SL.Text="Blushwovens {VERSION_LABEL} v26.2"
 SL.Size=UDim2.new(0,160,0,16)
 SL.Position=UDim2.new(0,56,0,30)
 SL.BackgroundTransparency=1
@@ -1756,7 +1756,6 @@ for i,cat in ipairs(Cats) do
                         end
                     end
                     if fkk=="FlameCamlock" then
-                        -- Flame Camlock handled in render loop with separate variables
                         if tg then
                             StartFlameCamlock()
                         else
@@ -2188,10 +2187,10 @@ UpdateUIFromColors()
 `;
 
 // ============================================
-// REGULAR SCRIPT - FIXED v26.1
+// REGULAR SCRIPT - FIXED v26.2
 // ============================================
 const REGULAR_SCRIPT = `
---[[ Blushwovens Regular v26.1 - Full Silent Aim with require() ]]
+--[[ Blushwovens Regular v26.2 - Full Silent Aim with require() ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -2206,7 +2205,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Regular v26.1 - Loading...")
+print("Blushwovens Regular v26.2 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -2276,6 +2275,26 @@ end
 
 local BulletSpreadAmount = 100
 local SilentAimWhitelist = {}
+
+-- WHITELIST - MUST BE DEFINED BEFORE IsPlayerValidForTarget
+local WL={}
+local function IsWL(p) 
+    if not p then return false end
+    if not p.UserId then return false end
+    if SilentAimWhitelist and SilentAimWhitelist[p.UserId] == true then return true end
+    return WL and WL[p.UserId]==true 
+end
+local function SetWL(p,v) 
+    if not p then return end
+    if not p.UserId then return end
+    if v then 
+        WL[p.UserId]=true
+        if SilentAimWhitelist then SilentAimWhitelist[p.UserId]=true end
+    else 
+        WL[p.UserId]=nil
+        if SilentAimWhitelist then SilentAimWhitelist[p.UserId]=nil end
+    end
+end
 
 -- STATE
 local ST={
@@ -2353,7 +2372,7 @@ local function IsPlayerValidForTarget(player)
     local hum = safeFindFirstChild(player.Character, "Humanoid")
     if not hum or hum.Health <= 0 then return false end
     if IsKnocked(player.Character) then return false end
-    if IsWL(player) then return false end
+    if IsWL and IsWL(player) then return false end
     return true
 end
 
@@ -2376,31 +2395,11 @@ local function IsKnocked(char)
     return false
 end
 
--- WHITELIST
-local WL={}
-local function IsWL(p) 
-    if not p then return false end
-    if not p.UserId then return false end
-    if SilentAimWhitelist[p.UserId] == true then return true end
-    return WL[p.UserId]==true 
-end
-local function SetWL(p,v) 
-    if not p then return end
-    if not p.UserId then return end
-    if v then 
-        WL[p.UserId]=true
-        SilentAimWhitelist[p.UserId]=true
-    else 
-        WL[p.UserId]=nil
-        SilentAimWhitelist[p.UserId]=nil
-    end
-end
-
--- WHITELIST - Main whitelist check function
+-- WHITELIST HELPER
 local function IsSilentAimWhitelisted(player)
     if not player then return false end
     if not player.UserId then return false end
-    return SilentAimWhitelist[player.UserId] == true
+    return SilentAimWhitelist and SilentAimWhitelist[player.UserId] == true
 end
 
 -- PING PREDICTION
@@ -3140,7 +3139,7 @@ local function UpdateESP()
     end
     for p,d in pairs(ESPData) do
         if not d then continue end
-        if IsWL(p) or not p.Character then 
+        if IsWL and IsWL(p) or not p.Character then 
             pcall(function()
                 if d.B then d.B.Visible=false end
                 if d.T then d.T.Visible=false end
@@ -3673,7 +3672,7 @@ local function GetValidTriggerTarget()
         local hum = safeFindFirstChild(p.Character, "Humanoid")
         if not hum or hum.Health <= 0 then continue end
         if ST.KnockCheck and IsKnocked(p.Character) then continue end
-        if IsWL(p) then continue end
+        if IsWL and IsWL(p) then continue end
         
         local partName = ST.TBPart or "Head"
         local part = safeFindFirstChild(p.Character, partName)
@@ -3887,15 +3886,15 @@ if ST.RagebotEnabled then StartRagebot() end
 if ST.KillAuraEnabled then StartKillAura() end
 if ST.RageTeleport then StartRageTeleport() end
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Regular v26.1 - Loaded successfully!")
+print("Blushwovens Regular v26.2 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// XENO SCRIPT - FIXED v26.1
+// XENO SCRIPT - FIXED v26.2
 // ============================================
 const XENO_SCRIPT = `
---[[ Blushwovens Xeno v26.1 - Silent Aim using getfenv/setfenv ]]
+--[[ Blushwovens Xeno v26.2 - Silent Aim using getfenv/setfenv ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -3910,7 +3909,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Xeno v26.1 - Loading...")
+print("Blushwovens Xeno v26.2 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -4010,6 +4009,26 @@ end
 local BulletSpreadAmount = 100
 local SilentAimWhitelist = {}
 
+-- WHITELIST - MUST BE DEFINED BEFORE IsPlayerValidForTarget
+local WL={}
+local function IsWL(p) 
+    if not p then return false end
+    if not p.UserId then return false end
+    if SilentAimWhitelist and SilentAimWhitelist[p.UserId] == true then return true end
+    return WL and WL[p.UserId]==true 
+end
+local function SetWL(p,v) 
+    if not p then return end
+    if not p.UserId then return end
+    if v then 
+        WL[p.UserId]=true
+        if SilentAimWhitelist then SilentAimWhitelist[p.UserId]=true end
+    else 
+        WL[p.UserId]=nil
+        if SilentAimWhitelist then SilentAimWhitelist[p.UserId]=nil end
+    end
+end
+
 -- STATE
 local ST={
     SA=false, SAFC=false, SAFOV=200, SAPart="Head",
@@ -4086,7 +4105,7 @@ local function IsPlayerValidForTarget(player)
     local hum = safeFindFirstChild(player.Character, "Humanoid")
     if not hum or hum.Health <= 0 then return false end
     if IsKnocked(player.Character) then return false end
-    if IsWL(player) then return false end
+    if IsWL and IsWL(player) then return false end
     return true
 end
 
@@ -4109,30 +4128,11 @@ local function IsKnocked(char)
     return false
 end
 
--- WHITELIST
-local WL={}
-local function IsWL(p) 
-    if not p then return false end
-    if not p.UserId then return false end
-    if SilentAimWhitelist[p.UserId] == true then return true end
-    return WL[p.UserId]==true 
-end
-local function SetWL(p,v) 
-    if not p then return end
-    if not p.UserId then return end
-    if v then 
-        WL[p.UserId]=true
-        SilentAimWhitelist[p.UserId]=true
-    else 
-        WL[p.UserId]=nil
-        SilentAimWhitelist[p.UserId]=nil
-    end
-end
-
+-- WHITELIST HELPER
 local function IsSilentAimWhitelisted(player)
     if not player then return false end
     if not player.UserId then return false end
-    return SilentAimWhitelist[player.UserId] == true
+    return SilentAimWhitelist and SilentAimWhitelist[player.UserId] == true
 end
 
 -- PING PREDICTION
@@ -4869,7 +4869,7 @@ local function UpdateESP()
     end
     for p,d in pairs(ESPData) do
         if not d then continue end
-        if IsWL(p) or not p.Character then 
+        if IsWL and IsWL(p) or not p.Character then 
             pcall(function()
                 if d.B then d.B.Visible=false end
                 if d.T then d.T.Visible=false end
@@ -5402,7 +5402,7 @@ local function GetValidTriggerTarget()
         local hum = safeFindFirstChild(p.Character, "Humanoid")
         if not hum or hum.Health <= 0 then continue end
         if ST.KnockCheck and IsKnocked(p.Character) then continue end
-        if IsWL(p) then continue end
+        if IsWL and IsWL(p) then continue end
         
         local partName = ST.TBPart or "Head"
         local part = safeFindFirstChild(p.Character, partName)
@@ -5616,15 +5616,15 @@ if ST.RagebotEnabled then StartRagebot() end
 if ST.KillAuraEnabled then StartKillAura() end
 if ST.RageTeleport then StartRageTeleport() end
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Xeno v26.1 - Loaded successfully!")
+print("Blushwovens Xeno v26.2 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// DELTA SCRIPT - FIXED v26.1
+// DELTA SCRIPT - FIXED v26.2
 // ============================================
 const DELTA_SCRIPT = `
---[[ Blushwovens Delta v26.1 - Silent Aim using mouse manipulation ]]
+--[[ Blushwovens Delta v26.2 - Silent Aim using mouse manipulation ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -5639,7 +5639,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Delta v26.1 - Loading...")
+print("Blushwovens Delta v26.2 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -5699,7 +5699,25 @@ end
 local BulletSpreadAmount = 100
 local SilentAimWhitelist = {}
 
--- STATE
+-- WHITELIST - MUST BE DEFINED BEFORE IsPlayerValidForTarget
+local WL={}
+local function IsWL(p) 
+    if not p then return false end
+    if not p.UserId then return false end
+    if SilentAimWhitelist and SilentAimWhitelist[p.UserId] == true then return true end
+    return WL and WL[p.UserId]==true 
+end
+local function SetWL(p,v) 
+    if not p then return end
+    if not p.UserId then return end
+    if v then 
+        WL[p.UserId]=true
+        if SilentAimWhitelist then SilentAimWhitelist[p.UserId]=true end
+    else 
+        WL[p.UserId]=nil
+        if SilentAimWhitelist then SilentAimWhitelist[p.UserId]=nil end
+    end
+end-- STATE
 local ST={
     SA=false, SAFC=false, SAFOV=200, SAPart="Head",
     RevolverBypass=false, KnockCheck=false,
@@ -5775,14 +5793,8 @@ local function IsPlayerValidForTarget(player)
     local hum = safeFindFirstChild(player.Character, "Humanoid")
     if not hum or hum.Health <= 0 then return false end
     if IsKnocked(player.Character) then return false end
-    if IsWL(player) then return false end
+    if IsWL and IsWL(player) then return false end
     return true
-end
-
-local function IsSilentAimWhitelisted(player)
-    if not player then return false end
-    if not player.UserId then return false end
-    return SilentAimWhitelist[player.UserId] == true
 end
 
 -- KNOCK CHECK
@@ -5795,24 +5807,11 @@ local function IsKnocked(char)
     return false
 end
 
--- WHITELIST
-local WL={}
-local function IsWL(p) 
-    if not p then return false end
-    if not p.UserId then return false end
-    if SilentAimWhitelist[p.UserId] == true then return true end
-    return WL[p.UserId]==true 
-end
-local function SetWL(p,v) 
-    if not p then return end
-    if not p.UserId then return end
-    if v then 
-        WL[p.UserId]=true
-        SilentAimWhitelist[p.UserId]=true
-    else 
-        WL[p.UserId]=nil
-        SilentAimWhitelist[p.UserId]=nil
-    end
+-- WHITELIST HELPER
+local function IsSilentAimWhitelisted(player)
+    if not player then return false end
+    if not player.UserId then return false end
+    return SilentAimWhitelist and SilentAimWhitelist[player.UserId] == true
 end
 
 -- PING PREDICTION
@@ -6554,7 +6553,7 @@ local function UpdateESP()
     end
     for p,d in pairs(ESPData) do
         if not d then continue end
-        if IsWL(p) or not p.Character then 
+        if IsWL and IsWL(p) or not p.Character then 
             pcall(function()
                 if d.B then d.B.Enabled = false end
                 if d.N then d.N.Enabled = false end
@@ -7085,7 +7084,7 @@ local function GetValidTriggerTarget()
         local hum = safeFindFirstChild(p.Character, "Humanoid")
         if not hum or hum.Health <= 0 then continue end
         if ST.KnockCheck and IsKnocked(p.Character) then continue end
-        if IsWL(p) then continue end
+        if IsWL and IsWL(p) then continue end
         
         local partName = ST.TBPart or "Head"
         local part = safeFindFirstChild(p.Character, partName)
@@ -7299,7 +7298,7 @@ if ST.RagebotEnabled then StartRagebot() end
 if ST.KillAuraEnabled then StartKillAura() end
 if ST.RageTeleport then StartRageTeleport() end
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Delta v26.0 - Loaded successfully!")
+print("Blushwovens Delta v26.2 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
@@ -7318,7 +7317,7 @@ const SCRIPTS = {
 function generateLoaderScript(username, password, serverUrl, key, version) {
     const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
     return `
--- Blushwovens Loader v26.1 - ${version.toUpperCase()} VERSION
+-- Blushwovens Loader v26.2 - ${version.toUpperCase()} VERSION
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
 local KEY = "${key}"
@@ -7440,8 +7439,8 @@ spawn(function()
     end
 end)
 
-print("Blushwovens Loader v26.1 (${version}) - Starting...")
-notify("Loading ${version} v26.1... Please wait.", false)
+print("Blushwovens Loader v26.2 (${version}) - Starting...")
+notify("Loading ${version} v26.2... Please wait.", false)
 
 local ok, response = pcall(request)
 if not ok then
@@ -7472,7 +7471,7 @@ if not data.success then
     error("Error: " .. data.reason)
 end
 
-notify("✅ v26.1 loaded successfully!", false)
+notify("✅ v26.2 loaded successfully!", false)
 loadstring(data.chunk)()
 `;
 }
@@ -7652,7 +7651,7 @@ const commands = [
                 .setRequired(true))
         .addStringOption(option =>
             option.setName("version")
-                .setDescription("The version to force (e.g., 26.1)")
+                .setDescription("The version to force (e.g., 26.2)")
                 .setRequired(true)),
 
     new SlashCommandBuilder()
@@ -8259,7 +8258,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // ============================================
     if (command === "announce-update") {
         const message = interaction.options.getString("message");
-        const version = interaction.options.getString("version") || "26.1";
+        const version = interaction.options.getString("version") || "26.2";
 
         try {
             const channel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
@@ -8564,7 +8563,7 @@ app.post('/check-version', (req, res) => {
     res.json({ outdated: false });
 });
 
-app.get('/', (req, res) => res.send('Blushwovens v26.1 Bot is running!'));
+app.get('/', (req, res) => res.send('Blushwovens v26.2 Bot is running!'));
 app.get('/version', (req, res) => {
     res.json({ version: CURRENT_VERSION });
 });
