@@ -1,19 +1,22 @@
 // index.js - Discord Bot with Google Sheets Database (COMPLETE - ALL THREE VERSIONS WITH FIXES)
-// FIXED: Xeno Camlock now works properly - updated environment variable handling
-// ADDED: Triggerbot Hitbox - customizable box that auto-shoots when cursor is over it
-// ADDED: Hitbox size slider for Triggerbot (10-200px)
-// ADDED: Hitbox visibility toggle for Triggerbot
-// FIXED: BulletSpread nil check in all three versions
-// FIXED: W2S function added to Regular version (ESP fix)
-// ADDED: Script version tracking (column M) - per-user build version enforcement
-// UPDATED: Version changed to 24.0
-const CURRENT_VERSION = "24.0";
+// FIXED: ESP now works in all three versions (added W2S, fixed PAL reference)
+// ADDED: Camlock now locks onto a specific target until death
+// ADDED: MatrixHub-style Triggerbot with multiple modes and player hitbox detection
+// ADDED: Full UI color customization (every UI element)
+// ADDED: Magnet Camlock mode (cursor follows target)
+// FIXED: Dropdown menus now render above toggles (z-index fix)
+// FIXED: Max FOV increased to 1000
+// UPDATED: Version changed to 25.0
+const CURRENT_VERSION = "25.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
 import crypto from "crypto";
 import { google } from "googleapis";
 
+// ============================================
+// DISCORD CLIENT SETUP
+// ============================================
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -25,9 +28,6 @@ const client = new Client({
     partials: [Partials.GuildMember, Partials.User]
 });
 
-// ============================================
-// FORCE WEBSOCKET SETTINGS
-// ============================================
 client.options.ws = {
     version: '10',
     compress: false,
@@ -280,9 +280,6 @@ async function isBlacklisted(discordId, username) {
     return false;
 }
 
-// ============================================
-// MIGRATION FUNCTION - Run once to set scriptVersion for existing users
-// ============================================
 async function migrateScriptVersion() {
     try {
         console.log("🔄 Running scriptVersion migration...");
@@ -302,7 +299,7 @@ async function migrateScriptVersion() {
 }
 
 // ============================================
-// COMPLETE UI BUILDER
+// COMPLETE UI BUILDER - WITH FULL COLOR CUSTOMIZATION
 // ============================================
 const UI_BUILDER = `
 -- ==================== PAL ====================
@@ -332,8 +329,92 @@ local PAL = {
     Gold = Color3.fromRGB(235, 200, 120)
 }
 
-local UIAccentColor = Color3.fromRGB(215,130,170)
-local UISecondaryColor = Color3.fromRGB(245,205,220)
+-- UI COLOR VARIABLES (fully customizable)
+local UI_Colors = {
+    Background = Color3.fromRGB(255,248,240),
+    Accent = Color3.fromRGB(215,130,170),
+    Secondary = Color3.fromRGB(245,205,220),
+    Text = Color3.fromRGB(60,45,35),
+    TextSecondary = Color3.fromRGB(100,80,70),
+    Border = Color3.fromRGB(215,130,170),
+    ToggleOn = Color3.fromRGB(235,200,120),
+    ToggleOff = Color3.fromRGB(80,60,50),
+    FrameBg = Color3.fromRGB(255,235,240),
+    CardBg = Color3.fromRGB(255,250,250),
+    SliderBg = Color3.fromRGB(80,60,50),
+    SliderFill = Color3.fromRGB(235,200,120),
+    DropdownBg = Color3.fromRGB(255,235,240),
+    ESPBox = Color3.fromRGB(215,130,170),
+    ESPLine = Color3.fromRGB(245,205,220),
+    ESPText = Color3.fromRGB(255,248,240),
+    ESPDist = Color3.fromRGB(220,225,170),
+    FOVCircle = Color3.fromRGB(245,205,220),
+    FOVCircle2 = Color3.fromRGB(100,100,110),
+}
+
+local function UpdateUIFromColors()
+    pcall(function()
+        -- Update PAL table with UI_Colors for compatibility
+        PAL.Cream = UI_Colors.Background
+        PAL.DarkPink = UI_Colors.Accent
+        PAL.Pink = UI_Colors.Secondary
+        PAL.Txt = UI_Colors.Text
+        PAL.TxtS = UI_Colors.TextSecondary
+        PAL.Brd = UI_Colors.Border
+        PAL.Gold = UI_Colors.ToggleOn
+        PAL.Brown = UI_Colors.ToggleOff
+        PAL.Surf = UI_Colors.FrameBg
+        PAL.CardBackground = UI_Colors.CardBg
+        PAL.SurfL = UI_Colors.FrameBg
+        
+        -- Update UI elements
+        if MN then
+            MN.BackgroundColor3 = UI_Colors.Background
+            local stroke = MN:FindFirstChildOfClass("UIStroke")
+            if stroke then stroke.Color = UI_Colors.Accent end
+        end
+        if HD then
+            HD.BackgroundColor3 = UI_Colors.Accent
+            local stroke = HD:FindFirstChildOfClass("UIStroke")
+            if stroke then stroke.Color = UI_Colors.Border end
+        end
+        if SB then
+            SB.BackgroundColor3 = UI_Colors.FrameBg
+            SB.ScrollBarImageColor3 = UI_Colors.Accent
+        end
+        if SD then
+            SD.BackgroundColor3 = UI_Colors.Accent
+            local stroke = SD:FindFirstChildOfClass("UIStroke")
+            if stroke then stroke.Color = UI_Colors.Border end
+        end
+        if TL then TL.TextColor3 = UI_Colors.Text end
+        if SL then SL.TextColor3 = UI_Colors.TextSecondary end
+        
+        -- Update category buttons
+        for _, btn in ipairs(Btn) do
+            if btn and btn.I then
+                if btn == Btn[1] then btn.I.TextColor3 = UI_Colors.Accent else btn.I.TextColor3 = UI_Colors.TextSecondary end
+            end
+            if btn and btn.N then
+                if btn == Btn[1] then btn.N.TextColor3 = UI_Colors.Text else btn.N.TextColor3 = UI_Colors.TextSecondary end
+            end
+        end
+        
+        -- Update FOV circles
+        if AC then AC.Color = UI_Colors.FOVCircle end
+        if CC then CC.Color = UI_Colors.FOVCircle2 end
+        
+        -- Update ESP colors if ESP data exists
+        for p, d in pairs(ESPData or {}) do
+            pcall(function()
+                if d and d.B then d.B.Color = UI_Colors.ESPBox end
+                if d and d.T then d.T.Color = UI_Colors.ESPLine end
+                if d and d.N then d.N.Color = UI_Colors.ESPText end
+                if d and d.D then d.D.Color = UI_Colors.ESPDist end
+            end)
+        end
+    end)
+end
 
 local function CRN(p,r)
     if not p then return end
@@ -341,7 +422,7 @@ local function CRN(p,r)
 end
 local function STR(p,t,c,tr)
     if not p then return end
-    pcall(function() local s=Instance.new("UIStroke"); s.Thickness=t or 1.5; s.Color=c or PAL.Brd; s.Transparency=tr or 0; s.Parent=p end)
+    pcall(function() local s=Instance.new("UIStroke"); s.Thickness=t or 1.5; s.Color=c or UI_Colors.Border; s.Transparency=tr or 0; s.Parent=p end)
 end
 
 local function W2S(pos)
@@ -357,11 +438,11 @@ end
 local AC = nil
 local CC = nil
 pcall(function()
-    AC=Drawing.new("Circle"); AC.Visible=false; AC.Color=PAL.Pink; AC.Thickness=1.5; AC.Transparency=0.7; AC.Radius=200; AC.Filled=false
-    CC=Drawing.new("Circle"); CC.Visible=false; CC.Color=PAL.Bad; CC.Thickness=1.5; CC.Transparency=0.7; CC.Radius=300; CC.Filled=false
+    AC=Drawing.new("Circle"); AC.Visible=false; AC.Color=UI_Colors.FOVCircle; AC.Thickness=1.5; AC.Transparency=0.7; AC.Radius=200; AC.Filled=false
+    CC=Drawing.new("Circle"); CC.Visible=false; CC.Color=UI_Colors.FOVCircle2; CC.Thickness=1.5; CC.Transparency=0.7; CC.Radius=300; CC.Filled=false
 end)
 
--- ==================== TRIGGERBOT HITBOX ====================
+-- ==================== TRIGGERBOT HITBOX (PLAYER-BASED) ====================
 local TBHitbox = nil
 local TBHitboxVisible = false
 
@@ -378,7 +459,8 @@ local function CreateTriggerbotHitbox()
         TBHitbox.Filled = false
         TBHitbox.Transparency = 0.5
         TBHitbox.Size = Vector2.new(ST.TBHitboxSize or 60, ST.TBHitboxSize or 60)
-        TBHitbox.Position = Vector2.new(Mouse.X - (ST.TBHitboxSize or 60)/2, Mouse.Y - (ST.TBHitboxSize or 60)/2)
+        -- Position will be updated to follow the target player's head
+        TBHitbox.Position = Vector2.new(0, 0)
     end)
 end
 
@@ -390,9 +472,17 @@ local function UpdateTriggerbotHitbox()
         if TBHitbox then
             local size = ST.TBHitboxSize or 60
             TBHitbox.Size = Vector2.new(size, size)
-            TBHitbox.Position = Vector2.new(Mouse.X - size/2, Mouse.Y - size/2)
-            if ST.TB and ST.TBHitboxVisible then
-                TBHitbox.Visible = true
+            
+            -- Get the current trigger target and position the hitbox on them
+            local target = GetValidTriggerTarget()
+            if target and ST.TB and ST.TBHitboxVisible then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(target.Position)
+                if onScreen then
+                    TBHitbox.Position = Vector2.new(screenPos.X - size/2, screenPos.Y - size/2)
+                    TBHitbox.Visible = true
+                else
+                    TBHitbox.Visible = false
+                end
             else
                 TBHitbox.Visible = false
             end
@@ -419,23 +509,23 @@ if SG then BO.Parent=SG end
 local MN=Instance.new("Frame")
 MN.Size=UDim2.new(0,680,0,500)
 MN.Position=UDim2.new(0.5,-340,0.5,-250)
-MN.BackgroundColor3=PAL.Cream
+MN.BackgroundColor3=UI_Colors.Background
 MN.BackgroundTransparency=0.08
 MN.BorderSizePixel=0
 MN.ZIndex=2
 if SG then MN.Parent=SG end
 CRN(MN,UDim.new(0,16))
-STR(MN,2,PAL.DarkPink,0.2)
+STR(MN,2,UI_Colors.Accent,0.2)
 
 local HD=Instance.new("Frame")
 HD.Size=UDim2.new(1,0,0,52)
-HD.BackgroundColor3=PAL.DarkPink
+HD.BackgroundColor3=UI_Colors.Accent
 HD.BackgroundTransparency=0.25
 HD.BorderSizePixel=0
 HD.ZIndex=3
 if MN then HD.Parent=MN end
 CRN(HD,UDim.new(0,16))
-STR(HD,1,PAL.Brd,0.5)
+STR(HD,1,UI_Colors.Border,0.5)
 
 local avatarFrame=Instance.new("Frame")
 avatarFrame.Size=UDim2.new(0,32,0,32)
@@ -462,7 +552,7 @@ TL.Text="DA HOOD"
 TL.Size=UDim2.new(0,120,0,24)
 TL.Position=UDim2.new(0,56,0,8)
 TL.BackgroundTransparency=1
-TL.TextColor3=PAL.Txt
+TL.TextColor3=UI_Colors.Text
 TL.Font=Enum.Font.GothamBold
 TL.TextSize=16
 TL.TextXAlignment=Enum.TextXAlignment.Left
@@ -470,11 +560,11 @@ TL.ZIndex=5
 if HD then TL.Parent=HD end
 
 local SL=Instance.new("TextLabel")
-SL.Text="Blushwovens {VERSION_LABEL} v24.0"
+SL.Text="Blushwovens {VERSION_LABEL} v25.0"
 SL.Size=UDim2.new(0,160,0,16)
 SL.Position=UDim2.new(0,56,0,30)
 SL.BackgroundTransparency=1
-SL.TextColor3=PAL.TxtS
+SL.TextColor3=UI_Colors.TextSecondary
 SL.Font=Enum.Font.Gotham
 SL.TextSize=10
 SL.TextXAlignment=Enum.TextXAlignment.Left
@@ -484,24 +574,24 @@ if HD then SL.Parent=HD end
 local SB=Instance.new("ScrollingFrame")
 SB.Size=UDim2.new(0,200,1,-52)
 SB.Position=UDim2.new(0,0,0,52)
-SB.BackgroundColor3=PAL.Surf
+SB.BackgroundColor3=UI_Colors.FrameBg
 SB.BackgroundTransparency=0.45
 SB.BorderSizePixel=0
 SB.ZIndex=3
 if MN then SB.Parent=MN end
 SB.ScrollBarThickness = 4
-SB.ScrollBarImageColor3 = PAL.DarkPink
+SB.ScrollBarImageColor3 = UI_Colors.Accent
 SB.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 local SD=Instance.new("Frame")
 SD.Size=UDim2.new(0,2,1,-20)
 SD.Position=UDim2.new(1,0,0,10)
-SD.BackgroundColor3=PAL.DarkPink
+SD.BackgroundColor3=UI_Colors.Accent
 SD.BackgroundTransparency=0.6
 SD.BorderSizePixel=0
 SD.ZIndex=4
 if SB then SD.Parent=SB end
-STR(SD,1,PAL.Brd,0.3)
+STR(SD,1,UI_Colors.Border,0.3)
 
 local CT=Instance.new("Frame")
 CT.Size=UDim2.new(1,-200,1,-52)
@@ -515,7 +605,7 @@ local Cats={
     {"SILENT AIM",{
         {"Silent Aim","SA",false},
         {"FOV Circle","SAFC",false},
-        {"Aim FOV","SAFOV",200,"S",10,500},
+        {"Aim FOV","SAFOV",200,"S",10,1000},
         {"Aim Part","SAPart","Head","D",{"Head","Torso","HumanoidRootPart","Left Arm","Right Arm","Left Leg","Right Leg","Nearest Part"}},
         {"Revolver Bypass","RevolverBypass",false},
         {"Knock Check","KnockCheck",false},
@@ -527,7 +617,7 @@ local Cats={
         {"Camlock","CL",false},
         {"Key","CLKey",Enum.KeyCode.E,"K"},
         {"Mode","CLMode","Toggle","D",{"Toggle","Hold"}},
-        {"Aim Type","CLAimType","Camera","D",{"Camera","Magnet"}},
+        {"Aim Type","CLAimType","Camera","D",{"Camera","Magnet","MagnetCursor"}},
         {"Lock Part (Camera)","CLPart","Head","D",{"Head","Torso","HumanoidRootPart","Left Arm","Right Arm","Left Leg","Right Leg","Nearest Part"}},
         {"FOV","CLFOV",300,"S",50,800},
         {"Smoothness","CLSm",0.08,"S",0.01,0.5},
@@ -536,7 +626,9 @@ local Cats={
         {"Visible Only","CLVis",true},
         {"--- Magnet Settings ---","","","LBL"},
         {"Magnet Target Part","CLMagnetPart","UpperTorso","D",{"UpperTorso","LowerTorso","Head","HumanoidRootPart"}},
-        {"Magnet Strength","CLMagnetStrength",1,"S",0.1,5}
+        {"Magnet Strength","CLMagnetStrength",1,"S",0.1,5},
+        {"--- Target Lock Settings ---","","","LBL"},
+        {"Lock Target Until Death","CLLockTarget",true}
     }},
     {"HITBOX",{{"Hitbox Exp.","HB",false},{"Size","HBSz",10,"S",2,30},{"Opacity","HBOp",0.9,"S",0.1,1}}},
     {"VISUALS",{{"ESP","ESP",false},{"Boxes","ESPBx",true},{"Tracers","ESPTr",true},{"Names","ESPNm",true},{"Distance","ESPDs",true},{"Healthbar","ESPHp",true}}},
@@ -547,6 +639,8 @@ local Cats={
         {"Target Part","TBPart","Head","D",{"Head","Torso","HumanoidRootPart"}},
         {"Range","TBRange",200,"S",50,500},
         {"Team Check","TBTeamCheck",true},
+        {"Visibility Check","TBVisCheck",true},
+        {"Mode","TBMode","Hold","D",{"Hold","HoldADS","Always"}},
         {"--- Triggerbot Hitbox ---","","","LBL"},
         {"Hitbox Enabled","TBHitboxEnabled",true},
         {"Hitbox Size","TBHitboxSize",60,"S",10,200},
@@ -572,8 +666,34 @@ local Cats={
     }},
     {"WHITELIST",{}},
     {"MORPH",{{"Headless","MorphHeadless",false},{"Username","MorphTarget","","TB"},{"Apply Morph","MorphApply",false,"BTN"}}},
-    {"SETTINGS",{
-        {"UI Accent Color","","","LBL2"}
+    {"UI COLORS",{
+        {"--- Background Colors ---","","","LBL2"},
+        {"Background","UI_BG",Color3.fromRGB(255,248,240),"C"},
+        {"Frame Background","UI_FrameBg",Color3.fromRGB(255,235,240),"C"},
+        {"Card Background","UI_CardBg",Color3.fromRGB(255,250,250),"C"},
+        {"--- Accent Colors ---","","","LBL2"},
+        {"Accent","UI_Accent",Color3.fromRGB(215,130,170),"C"},
+        {"Secondary","UI_Secondary",Color3.fromRGB(245,205,220),"C"},
+        {"Border","UI_Border",Color3.fromRGB(215,130,170),"C"},
+        {"--- Text Colors ---","","","LBL2"},
+        {"Text","UI_Text",Color3.fromRGB(60,45,35),"C"},
+        {"Text Secondary","UI_TextSec",Color3.fromRGB(100,80,70),"C"},
+        {"--- Toggle Colors ---","","","LBL2"},
+        {"Toggle On","UI_ToggleOn",Color3.fromRGB(235,200,120),"C"},
+        {"Toggle Off","UI_ToggleOff",Color3.fromRGB(80,60,50),"C"},
+        {"--- Slider Colors ---","","","LBL2"},
+        {"Slider Background","UI_SliderBg",Color3.fromRGB(80,60,50),"C"},
+        {"Slider Fill","UI_SliderFill",Color3.fromRGB(235,200,120),"C"},
+        {"--- ESP Colors ---","","","LBL2"},
+        {"ESP Box","UI_ESPBox",Color3.fromRGB(215,130,170),"C"},
+        {"ESP Line","UI_ESPLine",Color3.fromRGB(245,205,220),"C"},
+        {"ESP Text","UI_ESPText",Color3.fromRGB(255,248,240),"C"},
+        {"ESP Distance","UI_ESPDist",Color3.fromRGB(220,225,170),"C"},
+        {"--- FOV Colors ---","","","LBL2"},
+        {"FOV Circle 1","UI_FOV1",Color3.fromRGB(245,205,220),"C"},
+        {"FOV Circle 2","UI_FOV2",Color3.fromRGB(100,100,110),"C"},
+        {"--- Apply Colors ---","","","LBL2"},
+        {"Apply UI Colors","UI_Apply",false,"BTN"}
     }},
     {"CREDITS",{
         {"zuwlu / blushwoven","","","LBL"},
@@ -590,42 +710,22 @@ local MorphInput=nil
 local SettingsRGBSliders = {}
 local Dropdowns = {}
 local ToggleButtons = {}
+local ColorPickers = {}
 
 local function UpdateUIColors()
-    pcall(function()
-        PAL.DarkPink = UIAccentColor
-        PAL.Pink = UISecondaryColor
-        if MN then
-            local stroke = MN:FindFirstChildOfClass("UIStroke")
-            if stroke then stroke.Color = UIAccentColor end
-        end
-        if SD then
-            local stroke = SD:FindFirstChildOfClass("UIStroke")
-            if stroke then stroke.Color = UIAccentColor end
-        end
-        if AC then AC.Color = PAL.Pink end
-        if CC then CC.Color = Color3.fromRGB(255,100,110) end
-        for idx, bb in ipairs(Btn) do
-            if bb and bb.I then 
-                if idx == 1 then bb.I.TextColor3 = PAL.Pink else bb.I.TextColor3 = PAL.TxtS end
-            end
-            if bb and bb.N then 
-                if idx == 1 then bb.N.TextColor3 = PAL.Txt else bb.N.TextColor3 = PAL.TxtS end
-            end
-        end
-    end)
+    UpdateUIFromColors()
 end
 
 local function AnimateToggle(button, knob, state)
     if not button or not knob then return end
     pcall(function()
         if state then
-            local t = TweenService:Create(button, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {BackgroundColor3 = PAL.Gold, BackgroundTransparency = 0.15})
+            local t = TweenService:Create(button, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {BackgroundColor3 = UI_Colors.ToggleOn, BackgroundTransparency = 0.15})
             t:Play()
             local t2 = TweenService:Create(knob, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {Position = UDim2.new(1,-23,0.5,-10)})
             t2:Play()
         else
-            local t = TweenService:Create(button, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {BackgroundColor3 = PAL.Brown, BackgroundTransparency = 0.5})
+            local t = TweenService:Create(button, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {BackgroundColor3 = UI_Colors.ToggleOff, BackgroundTransparency = 0.5})
             t:Play()
             local t2 = TweenService:Create(knob, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {Position = UDim2.new(0,3,0.5,-10)})
             t2:Play()
@@ -644,7 +744,7 @@ for i,cat in ipairs(Cats) do
     local b=Instance.new("TextButton")
     b.Size=UDim2.new(1,-20,0,40)
     b.Position=UDim2.new(0,10,0,8+(i-1)*46)
-    b.BackgroundColor3=PAL.SurfL
+    b.BackgroundColor3=UI_Colors.FrameBg
     b.BackgroundTransparency=1
     b.Text=""
     b.ZIndex=4
@@ -657,7 +757,7 @@ for i,cat in ipairs(Cats) do
     ib.BackgroundTransparency=1
     ib.Font=Enum.Font.GothamBold
     ib.TextSize=14
-    ib.TextColor3=PAL.TxtS
+    ib.TextColor3=UI_Colors.TextSecondary
     ib.ZIndex=5
     if b then ib.Parent=b end
     local nb=Instance.new("TextLabel")
@@ -667,7 +767,7 @@ for i,cat in ipairs(Cats) do
     nb.BackgroundTransparency=1
     nb.Font=Enum.Font.Gotham
     nb.TextSize=11
-    nb.TextColor3=PAL.TxtS
+    nb.TextColor3=UI_Colors.TextSecondary
     nb.TextXAlignment=Enum.TextXAlignment.Left
     nb.ZIndex=5
     if b then nb.Parent=b end
@@ -690,9 +790,10 @@ for i,cat in ipairs(Cats) do
     if nm=="MOVEMENT" then extraH=60 end
     if nm=="FLAME LOCK" then extraH=20 end
     if nm=="TRIGGERBOT" then extraH=140 end
+    if nm=="UI COLORS" then extraH=800 end
     sf.CanvasSize=UDim2.new(0,0,0,#fn*60+20+extraH)
     sf.ScrollBarThickness=3
-    sf.ScrollBarImageColor3=PAL.DarkPink
+    sf.ScrollBarImageColor3=UI_Colors.Accent
     sf.ZIndex=5
     if pg then sf.Parent=pg end
     
@@ -704,13 +805,13 @@ for i,cat in ipairs(Cats) do
         local fr=Instance.new("Frame")
         fr.Size=UDim2.new(1,-4,0,50)
         fr.Position=UDim2.new(0,2,0,10+(j-1)*56)
-        fr.BackgroundColor3=PAL.SurfL
+        fr.BackgroundColor3=UI_Colors.FrameBg
         fr.BackgroundTransparency=0.6
         fr.BorderSizePixel=0
         fr.ZIndex=5
         if sf then fr.Parent=sf end
         CRN(fr,UDim.new(0,10))
-        STR(fr,1,PAL.Brd,0.3)
+        STR(fr,1,UI_Colors.Border,0.3)
         local lb=Instance.new("TextLabel")
         lb.Text=fnn
         lb.Size=UDim2.new(0.45,0,0,16)
@@ -718,7 +819,7 @@ for i,cat in ipairs(Cats) do
         lb.BackgroundTransparency=1
         lb.Font=Enum.Font.Gotham
         lb.TextSize=11
-        lb.TextColor3=PAL.Txt
+        lb.TextColor3=UI_Colors.Text
         lb.TextXAlignment=Enum.TextXAlignment.Left
         lb.ZIndex=6
         if fr then lb.Parent=fr end
@@ -727,14 +828,14 @@ for i,cat in ipairs(Cats) do
             lb.Text=fnn
             lb.Size=UDim2.new(1,-24,0,24)
             lb.Position=UDim2.new(0,12,0,12)
-            lb.TextColor3=PAL.Txt
+            lb.TextColor3=UI_Colors.Text
             lb.Font=Enum.Font.GothamBold
             lb.TextSize=13
             lb.TextXAlignment=Enum.TextXAlignment.Center
             lb.ZIndex=6
             if nm=="CREDITS" and fnn:match("discord%.gg") then
                 local db = lb
-                db.TextColor3 = PAL.Olive
+                db.TextColor3 = UI_Colors.Text
                 db.Font = Enum.Font.GothamBold
                 db.TextSize = 14
                 local function copyLink()
@@ -757,11 +858,236 @@ for i,cat in ipairs(Cats) do
             lb.Text=fnn
             lb.Size=UDim2.new(1,-24,0,24)
             lb.Position=UDim2.new(0,12,0,12)
-            lb.TextColor3=PAL.Txt
+            lb.TextColor3=UI_Colors.TextSecondary
             lb.Font=Enum.Font.GothamBold
-            lb.TextSize=12
+            lb.TextSize=11
             lb.TextXAlignment=Enum.TextXAlignment.Center
             lb.ZIndex=6
+        elseif ftt=="C" then
+            -- Color picker button
+            local cp=Instance.new("TextButton")
+            cp.Size=UDim2.new(0,70,0,26)
+            cp.Position=UDim2.new(1,-84,0.5,-13)
+            cp.BackgroundColor3=fdd
+            cp.BackgroundTransparency=0.15
+            cp.Text="🎨"
+            cp.Font=Enum.Font.GothamBold
+            cp.TextSize=14
+            cp.TextColor3=UI_Colors.Text
+            cp.ZIndex=6
+            if fr then cp.Parent=fr end
+            CRN(cp,UDim.new(0,6))
+            STR(cp,1.5,UI_Colors.Border,0.3)
+            
+            -- Preview color
+            local preview=Instance.new("Frame")
+            preview.Size=UDim2.new(0,20,0,20)
+            preview.Position=UDim2.new(1,-170,0.5,-10)
+            preview.BackgroundColor3=fdd
+            preview.BorderSizePixel=0
+            preview.ZIndex=7
+            if fr then preview.Parent=fr end
+            CRN(preview,UDim.new(1,0))
+            STR(preview,1,UI_Colors.Border,0.5)
+            
+            local ColorSliders={Label=nil,Fill=nil,Knob=nil}
+            
+            -- Store color data
+            if not ColorPickers[fkk] then
+                ColorPickers[fkk] = {Color=fdd, Sliders={}, Preview=preview, Button=cp}
+            end
+            ColorPickers[fkk].Preview = preview
+            
+            if cp then
+                cp.MouseButton1Click:Connect(function()
+                    -- Create color slider UI in a popup frame
+                    local popup=Instance.new("Frame")
+                    popup.Size=UDim2.new(0,260,0,180)
+                    popup.Position=UDim2.new(0.5,-130,0.5,-90)
+                    popup.BackgroundColor3=UI_Colors.CardBg
+                    popup.BorderSizePixel=0
+                    popup.ZIndex=20
+                    if SG then popup.Parent=SG end
+                    CRN(popup,UDim.new(0,12))
+                    STR(popup,2,UI_Colors.Accent,0.5)
+                    
+                    local popupTitle=Instance.new("TextLabel")
+                    popupTitle.Text=fnn
+                    popupTitle.Size=UDim2.new(1,0,0,30)
+                    popupTitle.Position=UDim2.new(0,0,0,0)
+                    popupTitle.BackgroundTransparency=1
+                    popupTitle.Font=Enum.Font.GothamBold
+                    popupTitle.TextSize=14
+                    popupTitle.TextColor3=UI_Colors.Text
+                    popupTitle.ZIndex=21
+                    if popup then popupTitle.Parent=popup end
+                    
+                    local closeBtn=Instance.new("TextButton")
+                    closeBtn.Size=UDim2.new(0,30,0,30)
+                    closeBtn.Position=UDim2.new(1,-34,0,0)
+                    closeBtn.BackgroundTransparency=1
+                    closeBtn.Text="✕"
+                    closeBtn.Font=Enum.Font.GothamBold
+                    closeBtn.TextSize=16
+                    closeBtn.TextColor3=UI_Colors.Text
+                    closeBtn.ZIndex=21
+                    if popup then closeBtn.Parent=popup end
+                    closeBtn.MouseButton1Click:Connect(function() popup:Destroy() end)
+                    
+                    local previewBox=Instance.new("Frame")
+                    previewBox.Size=UDim2.new(0,40,0,40)
+                    previewBox.Position=UDim2.new(0,10,0,40)
+                    previewBox.BackgroundColor3=fdd
+                    previewBox.BorderSizePixel=0
+                    previewBox.ZIndex=21
+                    if popup then previewBox.Parent=popup end
+                    CRN(previewBox,UDim.new(0,8))
+                    STR(previewBox,2,UI_Colors.Border,0.5)
+                    
+                    local r,g,b=fdd.R*255,fdd.G*255,fdd.B*255
+                    
+                    local function createColorSlider(parent,yPos,label,colorKey)
+                        local sliderLabel=Instance.new("TextLabel")
+                        local val = math.floor(colorKey=="R" and r or colorKey=="G" and g or b)
+                        sliderLabel.Text=label..": "..val
+                        sliderLabel.Size=UDim2.new(0,45,0,16)
+                        sliderLabel.Position=UDim2.new(0,60,0,yPos)
+                        sliderLabel.BackgroundTransparency=1
+                        sliderLabel.Font=Enum.Font.Code
+                        sliderLabel.TextSize=10
+                        sliderLabel.TextColor3=UI_Colors.TextSecondary
+                        sliderLabel.TextXAlignment=Enum.TextXAlignment.Left
+                        sliderLabel.ZIndex=21
+                        if parent then sliderLabel.Parent=parent end
+                        
+                        local sliderBg=Instance.new("Frame")
+                        sliderBg.Size=UDim2.new(1,-120,0,6)
+                        sliderBg.Position=UDim2.new(0,60,0,yPos+18)
+                        sliderBg.BackgroundColor3=UI_Colors.SliderBg
+                        sliderBg.BackgroundTransparency=0.3
+                        sliderBg.BorderSizePixel=0
+                        sliderBg.ZIndex=21
+                        if parent then sliderBg.Parent=parent end
+                        CRN(sliderBg,UDim.new(1,0))
+                        
+                        local initVal = colorKey=="R" and r or colorKey=="G" and g or b
+                        local sliderFill=Instance.new("Frame")
+                        sliderFill.Size=UDim2.new(initVal/255,0,1,0)
+                        sliderFill.BackgroundColor3=colorKey=="R" and Color3.fromRGB(255,100,130) or colorKey=="G" and Color3.fromRGB(100,200,100) or Color3.fromRGB(100,100,255)
+                        sliderFill.BorderSizePixel=0
+                        sliderFill.ZIndex=22
+                        if sliderBg then sliderFill.Parent=sliderBg end
+                        CRN(sliderFill,UDim.new(1,0))
+                        
+                        local sliderKnob=Instance.new("Frame")
+                        sliderKnob.Size=UDim2.new(0,14,0,14)
+                        sliderKnob.Position=UDim2.new(initVal/255,-7,0.5,-7)
+                        sliderKnob.BackgroundColor3=UI_Colors.CardBg
+                        sliderKnob.BorderSizePixel=0
+                        sliderKnob.ZIndex=23
+                        if sliderBg then sliderKnob.Parent=sliderBg end
+                        CRN(sliderKnob,UDim.new(1,0))
+                        STR(sliderKnob,1.5,UI_Colors.Gold,0)
+                        
+                        local function updateSlider(inp)
+                            if not sliderBg or not sliderBg.AbsolutePosition then return end
+                            local rp=math.clamp((inp.Position.X-sliderBg.AbsolutePosition.X)/sliderBg.AbsoluteSize.X,0,1)
+                            local val=math.floor(rp*255)
+                            sliderFill.Size=UDim2.new(rp,0,1,0)
+                            sliderKnob.Position=UDim2.new(rp,-7,0.5,-7)
+                            sliderLabel.Text=label..": "..val
+                            if colorKey=="R" then r=val elseif colorKey=="G" then g=val else b=val end
+                            local newColor=Color3.fromRGB(r,g,b)
+                            previewBox.BackgroundColor3=newColor
+                            preview.BackgroundColor3=newColor
+                            ColorPickers[fkk].Color=newColor
+                            cp.BackgroundColor3=newColor
+                        end
+                        
+                        sliderKnob.InputBegan:Connect(function(inp)
+                            if inp.UserInputType==Enum.UserInputType.MouseButton1 then
+                                local cn
+                                cn=RunService.RenderStepped:Connect(function()
+                                    if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then 
+                                        updateSlider({Position=UserInputService:GetMouseLocation()}) 
+                                    else 
+                                        cn:Disconnect() 
+                                    end
+                                end)
+                            end
+                        end)
+                        sliderBg.InputBegan:Connect(function(inp)
+                            if inp.UserInputType==Enum.UserInputType.MouseButton1 then
+                                updateSlider({Position=inp.Position})
+                                local cn
+                                cn=RunService.RenderStepped:Connect(function()
+                                    if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then 
+                                        updateSlider({Position=UserInputService:GetMouseLocation()}) 
+                                    else 
+                                        cn:Disconnect() 
+                                    end
+                                end)
+                            end
+                        end)
+                        
+                        return {Label=sliderLabel, Fill=sliderFill, Knob=sliderKnob}
+                    end
+                    
+                    local sliders={}
+                    sliders.R=createColorSlider(popup,40,"R","R")
+                    sliders.G=createColorSlider(popup,72,"G","G")
+                    sliders.B=createColorSlider(popup,104,"B","B")
+                    ColorPickers[fkk].Sliders=sliders
+                    
+                    local applyBtn=Instance.new("TextButton")
+                    applyBtn.Size=UDim2.new(0,100,0,30)
+                    applyBtn.Position=UDim2.new(0.5,-50,0,145)
+                    applyBtn.BackgroundColor3=UI_Colors.Accent
+                    applyBtn.BackgroundTransparency=0.15
+                    applyBtn.Text="Apply"
+                    applyBtn.Font=Enum.Font.GothamBold
+                    applyBtn.TextSize=12
+                    applyBtn.TextColor3=UI_Colors.Text
+                    applyBtn.ZIndex=21
+                    if popup then applyBtn.Parent=popup end
+                    CRN(applyBtn,UDim.new(0,8))
+                    STR(applyBtn,1.5,UI_Colors.Border,0.3)
+                    
+                    applyBtn.MouseButton1Click:Connect(function()
+                        local newColor=Color3.fromRGB(r,g,b)
+                        ColorPickers[fkk].Color=newColor
+                        preview.BackgroundColor3=newColor
+                        cp.BackgroundColor3=newColor
+                        -- Update the UI_Colors table
+                        local colorMap = {
+                            UI_BG="Background",
+                            UI_FrameBg="FrameBg",
+                            UI_CardBg="CardBg",
+                            UI_Accent="Accent",
+                            UI_Secondary="Secondary",
+                            UI_Border="Border",
+                            UI_Text="Text",
+                            UI_TextSec="TextSecondary",
+                            UI_ToggleOn="ToggleOn",
+                            UI_ToggleOff="ToggleOff",
+                            UI_SliderBg="SliderBg",
+                            UI_SliderFill="SliderFill",
+                            UI_ESPBox="ESPBox",
+                            UI_ESPLine="ESPLine",
+                            UI_ESPText="ESPText",
+                            UI_ESPDist="ESPDist",
+                            UI_FOV1="FOVCircle",
+                            UI_FOV2="FOVCircle2"
+                        }
+                        if colorMap[fkk] then
+                            UI_Colors[colorMap[fkk]] = newColor
+                        end
+                        UpdateUIFromColors()
+                        popup:Destroy()
+                    end)
+                end)
+            end
+            
         elseif ftt=="S" then
             local fmi=f[5]
             local fma=f[6]
@@ -772,13 +1098,13 @@ for i,cat in ipairs(Cats) do
             vl.BackgroundTransparency=1
             vl.Font=Enum.Font.Code
             vl.TextSize=12
-            vl.TextColor3=PAL.Txt
+            vl.TextColor3=UI_Colors.Text
             vl.ZIndex=6
             if fr then vl.Parent=fr end
             local bbg=Instance.new("Frame")
             bbg.Size=UDim2.new(0,120,0,4)
             bbg.Position=UDim2.new(0.5,0,0.5,-2)
-            bbg.BackgroundColor3=PAL.Brown
+            bbg.BackgroundColor3=UI_Colors.SliderBg
             bbg.BackgroundTransparency=0.3
             bbg.BorderSizePixel=0
             bbg.ZIndex=6
@@ -786,7 +1112,7 @@ for i,cat in ipairs(Cats) do
             CRN(bbg,UDim.new(1,0))
             local bfl=Instance.new("Frame")
             bfl.Size=UDim2.new((fdd-fmi)/(fma-fmi),0,1,0)
-            bfl.BackgroundColor3=PAL.Gold
+            bfl.BackgroundColor3=UI_Colors.SliderFill
             bfl.BorderSizePixel=0
             bfl.ZIndex=7
             if bbg then bfl.Parent=bbg end
@@ -794,12 +1120,12 @@ for i,cat in ipairs(Cats) do
             local bkn=Instance.new("Frame")
             bkn.Size=UDim2.new(0,14,0,14)
             bkn.Position=UDim2.new((fdd-fmi)/(fma-fmi),-7,0.5,-7)
-            bkn.BackgroundColor3=PAL.Cream
+            bkn.BackgroundColor3=UI_Colors.CardBg
             bkn.BorderSizePixel=0
             bkn.ZIndex=8
             if bbg then bkn.Parent=bbg end
             CRN(bkn,UDim.new(1,0))
-            STR(bkn,1.5,PAL.Gold,0)
+            STR(bkn,1.5,UI_Colors.ToggleOn,0)
             local function upd(inp)
                 if not bbg or not bbg.AbsolutePosition then return end
                 local rp=math.clamp((inp.Position.X-bbg.AbsolutePosition.X)/bbg.AbsoluteSize.X,0,1)
@@ -845,28 +1171,28 @@ for i,cat in ipairs(Cats) do
             local kb=Instance.new("TextButton")
             kb.Size=UDim2.new(0,70,0,22)
             kb.Position=UDim2.new(1,-84,0.5,-11)
-            kb.BackgroundColor3=PAL.Brown
+            kb.BackgroundColor3=UI_Colors.ToggleOff
             kb.BackgroundTransparency=0.3
             kb.Text="KEY: "..string.gsub(tostring(ST[fkk] or fdd),"Enum.KeyCode.","")
             kb.Font=Enum.Font.Code
             kb.TextSize=9
-            kb.TextColor3=PAL.Txt
+            kb.TextColor3=UI_Colors.Text
             kb.ZIndex=6
             if fr then kb.Parent=fr end
             CRN(kb,UDim.new(0,6))
-            STR(kb,1,PAL.Gold,0.3)
+            STR(kb,1,UI_Colors.ToggleOn,0.3)
             local wf=false
             if kb then
                 kb.MouseButton1Click:Connect(function() 
                     wf=true
                     kb.Text="..."
-                    kb.BackgroundColor3=PAL.Gold
+                    kb.BackgroundColor3=UI_Colors.ToggleOn
                     local cn
                     cn=UserInputService.InputBegan:Connect(function(inp,gp) 
                         if wf and not gp and inp.KeyCode~=Enum.KeyCode.Unknown then 
                             ST[fkk]=inp.KeyCode
                             kb.Text="KEY: "..string.gsub(tostring(inp.KeyCode),"Enum.KeyCode.","")
-                            kb.BackgroundColor3=PAL.Brown
+                            kb.BackgroundColor3=UI_Colors.ToggleOff
                             wf=false
                             cn:Disconnect() 
                         end 
@@ -885,23 +1211,23 @@ for i,cat in ipairs(Cats) do
             
             local ddMain = Instance.new("TextButton")
             ddMain.Size = UDim2.new(1, 0, 1, 0)
-            ddMain.BackgroundColor3 = PAL.Surf
+            ddMain.BackgroundColor3 = UI_Colors.DropdownBg
             ddMain.BackgroundTransparency = 0
             ddMain.Text = fdd
             ddMain.Font = Enum.Font.Gotham
             ddMain.TextSize = 11
-            ddMain.TextColor3 = PAL.Txt
+            ddMain.TextColor3 = UI_Colors.Text
             ddMain.ZIndex = 11
             if ddContainer then ddMain.Parent = ddContainer end
             CRN(ddMain, UDim.new(0, 6))
-            STR(ddMain, 1, PAL.Gold, 0.3)
+            STR(ddMain, 1, UI_Colors.ToggleOn, 0.3)
             
             local ddArrow = Instance.new("TextLabel")
             ddArrow.Size = UDim2.new(0, 20, 1, 0)
             ddArrow.Position = UDim2.new(1, -22, 0, 0)
             ddArrow.BackgroundTransparency = 1
             ddArrow.Text = "▼"
-            ddArrow.TextColor3 = PAL.TxtS
+            ddArrow.TextColor3 = UI_Colors.TextSecondary
             ddArrow.Font = Enum.Font.GothamBold
             ddArrow.TextSize = 10
             ddArrow.ZIndex = 12
@@ -910,16 +1236,16 @@ for i,cat in ipairs(Cats) do
             local ddList = Instance.new("ScrollingFrame")
             ddList.Size = UDim2.new(1, 0, 0, 0)
             ddList.Position = UDim2.new(0, 0, 1, 2)
-            ddList.BackgroundColor3 = PAL.Surf
+            ddList.BackgroundColor3 = UI_Colors.DropdownBg
             ddList.BackgroundTransparency = 0
             ddList.BorderSizePixel = 0
             ddList.Visible = false
-            ddList.ZIndex = 15
+            ddList.ZIndex = 25 -- Increased ZIndex to appear above toggles
             ddList.CanvasSize = UDim2.new(0, 0, 0, #opts * 26)
             ddList.ScrollBarThickness = 3
             if ddContainer then ddList.Parent = ddContainer end
             CRN(ddList, UDim.new(0, 6))
-            STR(ddList, 1, PAL.Brd, 0.3)
+            STR(ddList, 1, UI_Colors.Border, 0.3)
             
             if not Dropdowns[fkk] then Dropdowns[fkk] = {} end
             Dropdowns[fkk].Main = ddMain
@@ -934,13 +1260,13 @@ for i,cat in ipairs(Cats) do
                 local ob = Instance.new("TextButton")
                 ob.Size = UDim2.new(1, 0, 0, 24)
                 ob.Position = UDim2.new(0, 0, 0, (k-1) * 24)
-                ob.BackgroundColor3 = PAL.SurfL
+                ob.BackgroundColor3 = UI_Colors.FrameBg
                 ob.BackgroundTransparency = 0
                 ob.Text = opt
                 ob.Font = Enum.Font.Gotham
                 ob.TextSize = 10
-                ob.TextColor3 = PAL.TxtS
-                ob.ZIndex = 16
+                ob.TextColor3 = UI_Colors.TextSecondary
+                ob.ZIndex = 26
                 if ddList then ob.Parent = ddList end
                 CRN(ob, UDim.new(0, 4))
                 
@@ -954,14 +1280,27 @@ for i,cat in ipairs(Cats) do
                             aimPart = opt
                         end
                         if fkk == "CLPart" then UpdateCamlock() end
-                        if fkk == "CLAimType" then UpdateCamlock() end
+                        if fkk == "CLAimType" then 
+                            UpdateCamlock()
+                            -- Reset target when switching aim type
+                            if ST.CLLockTarget then
+                                CamlockTarget = nil
+                                CamlockTargetName = nil
+                            end
+                        end
+                        if fkk == "TBMode" then
+                            if ST.TB then
+                                StopTriggerbot()
+                                StartTriggerbot()
+                            end
+                        end
                     end)
                     ob.MouseEnter:Connect(function()
-                        ob.BackgroundColor3 = PAL.Surf
-                        ob.BackgroundTransparency = 0
+                        ob.BackgroundColor3 = UI_Colors.Accent
+                        ob.BackgroundTransparency = 0.2
                     end)
                     ob.MouseLeave:Connect(function()
-                        ob.BackgroundColor3 = PAL.SurfL
+                        ob.BackgroundColor3 = UI_Colors.FrameBg
                         ob.BackgroundTransparency = 0
                     end)
                 end
@@ -971,6 +1310,7 @@ for i,cat in ipairs(Cats) do
                 ddMain.MouseButton1Click:Connect(function()
                     ddList.Visible = not ddList.Visible
                     ddArrow.Text = ddList.Visible and "▲" or "▼"
+                    -- Close other dropdowns
                     for key, dropdown in pairs(Dropdowns) do
                         if key ~= fkk and dropdown and dropdown.List then
                             dropdown.List.Visible = false
@@ -1008,18 +1348,18 @@ for i,cat in ipairs(Cats) do
             local tb=Instance.new("TextBox")
             tb.Size=UDim2.new(0,140,0,26)
             tb.Position=UDim2.new(1,-154,0.5,-13)
-            tb.BackgroundColor3=PAL.Brown
+            tb.BackgroundColor3=UI_Colors.ToggleOff
             tb.BackgroundTransparency=0.3
             tb.Text=ST[fkk] or ""
             tb.PlaceholderText="username..."
-            tb.PlaceholderColor3=PAL.TxtS
-            tb.TextColor3=PAL.Txt
+            tb.PlaceholderColor3=UI_Colors.TextSecondary
+            tb.TextColor3=UI_Colors.Text
             tb.Font=Enum.Font.Code
             tb.TextSize=10
             tb.ZIndex=6
             if fr then tb.Parent=fr end
             CRN(tb,UDim.new(0,6))
-            STR(tb,1,PAL.Gold,0.3)
+            STR(tb,1,UI_Colors.ToggleOn,0.3)
             if fkk == "MorphTarget" then
                 MorphInput = tb
                 tb.FocusLost:Connect(function() ST.MorphTarget = tb.Text end)
@@ -1030,16 +1370,16 @@ for i,cat in ipairs(Cats) do
             local ab=Instance.new("TextButton")
             ab.Size=UDim2.new(0,100,0,26)
             ab.Position=UDim2.new(1,-114,0.5,-13)
-            ab.BackgroundColor3=PAL.Gold
+            ab.BackgroundColor3=UI_Colors.ToggleOn
             ab.BackgroundTransparency=0.15
             ab.Text=fnn
             ab.Font=Enum.Font.GothamBold
             ab.TextSize=10
-            ab.TextColor3=PAL.Txt
+            ab.TextColor3=UI_Colors.Text
             ab.ZIndex=6
             if fr then ab.Parent=fr end
             CRN(ab,UDim.new(0,6))
-            STR(ab,1.5,PAL.Gold,0.3)
+            STR(ab,1.5,UI_Colors.ToggleOn,0.3)
             
             if fkk == "MorphApply" then
                 if ab then
@@ -1051,26 +1391,42 @@ for i,cat in ipairs(Cats) do
                     end)
                 end
             end
+            if fkk == "UI_Apply" then
+                if ab then
+                    ab.Text = "Apply Colors"
+                    ab.MouseButton1Click:Connect(function()
+                        UpdateUIFromColors()
+                        -- Update all color picker previews
+                        for key, data in pairs(ColorPickers) do
+                            if data and data.Preview then
+                                data.Preview.BackgroundColor3 = data.Color
+                            end
+                        end
+                        print("UI Colors Applied!")
+                    end)
+                end
+            end
         else
+            -- Toggle button
             local tb=Instance.new("TextButton")
             tb.Size=UDim2.new(0,48,0,26)
             tb.Position=UDim2.new(1,-62,0.5,-13)
-            tb.BackgroundColor3=fdd and PAL.Gold or PAL.Brown
+            tb.BackgroundColor3=fdd and UI_Colors.ToggleOn or UI_Colors.ToggleOff
             tb.BackgroundTransparency=fdd and 0.15 or 0.5
             tb.Text=""
             tb.ZIndex=6
             if fr then tb.Parent=fr end
             CRN(tb,UDim.new(1,0))
-            STR(tb,1.5,PAL.Gold,0.3)
+            STR(tb,1.5,UI_Colors.ToggleOn,0.3)
             local tk=Instance.new("Frame")
             tk.Size=UDim2.new(0,20,0,20)
             tk.Position=fdd and UDim2.new(1,-23,0.5,-10) or UDim2.new(0,3,0.5,-10)
-            tk.BackgroundColor3=PAL.Cream
+            tk.BackgroundColor3=UI_Colors.CardBg
             tk.BorderSizePixel=0
             tk.ZIndex=7
             if tb then tk.Parent=tb end
             CRN(tk,UDim.new(1,0))
-            STR(tk,1,PAL.Gold,0)
+            STR(tk,1,UI_Colors.ToggleOn,0)
             
             if not ToggleButtons[fkk] then
                 ToggleButtons[fkk] = {}
@@ -1134,10 +1490,17 @@ for i,cat in ipairs(Cats) do
                             if ST.TBHitboxVisible and TBHitbox then
                                 TBHitbox.Visible = true
                             end
+                            StartTriggerbot()
                         end
                     end
                     if fkk=="TBHitboxVisible" then
                         UpdateTriggerbotHitbox()
+                    end
+                    if fkk=="CLLockTarget" then
+                        if not tg then
+                            CamlockTarget = nil
+                            CamlockTargetName = nil
+                        end
                     end
                 end)
             end
@@ -1174,7 +1537,7 @@ for i,cat in ipairs(Cats) do
         cl.BackgroundTransparency=1
         cl.Font=Enum.Font.GothamBold
         cl.TextSize=12
-        cl.TextColor3=PAL.Txt
+        cl.TextColor3=UI_Colors.Text
         cl.TextXAlignment=Enum.TextXAlignment.Left
         cl.ZIndex=6
         if sf then cl.Parent=sf end
@@ -1193,7 +1556,7 @@ for i,cat in ipairs(Cats) do
             cb.ZIndex=6
             if sf then cb.Parent=sf end
             CRN(cb,UDim.new(0,8))
-            STR(cb,1.5,PAL.Gold,0.3)
+            STR(cb,1.5,UI_Colors.ToggleOn,0.3)
             cb.MouseButton1Click:Connect(function() 
                 FogColor=preset.Color
                 SyncFogSliders()
@@ -1208,7 +1571,7 @@ for i,cat in ipairs(Cats) do
         custLabel.BackgroundTransparency=1
         custLabel.Font=Enum.Font.GothamBold
         custLabel.TextSize=12
-        custLabel.TextColor3=PAL.Txt
+        custLabel.TextColor3=UI_Colors.Text
         custLabel.TextXAlignment=Enum.TextXAlignment.Left
         custLabel.ZIndex=6
         if sf then custLabel.Parent=sf end
@@ -1221,7 +1584,7 @@ for i,cat in ipairs(Cats) do
         previewBox.ZIndex=6
         if sf then previewBox.Parent=sf end
         CRN(previewBox,UDim.new(0,8))
-        STR(previewBox,2,PAL.Gold,0)
+        STR(previewBox,2,UI_Colors.ToggleOn,0)
         FogPreviewBox=previewBox
         
         local function createFogRGBSlider(parent,yPos,label,colorKey,sliderTable)
@@ -1232,7 +1595,7 @@ for i,cat in ipairs(Cats) do
             sliderLabel.BackgroundTransparency=1
             sliderLabel.Font=Enum.Font.Code
             sliderLabel.TextSize=10
-            sliderLabel.TextColor3=PAL.TxtS
+            sliderLabel.TextColor3=UI_Colors.TextSecondary
             sliderLabel.TextXAlignment=Enum.TextXAlignment.Left
             sliderLabel.ZIndex=7
             if parent then sliderLabel.Parent=parent end
@@ -1241,7 +1604,7 @@ for i,cat in ipairs(Cats) do
             local sliderBg=Instance.new("Frame")
             sliderBg.Size=UDim2.new(1,-105,0,6)
             sliderBg.Position=UDim2.new(0,50,0,yPos+18)
-            sliderBg.BackgroundColor3=PAL.Brown
+            sliderBg.BackgroundColor3=UI_Colors.SliderBg
             sliderBg.BackgroundTransparency=0.3
             sliderBg.BorderSizePixel=0
             sliderBg.ZIndex=7
@@ -1260,12 +1623,12 @@ for i,cat in ipairs(Cats) do
             local sliderKnob=Instance.new("Frame")
             sliderKnob.Size=UDim2.new(0,14,0,14)
             sliderKnob.Position=UDim2.new(FogColor[colorKey],-7,0.5,-7)
-            sliderKnob.BackgroundColor3=PAL.Cream
+            sliderKnob.BackgroundColor3=UI_Colors.CardBg
             sliderKnob.BorderSizePixel=0
             sliderKnob.ZIndex=9
             if sliderBg then sliderKnob.Parent=sliderBg end
             CRN(sliderKnob,UDim.new(1,0))
-            STR(sliderKnob,1.5,PAL.Gold,0)
+            STR(sliderKnob,1.5,UI_Colors.ToggleOn,0)
             sliderTable.Knob=sliderKnob
             
             local function updateSlider(inp)
@@ -1315,189 +1678,6 @@ for i,cat in ipairs(Cats) do
         createFogRGBSlider(sf,rgbY+64,"B","B",FogBSliders)
     end
     
-    -- SETTINGS TAB
-    if nm=="SETTINGS" then
-        local accentY = 10 + 56 + 10
-        
-        local previewBox = Instance.new("Frame")
-        previewBox.Size = UDim2.new(0, 50, 0, 50)
-        previewBox.Position = UDim2.new(0.5, -25, 0, accentY + 28)
-        previewBox.BackgroundColor3 = UIAccentColor
-        previewBox.BorderSizePixel = 0
-        previewBox.ZIndex = 6
-        if sf then previewBox.Parent = sf end
-        CRN(previewBox, UDim.new(0, 25))
-        STR(previewBox, 2, PAL.Cream, 0)
-        
-        local function UpdateSettingsRGBSliders()
-            pcall(function()
-                if SettingsRGBSliders.R and SettingsRGBSliders.R.Label then
-                    local r = math.floor(UIAccentColor.R * 255)
-                    SettingsRGBSliders.R.Label.Text = "R: " .. r
-                    SettingsRGBSliders.R.Fill.Size = UDim2.new(UIAccentColor.R, 0, 1, 0)
-                    SettingsRGBSliders.R.Knob.Position = UDim2.new(UIAccentColor.R, -7, 0.5, -7)
-                end
-                if SettingsRGBSliders.G and SettingsRGBSliders.G.Label then
-                    local g = math.floor(UIAccentColor.G * 255)
-                    SettingsRGBSliders.G.Label.Text = "G: " .. g
-                    SettingsRGBSliders.G.Fill.Size = UDim2.new(UIAccentColor.G, 0, 1, 0)
-                    SettingsRGBSliders.G.Knob.Position = UDim2.new(UIAccentColor.G, -7, 0.5, -7)
-                end
-                if SettingsRGBSliders.B and SettingsRGBSliders.B.Label then
-                    local b = math.floor(UIAccentColor.B * 255)
-                    SettingsRGBSliders.B.Label.Text = "B: " .. b
-                    SettingsRGBSliders.B.Fill.Size = UDim2.new(UIAccentColor.B, 0, 1, 0)
-                    SettingsRGBSliders.B.Knob.Position = UDim2.new(UIAccentColor.B, -7, 0.5, -7)
-                end
-                if previewBox then
-                    previewBox.BackgroundColor3 = UIAccentColor
-                end
-            end)
-        end
-        
-        for k, preset in ipairs(UIPresets) do
-            local row = math.floor((k - 1) / 4)
-            local col = (k - 1) % 4
-            local cb = Instance.new("TextButton")
-            cb.Size = UDim2.new(0.23, -4, 0, 30)
-            cb.Position = UDim2.new(0.02 + col * 0.245, 0, 0, accentY + 28 + 58 + row * 36)
-            cb.BackgroundColor3 = preset.Accent
-            cb.Text = preset.Name
-            cb.Font = Enum.Font.GothamBold
-            cb.TextSize = 8
-            cb.TextColor3 = Color3.fromRGB(255, 255, 255)
-            cb.BorderSizePixel = 0
-            cb.ZIndex = 6
-            if sf then cb.Parent = sf end
-            CRN(cb, UDim.new(0, 8))
-            STR(cb, 1.5, PAL.Gold, 0.3)
-            cb.MouseButton1Click:Connect(function()
-                UIAccentColor = preset.Accent
-                UISecondaryColor = preset.Second
-                previewBox.BackgroundColor3 = UIAccentColor
-                UpdateUIColors()
-                UpdateSettingsRGBSliders()
-            end)
-        end
-        
-        local rgbLabel = Instance.new("TextLabel")
-        rgbLabel.Text = "Custom UI Color"
-        rgbLabel.Size = UDim2.new(1, -4, 0, 22)
-        rgbLabel.Position = UDim2.new(0, 4, 0, accentY + 28 + 58 + 4 * 36 + 15)
-        rgbLabel.BackgroundTransparency = 1
-        rgbLabel.Font = Enum.Font.GothamBold
-        rgbLabel.TextSize = 12
-        rgbLabel.TextColor3 = PAL.Txt
-        rgbLabel.TextXAlignment = Enum.TextXAlignment.Left
-        rgbLabel.ZIndex = 6
-        if sf then rgbLabel.Parent = sf end
-        
-        local rgbPreviewBox = Instance.new("Frame")
-        rgbPreviewBox.Size = UDim2.new(0, 36, 0, 36)
-        rgbPreviewBox.Position = UDim2.new(0, 4, 0, accentY + 28 + 58 + 4 * 36 + 15 + 28)
-        rgbPreviewBox.BackgroundColor3 = UIAccentColor
-        rgbPreviewBox.BorderSizePixel = 0
-        rgbPreviewBox.ZIndex = 6
-        if sf then rgbPreviewBox.Parent = sf end
-        CRN(rgbPreviewBox, UDim.new(0, 8))
-        STR(rgbPreviewBox, 2, PAL.Gold, 0)
-        
-        local function createSettingsRGBSlider(parent, yPos, label, colorKey)
-            local sliderLabel = Instance.new("TextLabel")
-            local val = math.floor(UIAccentColor[colorKey] * 255)
-            sliderLabel.Text = label .. ": " .. val
-            sliderLabel.Size = UDim2.new(0, 45, 0, 16)
-            sliderLabel.Position = UDim2.new(0, 50, 0, yPos)
-            sliderLabel.BackgroundTransparency = 1
-            sliderLabel.Font = Enum.Font.Code
-            sliderLabel.TextSize = 10
-            sliderLabel.TextColor3 = PAL.TxtS
-            sliderLabel.TextXAlignment = Enum.TextXAlignment.Left
-            sliderLabel.ZIndex = 7
-            if parent then sliderLabel.Parent = parent end
-            
-            local sliderBg = Instance.new("Frame")
-            sliderBg.Size = UDim2.new(1, -105, 0, 6)
-            sliderBg.Position = UDim2.new(0, 50, 0, yPos + 18)
-            sliderBg.BackgroundColor3 = PAL.Brown
-            sliderBg.BackgroundTransparency = 0.3
-            sliderBg.BorderSizePixel = 0
-            sliderBg.ZIndex = 7
-            if parent then sliderBg.Parent = parent end
-            CRN(sliderBg, UDim.new(1, 0))
-            
-            local sliderFill = Instance.new("Frame")
-            sliderFill.Size = UDim2.new(UIAccentColor[colorKey], 0, 1, 0)
-            sliderFill.BackgroundColor3 = colorKey == "R" and Color3.fromRGB(255, 100, 130) or colorKey == "G" and Color3.fromRGB(100, 200, 100) or Color3.fromRGB(100, 100, 255)
-            sliderFill.BorderSizePixel = 0
-            sliderFill.ZIndex = 8
-            if sliderBg then sliderFill.Parent = sliderBg end
-            CRN(sliderFill, UDim.new(1, 0))
-            
-            local sliderKnob = Instance.new("Frame")
-            sliderKnob.Size = UDim2.new(0, 14, 0, 14)
-            sliderKnob.Position = UDim2.new(UIAccentColor[colorKey], -7, 0.5, -7)
-            sliderKnob.BackgroundColor3 = PAL.Cream
-            sliderKnob.BorderSizePixel = 0
-            sliderKnob.ZIndex = 9
-            if sliderBg then sliderKnob.Parent = sliderBg end
-            CRN(sliderKnob, UDim.new(1, 0))
-            STR(sliderKnob, 1.5, PAL.Gold, 0)
-            
-            local function updateSlider(inp)
-                if not sliderBg or not sliderBg.AbsolutePosition then return end
-                local rp = math.clamp((inp.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
-                local val = math.floor(rp * 255)
-                sliderFill.Size = UDim2.new(rp, 0, 1, 0)
-                sliderKnob.Position = UDim2.new(rp, -7, 0.5, -7)
-                sliderLabel.Text = label .. ": " .. val
-                local r = UIAccentColor.R * 255
-                local g = UIAccentColor.G * 255
-                local b = UIAccentColor.B * 255
-                if colorKey == "R" then r = val elseif colorKey == "G" then g = val else b = val end
-                UIAccentColor = Color3.fromRGB(r, g, b)
-                UISecondaryColor = Color3.fromRGB(math.min(r + 30, 255), math.min(g + 30, 255), math.min(b + 30, 255))
-                rgbPreviewBox.BackgroundColor3 = UIAccentColor
-                previewBox.BackgroundColor3 = UIAccentColor
-                UpdateUIColors()
-                UpdateSettingsRGBSliders()
-            end
-            
-            sliderKnob.InputBegan:Connect(function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-                    local cn
-                    cn = RunService.RenderStepped:Connect(function()
-                        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-                            updateSlider({Position = UserInputService:GetMouseLocation()})
-                        else
-                            cn:Disconnect()
-                        end
-                    end)
-                end
-            end)
-            sliderBg.InputBegan:Connect(function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-                    updateSlider({Position = inp.Position})
-                    local cn
-                    cn = RunService.RenderStepped:Connect(function()
-                        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-                            updateSlider({Position = UserInputService:GetMouseLocation()})
-                        else
-                            cn:Disconnect()
-                        end
-                    end)
-                end
-            end)
-            
-            return {Label = sliderLabel, Fill = sliderFill, Knob = sliderKnob}
-        end
-        
-        local rgbY = accentY + 28 + 58 + 4 * 36 + 15 + 28 + 6
-        SettingsRGBSliders.R = createSettingsRGBSlider(sf, rgbY, "R", "R")
-        SettingsRGBSliders.G = createSettingsRGBSlider(sf, rgbY + 32, "G", "G")
-        SettingsRGBSliders.B = createSettingsRGBSlider(sf, rgbY + 64, "B", "B")
-    end
-    
     -- WHITELIST tab
     if nm=="WHITELIST" and WP then
         -- Will be populated on click
@@ -1511,15 +1691,15 @@ for i,cat in ipairs(Cats) do
                     local t1 = TweenService:Create(bb.B, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundTransparency = 1})
                     t1:Play()
                 end
-                if bb and bb.I then bb.I.TextColor3 = PAL.TxtS end
-                if bb and bb.N then bb.N.TextColor3 = PAL.TxtS end
+                if bb and bb.I then bb.I.TextColor3 = UI_Colors.TextSecondary end
+                if bb and bb.N then bb.N.TextColor3 = UI_Colors.TextSecondary end
             end
             if b then
                 local t2 = TweenService:Create(b, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.75})
                 t2:Play()
             end
-            if ib then ib.TextColor3 = PAL.Pink end
-            if nb then nb.TextColor3 = PAL.Txt end
+            if ib then ib.TextColor3 = UI_Colors.Accent end
+            if nb then nb.TextColor3 = UI_Colors.Text end
             for _,pp in ipairs(Pgs) do if pp then pp.Visible=false end end
             if pg then pg.Visible=true end
             
@@ -1533,7 +1713,7 @@ for i,cat in ipairs(Cats) do
                     s.BackgroundTransparency=1
                     s.CanvasSize=UDim2.new(0,0,0,math.max(#Players:GetPlayers()*38,400))
                     s.ScrollBarThickness=3
-                    s.ScrollBarImageColor3=PAL.DarkPink
+                    s.ScrollBarImageColor3=UI_Colors.Accent
                     s.ZIndex=5
                     if WP then s.Parent=WP end
                     return s 
@@ -1543,13 +1723,13 @@ for i,cat in ipairs(Cats) do
                         local pf=Instance.new("Frame")
                         pf.Size=UDim2.new(1,-6,0,32)
                         pf.Position=UDim2.new(0,3,0,8+(idx-1)*38)
-                        pf.BackgroundColor3=PAL.SurfL
+                        pf.BackgroundColor3=UI_Colors.FrameBg
                         pf.BackgroundTransparency=0.5
                         pf.BorderSizePixel=0
                         pf.ZIndex=5
                         if sc then pf.Parent=sc end
                         CRN(pf,UDim.new(0,7))
-                        STR(pf,1,PAL.Gold,0.3)
+                        STR(pf,1,UI_Colors.ToggleOn,0.3)
                         local pn=Instance.new("TextLabel")
                         pn.Text=(plr==LocalPlayer and "[YOU] " or "")..plr.Name.." ("..plr.UserId..")"
                         pn.Size=UDim2.new(0.6,0,1,0)
@@ -1557,7 +1737,7 @@ for i,cat in ipairs(Cats) do
                         pn.BackgroundTransparency=1
                         pn.Font=Enum.Font.Gotham
                         pn.TextSize=10
-                        pn.TextColor3=PAL.Txt
+                        pn.TextColor3=UI_Colors.Text
                         pn.TextXAlignment=Enum.TextXAlignment.Left
                         pn.ZIndex=6
                         if pf then pn.Parent=pf end
@@ -1565,12 +1745,12 @@ for i,cat in ipairs(Cats) do
                         local wb=Instance.new("TextButton")
                         wb.Size=UDim2.new(0,85,0,20)
                         wb.Position=UDim2.new(1,-93,0.5,-10)
-                        wb.BackgroundColor3=iw and PAL.Gold or PAL.Gray
+                        wb.BackgroundColor3=iw and UI_Colors.ToggleOn or UI_Colors.Gray
                         wb.BackgroundTransparency=iw and 0.15 or 0.3
                         wb.Text=iw and "WHITELISTED" or "WHITELIST"
                         wb.Font=Enum.Font.GothamBold
                         wb.TextSize=8
-                        wb.TextColor3=iw and PAL.Txt or PAL.White
+                        wb.TextColor3=iw and UI_Colors.Text or UI_Colors.White
                         wb.ZIndex=6
                         if pf then wb.Parent=pf end
                         CRN(wb,UDim.new(0,5))
@@ -1580,15 +1760,15 @@ for i,cat in ipairs(Cats) do
                                 if cw then 
                                     SetWL(plr,false)
                                     wb.Text="WHITELIST"
-                                    wb.BackgroundColor3=PAL.Gray
+                                    wb.BackgroundColor3=UI_Colors.Gray
                                     wb.BackgroundTransparency=0.3
-                                    wb.TextColor3=PAL.White
+                                    wb.TextColor3=UI_Colors.White
                                 else 
                                     SetWL(plr,true)
                                     wb.Text="WHITELISTED"
-                                    wb.BackgroundColor3=PAL.Gold
+                                    wb.BackgroundColor3=UI_Colors.ToggleOn
                                     wb.BackgroundTransparency=0.15
-                                    wb.TextColor3=PAL.Txt
+                                    wb.TextColor3=UI_Colors.Text
                                 end
                                 UpdateHitbox()
                                 UpdateESP()
@@ -1696,13 +1876,14 @@ UIVis = true
 UpdateFog()
 UpdateCamlock()
 CreateTriggerbotHitbox()
+UpdateUIFromColors()
 `;
 
 // ============================================
-// REGULAR SCRIPT - FIXED v24.0
+// REGULAR SCRIPT - FIXED v25.0
 // ============================================
 const REGULAR_SCRIPT = `
---[[ Blushwovens Regular v24.0 - Full Silent Aim with require() ]]
+--[[ Blushwovens Regular v25.0 - Full Silent Aim with require() ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -1717,7 +1898,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Regular v24.0 - Loading...")
+print("Blushwovens Regular v25.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -1797,6 +1978,7 @@ local ST={
     CLAimType="Camera",
     CLMagnetStrength=1,
     CLMagnetPart="UpperTorso",
+    CLLockTarget=true,
     HB=false, HBSz=10, HBOp=0.9,
     ESP=false, ESPBx=true, ESPTr=true, ESPNm=true, ESPDs=true, ESPHp=true,
     SP=false, SPVal=50, SPKey=Enum.KeyCode.Q,
@@ -1808,11 +1990,35 @@ local ST={
     BulletSpreadEnabled=true,
     BulletSpread=100,
     FlameLock=false, FlameLockKey=Enum.KeyCode.B,
-    TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true,
+    TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true, TBVisCheck=true, TBMode="Hold",
     TBHitboxEnabled=true,
     TBHitboxSize=60,
     TBHitboxVisible=false,
 }
+
+-- Camlock Target Variables
+local CamlockTarget = nil
+local CamlockTargetName = nil
+
+local function IsPlayerValidForTarget(player)
+    if not player then return false end
+    if player == LocalPlayer then return false end
+    if not player.Character then return false end
+    local hum = safeFindFirstChild(player.Character, "Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    if IsKnocked(player.Character) then return false end
+    if IsWL(player) then return false end
+    return true
+end
+
+local function GetTargetDistance(player)
+    if not player or not player.Character then return math.huge end
+    local root = safeFindFirstChild(player.Character, "HumanoidRootPart")
+    if not root then return math.huge end
+    local myRoot = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
+    if not myRoot then return math.huge end
+    return (root.Position - myRoot.Position).Magnitude
+end
 
 -- KNOCK CHECK
 local function IsKnocked(char)
@@ -2063,7 +2269,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- UI PRESETS
+-- UI PRESETS (preserved for compatibility)
 local UIPresets = {
     {Name="Pink", Accent=Color3.fromRGB(215,130,170), Second=Color3.fromRGB(245,205,220)},
     {Name="Purple", Accent=Color3.fromRGB(140,100,220), Second=Color3.fromRGB(180,150,240)},
@@ -2075,7 +2281,7 @@ local UIPresets = {
     {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
 }
 
--- CAMLOCK
+-- CAMLOCK - WITH TARGET LOCK AND MAGNET CURSOR MODE
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
@@ -2089,31 +2295,58 @@ local function W2S(pos)
     return nil
 end
 
-local function FindCamTarget()
-    local closest,shortest=nil,ST.CLFOV
-    local cx=Camera.ViewportSize.X/2
-    local cy=Camera.ViewportSize.Y/2
-    for _,p in ipairs(Players:GetPlayers()) do
-        if p~=LocalPlayer and not IsWL(p) and p.Character then
-            if ST.KnockCheck and IsKnocked(p.Character) then continue end
-            local part = safeFindFirstChild(p.Character, ST.CLPart)
-            local hum = safeFindFirstChild(p.Character, "Humanoid")
-            if part and hum and hum.Health>0 then
-                if ST.CLVis then
-                    local sc=W2S(part.Position)
-                    if sc then
-                        local dx=sc.X-cx
-                        local dy=sc.Y-cy
-                        local dist=math.sqrt(dx*dx+dy*dy)
-                        if dist<shortest then shortest=dist; closest=p end
+local function FindBestCamTarget()
+    local closest, shortest = nil, ST.CLFOV
+    local cx = Camera.ViewportSize.X / 2
+    local cy = Camera.ViewportSize.Y / 2
+    
+    -- If we have a locked target and it's still valid, keep it
+    if ST.CLLockTarget and CamlockTarget then
+        if IsPlayerValidForTarget(CamlockTarget) then
+            local part = safeFindFirstChild(CamlockTarget.Character, ST.CLPart)
+            if part then
+                local sc = W2S(part.Position)
+                if sc then
+                    local dx = sc.X - cx
+                    local dy = sc.Y - cy
+                    local dist = math.sqrt(dx * dx + dy * dy)
+                    if dist < ST.CLFOV then
+                        return CamlockTarget
                     end
-                else
-                    local dist=(part.Position-Camera.CFrame.Position).Magnitude
-                    if dist<shortest then shortest=dist; closest=p end
+                end
+            end
+        else
+            -- Target is dead/invalid - clear it
+            CamlockTarget = nil
+            CamlockTargetName = nil
+        end
+    end
+    
+    -- Find new target (or fallback if lock is off)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if IsPlayerValidForTarget(p) then
+            local part = safeFindFirstChild(p.Character, ST.CLPart)
+            if part then
+                local sc = W2S(part.Position)
+                if sc then
+                    local dx = sc.X - cx
+                    local dy = sc.Y - cy
+                    local dist = math.sqrt(dx * dx + dy * dy)
+                    if dist < shortest then
+                        shortest = dist
+                        closest = p
+                    end
                 end
             end
         end
     end
+    
+    -- If we found a new target and lock is enabled, store it
+    if ST.CLLockTarget and closest then
+        CamlockTarget = closest
+        CamlockTargetName = closest.Name
+    end
+    
     return closest
 end
 
@@ -2122,10 +2355,51 @@ local function FindMagnetTarget()
     return target
 end
 
+-- MAGNET CURSOR MODE - Cursor follows the target (like the /hitlist script)
+local function MagnetCursorLoop()
+    if not CamActive then return end
+    if not MagnetTarget or not MagnetTarget.Character then
+        MagnetTarget = FindMagnetTarget()
+        if not MagnetTarget then return end
+    end
+    local partName = ST.CLMagnetPart or "UpperTorso"
+    local targetPart = safeFindFirstChild(MagnetTarget.Character, partName)
+    if not targetPart then
+        targetPart = safeFindFirstChild(MagnetTarget.Character, "UpperTorso")
+        if not targetPart then
+            targetPart = safeFindFirstChild(MagnetTarget.Character, "Head")
+            if not targetPart then
+                MagnetTarget = nil
+                return
+            end
+        end
+    end
+    local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+    local mouseLocation = UserInputService:GetMouseLocation()
+    local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+    local delta = (targetVec - mouseLocation) * ST.CLMagnetStrength
+    if mousemoverel then
+        mousemoverel(delta.X, delta.Y)
+    end
+    local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
+    if not hum or hum.Health <= 0 then
+        CamActive = false
+        MagnetTarget = nil
+    end
+end
+
 local function UpdateCamlock()
-    if CamConn then CamConn:Disconnect(); CamConn=nil end
+    if CamConn then CamConn:Disconnect(); CamConn = nil end
     if not ST.CL then return end
+    
     if ST.CLAimType == "Magnet" then
+        -- Standard magnet mode - cursor pulls toward target
+        CamConn = RunService.RenderStepped:Connect(function()
+            if not CamActive then return end
+            MagnetCursorLoop()
+        end)
+    elseif ST.CLAimType == "MagnetCursor" then
+        -- Magnet Cursor mode - cursor directly follows the target (like /hitlist)
         CamConn = RunService.RenderStepped:Connect(function()
             if not CamActive then return end
             if not MagnetTarget or not MagnetTarget.Character then
@@ -2144,12 +2418,15 @@ local function UpdateCamlock()
                     end
                 end
             end
+            -- Directly move cursor to target position (full magnet)
             local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-            local mouseLocation = UserInputService:GetMouseLocation()
-            local targetVec = Vector2.new(targetPos.X, targetPos.Y)
-            local delta = (targetVec - mouseLocation) * ST.CLMagnetStrength
-            if mousemoverel then
-                mousemoverel(delta.X, delta.Y)
+            if onScreen then
+                local mouseLocation = UserInputService:GetMouseLocation()
+                local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                local delta = (targetVec - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
+                if mousemoverel then
+                    mousemoverel(delta.X, delta.Y)
+                end
             end
             local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
             if not hum or hum.Health <= 0 then
@@ -2158,19 +2435,20 @@ local function UpdateCamlock()
             end
         end)
     else
+        -- Camera mode - moves the camera
         CamConn = RunService.RenderStepped:Connect(function()
             if CamActive then
-                local t=FindCamTarget()
-                if t and t.Character then 
+                local t = FindBestCamTarget()
+                if t and t.Character then
                     local part = safeFindFirstChild(t.Character, ST.CLPart)
-                    if part then 
-                        local pos=part.Position
+                    if part then
+                        local pos = part.Position
                         local hum = safeFindFirstChild(t.Character, "Humanoid")
-                        if ST.CLPred>0 and hum then
+                        if ST.CLPred > 0 and hum then
                             local predictionTime = GetPredictionTime()
                             pos = pos + (hum.MoveDirection * ST.CLPred * 10 * predictionTime * 2)
                         end
-                        Camera.CFrame=Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position,pos),ST.CLSm)
+                        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), ST.CLSm)
                     end
                 end
             end
@@ -2182,15 +2460,22 @@ local function ToggleCamlock()
     if not ST.CL then return end
     CamActive = not CamActive
     if CamActive then
-        if ST.CLAimType == "Magnet" then
+        if ST.CLAimType == "Magnet" or ST.CLAimType == "MagnetCursor" then
             MagnetTarget = FindMagnetTarget()
             if not MagnetTarget then
                 CamActive = false
                 return
             end
+        else
+            if ST.CLLockTarget then
+                CamlockTarget = nil
+                CamlockTargetName = nil
+            end
         end
     else
         MagnetTarget = nil
+        CamlockTarget = nil
+        CamlockTargetName = nil
     end
     UpdateCamlock()
 end
@@ -2242,29 +2527,29 @@ local function UpdateHitbox()
     end
 end
 
--- ESP
+-- ESP - FIXED
 local ESPData={}
 local function MakeESP(p)
     local d={}
     pcall(function()
         d.B=Drawing.new("Square")
         d.B.Visible=false
-        d.B.Color=PAL.DarkPink
+        d.B.Color=UI_Colors.ESPBox
         d.B.Thickness=2
         d.B.Filled=false
         d.T=Drawing.new("Line")
         d.T.Visible=false
-        d.T.Color=PAL.Pink
+        d.T.Color=UI_Colors.ESPLine
         d.T.Thickness=1.5
         d.N=Drawing.new("Text")
         d.N.Visible=false
-        d.N.Color=PAL.Cream
+        d.N.Color=UI_Colors.ESPText
         d.N.Size=14
         d.N.Center=true
         d.N.Outline=true
         d.D=Drawing.new("Text")
         d.D.Visible=false
-        d.D.Color=PAL.Olive
+        d.D.Color=UI_Colors.ESPDist
         d.D.Size=12
         d.D.Center=true
         d.D.Outline=true
@@ -2731,7 +3016,7 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT WITH HITBOX
+-- TRIGGERBOT - MATRIXHUBS STYLE WITH PLAYER HITBOX
 local Triggerbot = {Active = false, Connection = nil}
 local TBHitbox = nil
 local TBHitboxVisible = false
@@ -2749,7 +3034,7 @@ local function CreateTriggerbotHitbox()
         TBHitbox.Filled = false
         TBHitbox.Transparency = 0.5
         TBHitbox.Size = Vector2.new(ST.TBHitboxSize or 60, ST.TBHitboxSize or 60)
-        TBHitbox.Position = Vector2.new(Mouse.X - (ST.TBHitboxSize or 60)/2, Mouse.Y - (ST.TBHitboxSize or 60)/2)
+        TBHitbox.Position = Vector2.new(0, 0)
     end)
 end
 
@@ -2761,9 +3046,16 @@ local function UpdateTriggerbotHitbox()
         if TBHitbox then
             local size = ST.TBHitboxSize or 60
             TBHitbox.Size = Vector2.new(size, size)
-            TBHitbox.Position = Vector2.new(Mouse.X - size/2, Mouse.Y - size/2)
-            if ST.TB and ST.TBHitboxVisible then
-                TBHitbox.Visible = true
+            
+            local target = GetValidTriggerTarget()
+            if target and ST.TB and ST.TBHitboxVisible then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(target.Position)
+                if onScreen then
+                    TBHitbox.Position = Vector2.new(screenPos.X - size/2, screenPos.Y - size/2)
+                    TBHitbox.Visible = true
+                else
+                    TBHitbox.Visible = false
+                end
             else
                 TBHitbox.Visible = false
             end
@@ -2781,27 +3073,81 @@ end
 local function IsCursorOnHitbox()
     if not Mouse or not Mouse.X or not Mouse.Y then return false end
     if not ST.TBHitboxEnabled then return false end
-    local size = ST.TBHitboxSize or 60
-    local half = size / 2
+    if not TBHitbox or not TBHitbox.Visible then return false end
+    
     local mx, my = Mouse.X, Mouse.Y
-    local hx, hy = mx, my
-    if mx >= hx - half and mx <= hx + half and my >= hy - half and my <= hy + half then
+    local hx, hy = TBHitbox.Position.X, TBHitbox.Position.Y
+    local size = ST.TBHitboxSize or 60
+    
+    if mx >= hx and mx <= hx + size and my >= hy and my <= hy + size then
         return true
     end
     return false
 end
 
+local function GetValidTriggerTarget()
+    local closest = nil
+    local closestDist = ST.TBRange or 200
+    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+    
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p == LocalPlayer then continue end
+        if not p.Character then continue end
+        if ST.TBTeamCheck and p.Team == LocalPlayer.Team then continue end
+        
+        local hum = safeFindFirstChild(p.Character, "Humanoid")
+        if not hum or hum.Health <= 0 then continue end
+        if ST.KnockCheck and IsKnocked(p.Character) then continue end
+        if IsWL(p) then continue end
+        
+        local partName = ST.TBPart or "Head"
+        local part = safeFindFirstChild(p.Character, partName)
+        if not part then
+            part = safeFindFirstChild(p.Character, "Head")
+            if not part then continue end
+        end
+        
+        if ST.TBVisCheck then
+            local ray = Ray.new(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 500)
+            local hit, pos = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+            if hit and hit:IsDescendantOf(p.Character) then
+                -- visible
+            else
+                continue
+            end
+        end
+        
+        local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
+        if not onScreen then continue end
+        
+        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+        if dist < closestDist then
+            closestDist = dist
+            closest = part
+        end
+    end
+    
+    return closest
+end
+
 local function TriggerbotShoot()
     pcall(function()
-        if ST.TBHitboxEnabled and not IsCursorOnHitbox() then
-            return
+        -- Check if cursor is on the hitbox (if enabled)
+        if ST.TBHitboxEnabled then
+            if not IsCursorOnHitbox() then
+                return
+            end
         end
-        if mouse1click then
-            mouse1click()
-        elseif VirtualInputManager then
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-            task.wait(ST.TBDelay)
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+        
+        local target = GetValidTriggerTarget()
+        if target then
+            if mouse1click then
+                mouse1click()
+            elseif VirtualInputManager then
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                task.wait(ST.TBDelay)
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+            end
         end
     end)
 end
@@ -2809,16 +3155,28 @@ end
 local function StartTriggerbot()
     if Triggerbot.Connection then return end
     Triggerbot.Active = true
+    
     Triggerbot.Connection = RunService.RenderStepped:Connect(function()
         if not ST.TB or not Triggerbot.Active then return end
         if not IsHoldingWeapon() then return end
-        if ST.TBHitboxEnabled then
-            if IsCursorOnHitbox() then
-                TriggerbotShoot()
+        
+        local shouldShoot = false
+        local mode = ST.TBMode or "Hold"
+        
+        if mode == "Hold" then
+            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+                shouldShoot = true
             end
-        else
-            local target = GetClosestPlayerToCursor()
-            if target then TriggerbotShoot() end
+        elseif mode == "HoldADS" then
+            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+                shouldShoot = true
+            end
+        elseif mode == "Always" then
+            shouldShoot = true
+        end
+        
+        if shouldShoot then
+            TriggerbotShoot()
         end
     end)
 end
@@ -2941,15 +3299,15 @@ end)
 local VERSION_LABEL = "Regular"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
-print("Blushwovens Regular v24.0 - Loaded successfully!")
+print("Blushwovens Regular v25.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// XENO SCRIPT - FIXED v24.0
+// XENO SCRIPT - FIXED v25.0
 // ============================================
 const XENO_SCRIPT = `
---[[ Blushwovens Xeno v24.0 - Silent Aim using getfenv/setfenv ]]
+--[[ Blushwovens Xeno v25.0 - Silent Aim using getfenv/setfenv ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -2964,7 +3322,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Xeno v24.0 - Loading...")
+print("Blushwovens Xeno v25.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -3073,6 +3431,7 @@ local ST={
     CLAimType="Camera",
     CLMagnetStrength=1,
     CLMagnetPart="UpperTorso",
+    CLLockTarget=true,
     HB=false, HBSz=10, HBOp=0.9,
     ESP=false, ESPBx=true, ESPTr=true, ESPNm=true, ESPDs=true, ESPHp=true,
     SP=false, SPVal=50, SPKey=Enum.KeyCode.Q,
@@ -3084,11 +3443,35 @@ local ST={
     BulletSpreadEnabled=true,
     BulletSpread=100,
     FlameLock=false, FlameLockKey=Enum.KeyCode.B,
-    TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true,
+    TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true, TBVisCheck=true, TBMode="Hold",
     TBHitboxEnabled=true,
     TBHitboxSize=60,
     TBHitboxVisible=false,
 }
+
+-- Camlock Target Variables
+local CamlockTarget = nil
+local CamlockTargetName = nil
+
+local function IsPlayerValidForTarget(player)
+    if not player then return false end
+    if player == LocalPlayer then return false end
+    if not player.Character then return false end
+    local hum = safeFindFirstChild(player.Character, "Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    if IsKnocked(player.Character) then return false end
+    if IsWL(player) then return false end
+    return true
+end
+
+local function GetTargetDistance(player)
+    if not player or not player.Character then return math.huge end
+    local root = safeFindFirstChild(player.Character, "HumanoidRootPart")
+    if not root then return math.huge end
+    local myRoot = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
+    if not myRoot then return math.huge end
+    return (root.Position - myRoot.Position).Magnitude
+end
 
 -- KNOCK CHECK
 local function IsKnocked(char)
@@ -3348,7 +3731,7 @@ local UIPresets = {
     {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
 }
 
--- CAMLOCK
+-- CAMLOCK - WITH TARGET LOCK AND MAGNET CURSOR MODE
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
@@ -3362,31 +3745,54 @@ local function W2S(pos)
     return nil
 end
 
-local function FindCamTarget()
-    local closest,shortest=nil,ST.CLFOV
-    local cx=Camera.ViewportSize.X/2
-    local cy=Camera.ViewportSize.Y/2
-    for _,p in ipairs(Players:GetPlayers()) do
-        if p~=LocalPlayer and not IsWL(p) and p.Character then
-            if ST.KnockCheck and IsKnocked(p.Character) then continue end
-            local part = safeFindFirstChild(p.Character, ST.CLPart)
-            local hum = safeFindFirstChild(p.Character, "Humanoid")
-            if part and hum and hum.Health>0 then
-                if ST.CLVis then
-                    local sc=W2S(part.Position)
-                    if sc then
-                        local dx=sc.X-cx
-                        local dy=sc.Y-cy
-                        local dist=math.sqrt(dx*dx+dy*dy)
-                        if dist<shortest then shortest=dist; closest=p end
+local function FindBestCamTarget()
+    local closest, shortest = nil, ST.CLFOV
+    local cx = Camera.ViewportSize.X / 2
+    local cy = Camera.ViewportSize.Y / 2
+    
+    if ST.CLLockTarget and CamlockTarget then
+        if IsPlayerValidForTarget(CamlockTarget) then
+            local part = safeFindFirstChild(CamlockTarget.Character, ST.CLPart)
+            if part then
+                local sc = W2S(part.Position)
+                if sc then
+                    local dx = sc.X - cx
+                    local dy = sc.Y - cy
+                    local dist = math.sqrt(dx * dx + dy * dy)
+                    if dist < ST.CLFOV then
+                        return CamlockTarget
                     end
-                else
-                    local dist=(part.Position-Camera.CFrame.Position).Magnitude
-                    if dist<shortest then shortest=dist; closest=p end
+                end
+            end
+        else
+            CamlockTarget = nil
+            CamlockTargetName = nil
+        end
+    end
+    
+    for _, p in ipairs(Players:GetPlayers()) do
+        if IsPlayerValidForTarget(p) then
+            local part = safeFindFirstChild(p.Character, ST.CLPart)
+            if part then
+                local sc = W2S(part.Position)
+                if sc then
+                    local dx = sc.X - cx
+                    local dy = sc.Y - cy
+                    local dist = math.sqrt(dx * dx + dy * dy)
+                    if dist < shortest then
+                        shortest = dist
+                        closest = p
+                    end
                 end
             end
         end
     end
+    
+    if ST.CLLockTarget and closest then
+        CamlockTarget = closest
+        CamlockTargetName = closest.Name
+    end
+    
     return closest
 end
 
@@ -3395,10 +3801,48 @@ local function FindMagnetTarget()
     return target
 end
 
+local function MagnetCursorLoop()
+    if not CamActive then return end
+    if not MagnetTarget or not MagnetTarget.Character then
+        MagnetTarget = FindMagnetTarget()
+        if not MagnetTarget then return end
+    end
+    local partName = ST.CLMagnetPart or "UpperTorso"
+    local targetPart = safeFindFirstChild(MagnetTarget.Character, partName)
+    if not targetPart then
+        targetPart = safeFindFirstChild(MagnetTarget.Character, "UpperTorso")
+        if not targetPart then
+            targetPart = safeFindFirstChild(MagnetTarget.Character, "Head")
+            if not targetPart then
+                MagnetTarget = nil
+                return
+            end
+        end
+    end
+    local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+    local mouseLocation = UserInputService:GetMouseLocation()
+    local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+    local delta = (targetVec - mouseLocation) * ST.CLMagnetStrength
+    if mousemoverel then
+        mousemoverel(delta.X, delta.Y)
+    end
+    local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
+    if not hum or hum.Health <= 0 then
+        CamActive = false
+        MagnetTarget = nil
+    end
+end
+
 local function UpdateCamlock()
-    if CamConn then CamConn:Disconnect(); CamConn=nil end
+    if CamConn then CamConn:Disconnect(); CamConn = nil end
     if not ST.CL then return end
+    
     if ST.CLAimType == "Magnet" then
+        CamConn = RunService.RenderStepped:Connect(function()
+            if not CamActive then return end
+            MagnetCursorLoop()
+        end)
+    elseif ST.CLAimType == "MagnetCursor" then
         CamConn = RunService.RenderStepped:Connect(function()
             if not CamActive then return end
             if not MagnetTarget or not MagnetTarget.Character then
@@ -3418,11 +3862,13 @@ local function UpdateCamlock()
                 end
             end
             local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-            local mouseLocation = UserInputService:GetMouseLocation()
-            local targetVec = Vector2.new(targetPos.X, targetPos.Y)
-            local delta = (targetVec - mouseLocation) * ST.CLMagnetStrength
-            if mousemoverel then
-                mousemoverel(delta.X, delta.Y)
+            if onScreen then
+                local mouseLocation = UserInputService:GetMouseLocation()
+                local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                local delta = (targetVec - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
+                if mousemoverel then
+                    mousemoverel(delta.X, delta.Y)
+                end
             end
             local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
             if not hum or hum.Health <= 0 then
@@ -3433,17 +3879,17 @@ local function UpdateCamlock()
     else
         CamConn = RunService.RenderStepped:Connect(function()
             if CamActive then
-                local t=FindCamTarget()
-                if t and t.Character then 
+                local t = FindBestCamTarget()
+                if t and t.Character then
                     local part = safeFindFirstChild(t.Character, ST.CLPart)
-                    if part then 
-                        local pos=part.Position
+                    if part then
+                        local pos = part.Position
                         local hum = safeFindFirstChild(t.Character, "Humanoid")
-                        if ST.CLPred>0 and hum then
+                        if ST.CLPred > 0 and hum then
                             local predictionTime = GetPredictionTime()
                             pos = pos + (hum.MoveDirection * ST.CLPred * 10 * predictionTime * 2)
                         end
-                        Camera.CFrame=Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position,pos),ST.CLSm)
+                        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), ST.CLSm)
                     end
                 end
             end
@@ -3455,15 +3901,22 @@ local function ToggleCamlock()
     if not ST.CL then return end
     CamActive = not CamActive
     if CamActive then
-        if ST.CLAimType == "Magnet" then
+        if ST.CLAimType == "Magnet" or ST.CLAimType == "MagnetCursor" then
             MagnetTarget = FindMagnetTarget()
             if not MagnetTarget then
                 CamActive = false
                 return
             end
+        else
+            if ST.CLLockTarget then
+                CamlockTarget = nil
+                CamlockTargetName = nil
+            end
         end
     else
         MagnetTarget = nil
+        CamlockTarget = nil
+        CamlockTargetName = nil
     end
     UpdateCamlock()
 end
@@ -3522,22 +3975,22 @@ local function MakeESP(p)
     pcall(function()
         d.B=Drawing.new("Square")
         d.B.Visible=false
-        d.B.Color=PAL.DarkPink
+        d.B.Color=UI_Colors.ESPBox
         d.B.Thickness=2
         d.B.Filled=false
         d.T=Drawing.new("Line")
         d.T.Visible=false
-        d.T.Color=PAL.Pink
+        d.T.Color=UI_Colors.ESPLine
         d.T.Thickness=1.5
         d.N=Drawing.new("Text")
         d.N.Visible=false
-        d.N.Color=PAL.Cream
+        d.N.Color=UI_Colors.ESPText
         d.N.Size=14
         d.N.Center=true
         d.N.Outline=true
         d.D=Drawing.new("Text")
         d.D.Visible=false
-        d.D.Color=PAL.Olive
+        d.D.Color=UI_Colors.ESPDist
         d.D.Size=12
         d.D.Center=true
         d.D.Outline=true
@@ -4004,7 +4457,7 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT WITH HITBOX
+-- TRIGGERBOT - MATRIXHUBS STYLE WITH PLAYER HITBOX
 local Triggerbot = {Active = false, Connection = nil}
 local TBHitbox = nil
 local TBHitboxVisible = false
@@ -4022,7 +4475,7 @@ local function CreateTriggerbotHitbox()
         TBHitbox.Filled = false
         TBHitbox.Transparency = 0.5
         TBHitbox.Size = Vector2.new(ST.TBHitboxSize or 60, ST.TBHitboxSize or 60)
-        TBHitbox.Position = Vector2.new(Mouse.X - (ST.TBHitboxSize or 60)/2, Mouse.Y - (ST.TBHitboxSize or 60)/2)
+        TBHitbox.Position = Vector2.new(0, 0)
     end)
 end
 
@@ -4034,9 +4487,16 @@ local function UpdateTriggerbotHitbox()
         if TBHitbox then
             local size = ST.TBHitboxSize or 60
             TBHitbox.Size = Vector2.new(size, size)
-            TBHitbox.Position = Vector2.new(Mouse.X - size/2, Mouse.Y - size/2)
-            if ST.TB and ST.TBHitboxVisible then
-                TBHitbox.Visible = true
+            
+            local target = GetValidTriggerTarget()
+            if target and ST.TB and ST.TBHitboxVisible then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(target.Position)
+                if onScreen then
+                    TBHitbox.Position = Vector2.new(screenPos.X - size/2, screenPos.Y - size/2)
+                    TBHitbox.Visible = true
+                else
+                    TBHitbox.Visible = false
+                end
             else
                 TBHitbox.Visible = false
             end
@@ -4054,27 +4514,80 @@ end
 local function IsCursorOnHitbox()
     if not Mouse or not Mouse.X or not Mouse.Y then return false end
     if not ST.TBHitboxEnabled then return false end
-    local size = ST.TBHitboxSize or 60
-    local half = size / 2
+    if not TBHitbox or not TBHitbox.Visible then return false end
+    
     local mx, my = Mouse.X, Mouse.Y
-    local hx, hy = mx, my
-    if mx >= hx - half and mx <= hx + half and my >= hy - half and my <= hy + half then
+    local hx, hy = TBHitbox.Position.X, TBHitbox.Position.Y
+    local size = ST.TBHitboxSize or 60
+    
+    if mx >= hx and mx <= hx + size and my >= hy and my <= hy + size then
         return true
     end
     return false
 end
 
+local function GetValidTriggerTarget()
+    local closest = nil
+    local closestDist = ST.TBRange or 200
+    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+    
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p == LocalPlayer then continue end
+        if not p.Character then continue end
+        if ST.TBTeamCheck and p.Team == LocalPlayer.Team then continue end
+        
+        local hum = safeFindFirstChild(p.Character, "Humanoid")
+        if not hum or hum.Health <= 0 then continue end
+        if ST.KnockCheck and IsKnocked(p.Character) then continue end
+        if IsWL(p) then continue end
+        
+        local partName = ST.TBPart or "Head"
+        local part = safeFindFirstChild(p.Character, partName)
+        if not part then
+            part = safeFindFirstChild(p.Character, "Head")
+            if not part then continue end
+        end
+        
+        if ST.TBVisCheck then
+            local ray = Ray.new(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 500)
+            local hit, pos = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+            if hit and hit:IsDescendantOf(p.Character) then
+                -- visible
+            else
+                continue
+            end
+        end
+        
+        local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
+        if not onScreen then continue end
+        
+        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+        if dist < closestDist then
+            closestDist = dist
+            closest = part
+        end
+    end
+    
+    return closest
+end
+
 local function TriggerbotShoot()
     pcall(function()
-        if ST.TBHitboxEnabled and not IsCursorOnHitbox() then
-            return
+        if ST.TBHitboxEnabled then
+            if not IsCursorOnHitbox() then
+                return
+            end
         end
-        if mouse1click then
-            mouse1click()
-        elseif VirtualInputManager then
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-            task.wait(ST.TBDelay)
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+        
+        local target = GetValidTriggerTarget()
+        if target then
+            if mouse1click then
+                mouse1click()
+            elseif VirtualInputManager then
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                task.wait(ST.TBDelay)
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+            end
         end
     end)
 end
@@ -4082,16 +4595,28 @@ end
 local function StartTriggerbot()
     if Triggerbot.Connection then return end
     Triggerbot.Active = true
+    
     Triggerbot.Connection = RunService.RenderStepped:Connect(function()
         if not ST.TB or not Triggerbot.Active then return end
         if not IsHoldingWeapon() then return end
-        if ST.TBHitboxEnabled then
-            if IsCursorOnHitbox() then
-                TriggerbotShoot()
+        
+        local shouldShoot = false
+        local mode = ST.TBMode or "Hold"
+        
+        if mode == "Hold" then
+            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+                shouldShoot = true
             end
-        else
-            local target = GetClosestPlayerToCursor()
-            if target then TriggerbotShoot() end
+        elseif mode == "HoldADS" then
+            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+                shouldShoot = true
+            end
+        elseif mode == "Always" then
+            shouldShoot = true
+        end
+        
+        if shouldShoot then
+            TriggerbotShoot()
         end
     end)
 end
@@ -4214,15 +4739,15 @@ end)
 local VERSION_LABEL = "Xeno"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
-print("Blushwovens Xeno v24.0 - Loaded successfully!")
+print("Blushwovens Xeno v25.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// DELTA SCRIPT - FIXED v24.0
+// DELTA SCRIPT - FIXED v25.0
 // ============================================
 const DELTA_SCRIPT = `
---[[ Blushwovens Delta v24.0 - Silent Aim using mouse manipulation ]]
+--[[ Blushwovens Delta v25.0 - Silent Aim using mouse manipulation ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -4237,7 +4762,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Delta v24.0 - Loading...")
+print("Blushwovens Delta v25.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -4306,6 +4831,7 @@ local ST={
     CLAimType="Camera",
     CLMagnetStrength=1,
     CLMagnetPart="UpperTorso",
+    CLLockTarget=true,
     HB=false, HBSz=10, HBOp=0.9,
     ESP=false, ESPBx=true, ESPTr=true, ESPNm=true, ESPDs=true, ESPHp=true,
     SP=false, SPVal=50, SPKey=Enum.KeyCode.Q,
@@ -4317,11 +4843,26 @@ local ST={
     BulletSpreadEnabled=true,
     BulletSpread=100,
     FlameLock=false, FlameLockKey=Enum.KeyCode.B,
-    TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true,
+    TB=false, TBKey=Enum.KeyCode.F, TBDelay=0.05, TBPart="Head", TBRange=200, TBTeamCheck=true, TBVisCheck=true, TBMode="Hold",
     TBHitboxEnabled=true,
     TBHitboxSize=60,
     TBHitboxVisible=false,
 }
+
+-- Camlock Target Variables
+local CamlockTarget = nil
+local CamlockTargetName = nil
+
+local function IsPlayerValidForTarget(player)
+    if not player then return false end
+    if player == LocalPlayer then return false end
+    if not player.Character then return false end
+    local hum = safeFindFirstChild(player.Character, "Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    if IsKnocked(player.Character) then return false end
+    if IsWL(player) then return false end
+    return true
+end
 
 -- KNOCK CHECK
 local function IsKnocked(char)
@@ -4586,7 +5127,7 @@ local UIPresets = {
     {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
 }
 
--- CAMLOCK
+-- CAMLOCK - WITH TARGET LOCK AND MAGNET CURSOR MODE
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
@@ -4600,31 +5141,54 @@ local function W2S(pos)
     return nil
 end
 
-local function FindCamTarget()
-    local closest,shortest=nil,ST.CLFOV
-    local cx=Camera.ViewportSize.X/2
-    local cy=Camera.ViewportSize.Y/2
-    for _,p in ipairs(Players:GetPlayers()) do
-        if p~=LocalPlayer and not IsWL(p) and p.Character then
-            if ST.KnockCheck and IsKnocked(p.Character) then continue end
-            local part = safeFindFirstChild(p.Character, ST.CLPart)
-            local hum = safeFindFirstChild(p.Character, "Humanoid")
-            if part and hum and hum.Health>0 then
-                if ST.CLVis then
-                    local sc=W2S(part.Position)
-                    if sc then
-                        local dx=sc.X-cx
-                        local dy=sc.Y-cy
-                        local dist=math.sqrt(dx*dx+dy*dy)
-                        if dist<shortest then shortest=dist; closest=p end
+local function FindBestCamTarget()
+    local closest, shortest = nil, ST.CLFOV
+    local cx = Camera.ViewportSize.X / 2
+    local cy = Camera.ViewportSize.Y / 2
+    
+    if ST.CLLockTarget and CamlockTarget then
+        if IsPlayerValidForTarget(CamlockTarget) then
+            local part = safeFindFirstChild(CamlockTarget.Character, ST.CLPart)
+            if part then
+                local sc = W2S(part.Position)
+                if sc then
+                    local dx = sc.X - cx
+                    local dy = sc.Y - cy
+                    local dist = math.sqrt(dx * dx + dy * dy)
+                    if dist < ST.CLFOV then
+                        return CamlockTarget
                     end
-                else
-                    local dist=(part.Position-Camera.CFrame.Position).Magnitude
-                    if dist<shortest then shortest=dist; closest=p end
+                end
+            end
+        else
+            CamlockTarget = nil
+            CamlockTargetName = nil
+        end
+    end
+    
+    for _, p in ipairs(Players:GetPlayers()) do
+        if IsPlayerValidForTarget(p) then
+            local part = safeFindFirstChild(p.Character, ST.CLPart)
+            if part then
+                local sc = W2S(part.Position)
+                if sc then
+                    local dx = sc.X - cx
+                    local dy = sc.Y - cy
+                    local dist = math.sqrt(dx * dx + dy * dy)
+                    if dist < shortest then
+                        shortest = dist
+                        closest = p
+                    end
                 end
             end
         end
     end
+    
+    if ST.CLLockTarget and closest then
+        CamlockTarget = closest
+        CamlockTargetName = closest.Name
+    end
+    
     return closest
 end
 
@@ -4633,10 +5197,48 @@ local function FindMagnetTarget()
     return target
 end
 
+local function MagnetCursorLoop()
+    if not CamActive then return end
+    if not MagnetTarget or not MagnetTarget.Character then
+        MagnetTarget = FindMagnetTarget()
+        if not MagnetTarget then return end
+    end
+    local partName = ST.CLMagnetPart or "UpperTorso"
+    local targetPart = safeFindFirstChild(MagnetTarget.Character, partName)
+    if not targetPart then
+        targetPart = safeFindFirstChild(MagnetTarget.Character, "UpperTorso")
+        if not targetPart then
+            targetPart = safeFindFirstChild(MagnetTarget.Character, "Head")
+            if not targetPart then
+                MagnetTarget = nil
+                return
+            end
+        end
+    end
+    local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+    local mouseLocation = UserInputService:GetMouseLocation()
+    local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+    local delta = (targetVec - mouseLocation) * ST.CLMagnetStrength
+    if mousemoverel then
+        mousemoverel(delta.X, delta.Y)
+    end
+    local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
+    if not hum or hum.Health <= 0 then
+        CamActive = false
+        MagnetTarget = nil
+    end
+end
+
 local function UpdateCamlock()
-    if CamConn then CamConn:Disconnect(); CamConn=nil end
+    if CamConn then CamConn:Disconnect(); CamConn = nil end
     if not ST.CL then return end
+    
     if ST.CLAimType == "Magnet" then
+        CamConn = RunService.RenderStepped:Connect(function()
+            if not CamActive then return end
+            MagnetCursorLoop()
+        end)
+    elseif ST.CLAimType == "MagnetCursor" then
         CamConn = RunService.RenderStepped:Connect(function()
             if not CamActive then return end
             if not MagnetTarget or not MagnetTarget.Character then
@@ -4656,11 +5258,13 @@ local function UpdateCamlock()
                 end
             end
             local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-            local mouseLocation = UserInputService:GetMouseLocation()
-            local targetVec = Vector2.new(targetPos.X, targetPos.Y)
-            local delta = (targetVec - mouseLocation) * ST.CLMagnetStrength
-            if mousemoverel then
-                mousemoverel(delta.X, delta.Y)
+            if onScreen then
+                local mouseLocation = UserInputService:GetMouseLocation()
+                local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                local delta = (targetVec - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
+                if mousemoverel then
+                    mousemoverel(delta.X, delta.Y)
+                end
             end
             local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
             if not hum or hum.Health <= 0 then
@@ -4671,17 +5275,17 @@ local function UpdateCamlock()
     else
         CamConn = RunService.RenderStepped:Connect(function()
             if CamActive then
-                local t=FindCamTarget()
-                if t and t.Character then 
+                local t = FindBestCamTarget()
+                if t and t.Character then
                     local part = safeFindFirstChild(t.Character, ST.CLPart)
-                    if part then 
-                        local pos=part.Position
+                    if part then
+                        local pos = part.Position
                         local hum = safeFindFirstChild(t.Character, "Humanoid")
-                        if ST.CLPred>0 and hum then
+                        if ST.CLPred > 0 and hum then
                             local predictionTime = GetPredictionTime()
                             pos = pos + (hum.MoveDirection * ST.CLPred * 10 * predictionTime * 2)
                         end
-                        Camera.CFrame=Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position,pos),ST.CLSm)
+                        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), ST.CLSm)
                     end
                 end
             end
@@ -4693,15 +5297,22 @@ local function ToggleCamlock()
     if not ST.CL then return end
     CamActive = not CamActive
     if CamActive then
-        if ST.CLAimType == "Magnet" then
+        if ST.CLAimType == "Magnet" or ST.CLAimType == "MagnetCursor" then
             MagnetTarget = FindMagnetTarget()
             if not MagnetTarget then
                 CamActive = false
                 return
             end
+        else
+            if ST.CLLockTarget then
+                CamlockTarget = nil
+                CamlockTargetName = nil
+            end
         end
     else
         MagnetTarget = nil
+        CamlockTarget = nil
+        CamlockTargetName = nil
     end
     UpdateCamlock()
 end
@@ -4776,7 +5387,7 @@ local function MakeESP(p)
             label.Size = UDim2.new(1, 0, 1, 0)
             label.BackgroundTransparency = 1
             label.Text = text or ""
-            label.TextColor3 = color or PAL.Cream
+            label.TextColor3 = color or UI_Colors.ESPText
             label.Font = Enum.Font.Gotham
             label.TextSize = size or 12
             label.TextScaled = true
@@ -4784,9 +5395,9 @@ local function MakeESP(p)
             return bg
         end
         
-        d.B = createBillboardElement(p.Character or p, "", PAL.DarkPink, 10)
-        d.N = createBillboardElement(p.Character or p, p.Name, PAL.Cream, 14)
-        d.D = createBillboardElement(p.Character or p, "0m", PAL.Olive, 12)
+        d.B = createBillboardElement(p.Character or p, "", UI_Colors.ESPBox, 10)
+        d.N = createBillboardElement(p.Character or p, p.Name, UI_Colors.ESPText, 14)
+        d.D = createBillboardElement(p.Character or p, "0m", UI_Colors.ESPDist, 12)
         d.HB = createBillboardElement(p.Character or p, "", Color3.fromRGB(40,40,40), 4)
         d.HF = createBillboardElement(p.Character or p, "", Color3.fromRGB(80,220,140), 4)
         d._type = "billboard"
@@ -5240,7 +5851,7 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT WITH HITBOX
+-- TRIGGERBOT - MATRIXHUBS STYLE WITH PLAYER HITBOX
 local Triggerbot = {Active = false, Connection = nil}
 local TBHitbox = nil
 local TBHitboxVisible = false
@@ -5258,7 +5869,7 @@ local function CreateTriggerbotHitbox()
         TBHitbox.Filled = false
         TBHitbox.Transparency = 0.5
         TBHitbox.Size = Vector2.new(ST.TBHitboxSize or 60, ST.TBHitboxSize or 60)
-        TBHitbox.Position = Vector2.new(Mouse.X - (ST.TBHitboxSize or 60)/2, Mouse.Y - (ST.TBHitboxSize or 60)/2)
+        TBHitbox.Position = Vector2.new(0, 0)
     end)
 end
 
@@ -5270,9 +5881,16 @@ local function UpdateTriggerbotHitbox()
         if TBHitbox then
             local size = ST.TBHitboxSize or 60
             TBHitbox.Size = Vector2.new(size, size)
-            TBHitbox.Position = Vector2.new(Mouse.X - size/2, Mouse.Y - size/2)
-            if ST.TB and ST.TBHitboxVisible then
-                TBHitbox.Visible = true
+            
+            local target = GetValidTriggerTarget()
+            if target and ST.TB and ST.TBHitboxVisible then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(target.Position)
+                if onScreen then
+                    TBHitbox.Position = Vector2.new(screenPos.X - size/2, screenPos.Y - size/2)
+                    TBHitbox.Visible = true
+                else
+                    TBHitbox.Visible = false
+                end
             else
                 TBHitbox.Visible = false
             end
@@ -5290,27 +5908,80 @@ end
 local function IsCursorOnHitbox()
     if not Mouse or not Mouse.X or not Mouse.Y then return false end
     if not ST.TBHitboxEnabled then return false end
-    local size = ST.TBHitboxSize or 60
-    local half = size / 2
+    if not TBHitbox or not TBHitbox.Visible then return false end
+    
     local mx, my = Mouse.X, Mouse.Y
-    local hx, hy = mx, my
-    if mx >= hx - half and mx <= hx + half and my >= hy - half and my <= hy + half then
+    local hx, hy = TBHitbox.Position.X, TBHitbox.Position.Y
+    local size = ST.TBHitboxSize or 60
+    
+    if mx >= hx and mx <= hx + size and my >= hy and my <= hy + size then
         return true
     end
     return false
 end
 
+local function GetValidTriggerTarget()
+    local closest = nil
+    local closestDist = ST.TBRange or 200
+    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+    
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p == LocalPlayer then continue end
+        if not p.Character then continue end
+        if ST.TBTeamCheck and p.Team == LocalPlayer.Team then continue end
+        
+        local hum = safeFindFirstChild(p.Character, "Humanoid")
+        if not hum or hum.Health <= 0 then continue end
+        if ST.KnockCheck and IsKnocked(p.Character) then continue end
+        if IsWL(p) then continue end
+        
+        local partName = ST.TBPart or "Head"
+        local part = safeFindFirstChild(p.Character, partName)
+        if not part then
+            part = safeFindFirstChild(p.Character, "Head")
+            if not part then continue end
+        end
+        
+        if ST.TBVisCheck then
+            local ray = Ray.new(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 500)
+            local hit, pos = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+            if hit and hit:IsDescendantOf(p.Character) then
+                -- visible
+            else
+                continue
+            end
+        end
+        
+        local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
+        if not onScreen then continue end
+        
+        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+        if dist < closestDist then
+            closestDist = dist
+            closest = part
+        end
+    end
+    
+    return closest
+end
+
 local function TriggerbotShoot()
     pcall(function()
-        if ST.TBHitboxEnabled and not IsCursorOnHitbox() then
-            return
+        if ST.TBHitboxEnabled then
+            if not IsCursorOnHitbox() then
+                return
+            end
         end
-        if mouse1click then
-            mouse1click()
-        elseif VirtualInputManager then
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-            task.wait(ST.TBDelay)
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+        
+        local target = GetValidTriggerTarget()
+        if target then
+            if mouse1click then
+                mouse1click()
+            elseif VirtualInputManager then
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                task.wait(ST.TBDelay)
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+            end
         end
     end)
 end
@@ -5318,16 +5989,28 @@ end
 local function StartTriggerbot()
     if Triggerbot.Connection then return end
     Triggerbot.Active = true
+    
     Triggerbot.Connection = RunService.RenderStepped:Connect(function()
         if not ST.TB or not Triggerbot.Active then return end
         if not IsHoldingWeapon() then return end
-        if ST.TBHitboxEnabled then
-            if IsCursorOnHitbox() then
-                TriggerbotShoot()
+        
+        local shouldShoot = false
+        local mode = ST.TBMode or "Hold"
+        
+        if mode == "Hold" then
+            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+                shouldShoot = true
             end
-        else
-            local target = GetClosestPlayerToCursor()
-            if target then TriggerbotShoot() end
+        elseif mode == "HoldADS" then
+            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+                shouldShoot = true
+            end
+        elseif mode == "Always" then
+            shouldShoot = true
+        end
+        
+        if shouldShoot then
+            TriggerbotShoot()
         end
     end)
 end
@@ -5450,7 +6133,7 @@ end)
 local VERSION_LABEL = "Delta"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
-print("Blushwovens Delta v24.0 - Loaded successfully!")
+print("Blushwovens Delta v25.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
@@ -5469,7 +6152,7 @@ const SCRIPTS = {
 function generateLoaderScript(username, password, serverUrl, key, version) {
     const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
     return `
--- Blushwovens Loader v24.0 - ${version.toUpperCase()} VERSION
+-- Blushwovens Loader v25.0 - ${version.toUpperCase()} VERSION
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
 local KEY = "${key}"
@@ -5479,7 +6162,6 @@ local HttpService = game:GetService("HttpService")
 local CURRENT_VERSION = "${CURRENT_VERSION}"
 local SCRIPT_VERSION = "${CURRENT_VERSION}"
 
--- Check if loader version matches bot version
 if SCRIPT_VERSION ~= CURRENT_VERSION then
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification", {
@@ -5505,7 +6187,7 @@ local function request(url, body)
             password = PASSWORD, 
             key = KEY, 
             hwid = HWID,
-            version = "${CURRENT_VERSION}"  -- Send the build version
+            version = "${CURRENT_VERSION}"
         })
     })
 end
@@ -5592,8 +6274,8 @@ spawn(function()
     end
 end)
 
-print("Blushwovens Loader v24.0 (${version}) - Starting...")
-notify("Loading ${version} v24.0... Please wait.", false)
+print("Blushwovens Loader v25.0 (${version}) - Starting...")
+notify("Loading ${version} v25.0... Please wait.", false)
 
 local ok, response = pcall(request)
 if not ok then
@@ -5624,7 +6306,7 @@ if not data.success then
     error("Error: " .. data.reason)
 end
 
-notify("✅ v24.0 loaded successfully!", false)
+notify("✅ v25.0 loaded successfully!", false)
 loadstring(data.chunk)()
 `;
 }
@@ -5804,7 +6486,7 @@ const commands = [
                 .setRequired(true))
         .addStringOption(option =>
             option.setName("version")
-                .setDescription("The version to force (e.g., 24.0)")
+                .setDescription("The version to force (e.g., 25.0)")
                 .setRequired(true)),
 
     new SlashCommandBuilder()
@@ -5838,7 +6520,6 @@ client.once(Events.ClientReady, async () => {
     console.log(`📋 Sheet ID: ${SHEET_ID}`);
     console.log(`📌 Current version: ${CURRENT_VERSION}`);
     
-    // Run migration to set scriptVersion for existing users
     await migrateScriptVersion();
     await registerGlobalCommands();
 });
@@ -5920,7 +6601,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             used: 0,
             active: true,
             version: version,
-            scriptVersion: CURRENT_VERSION  // Set initial script version
+            scriptVersion: CURRENT_VERSION
         };
 
         db.users[interaction.user.id] = userData;
@@ -6099,7 +6780,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             userData.version = version;
         }
         
-        // Update script version to current
         userData.scriptVersion = CURRENT_VERSION;
         await saveUser(interaction.user.id, userData);
 
@@ -6413,7 +7093,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // ============================================
     if (command === "announce-update") {
         const message = interaction.options.getString("message");
-        const version = interaction.options.getString("version") || "24.0";
+        const version = interaction.options.getString("version") || "25.0";
 
         try {
             const channel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
@@ -6616,15 +7296,16 @@ app.post('/load', async (req, res) => {
     }
 
     // ============================================
-    // SCRIPT VERSION CHECK - Compare loader version against stored scriptVersion
+    // SCRIPT VERSION CHECK - Direct string comparison
     // ============================================
     const storedScriptVersion = userData.scriptVersion || CURRENT_VERSION;
-    
-    if (loaderVersion !== storedScriptVersion) {
+    const normalizedLoaderVersion = loaderVersion || CURRENT_VERSION;
+
+    if (normalizedLoaderVersion !== storedScriptVersion) {
         return res.json({ 
             success: false, 
             reason: "Version mismatch",
-            message: `Your loader is v${loaderVersion}, but your account requires v${storedScriptVersion}. Run /update in Discord.`
+            message: `Your loader is v${normalizedLoaderVersion}, but your account requires v${storedScriptVersion}. Run /update in Discord.`
         });
     }
 
@@ -6637,7 +7318,6 @@ app.post('/load', async (req, res) => {
     }
 
     userData.used++;
-    // Update script version if it's different (ensures consistency)
     if (userData.scriptVersion !== CURRENT_VERSION) {
         userData.scriptVersion = CURRENT_VERSION;
     }
@@ -6717,7 +7397,7 @@ app.post('/check-version', (req, res) => {
     res.json({ outdated: false });
 });
 
-app.get('/', (req, res) => res.send('Blushwovens v24.0 Bot is running!'));
+app.get('/', (req, res) => res.send('Blushwovens v25.0 Bot is running!'));
 app.get('/version', (req, res) => {
     res.json({ version: CURRENT_VERSION });
 });
