@@ -743,7 +743,7 @@ TL.ZIndex=5
 if HD then TL.Parent=HD end
 
 local SL=Instance.new("TextLabel")
-SL.Text="Blushwovens {VERSION_LABEL} v26.0"
+SL.Text="Blushwovens {VERSION_LABEL} v26.1"
 SL.Size=UDim2.new(0,160,0,16)
 SL.Position=UDim2.new(0,56,0,30)
 SL.BackgroundTransparency=1
@@ -2188,10 +2188,10 @@ UpdateUIFromColors()
 `;
 
 // ============================================
-// REGULAR SCRIPT - FIXED v26.0
+// REGULAR SCRIPT - FIXED v26.1
 // ============================================
 const REGULAR_SCRIPT = `
---[[ Blushwovens Regular v26.0 - Full Silent Aim with require() ]]
+--[[ Blushwovens Regular v26.1 - Full Silent Aim with require() ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -2206,7 +2206,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Regular v26.0 - Loading...")
+print("Blushwovens Regular v26.1 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -3887,15 +3887,15 @@ if ST.RagebotEnabled then StartRagebot() end
 if ST.KillAuraEnabled then StartKillAura() end
 if ST.RageTeleport then StartRageTeleport() end
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Regular v26.0 - Loaded successfully!")
+print("Blushwovens Regular v26.1 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// XENO SCRIPT - FIXED v26.0
+// XENO SCRIPT - FIXED v26.1
 // ============================================
 const XENO_SCRIPT = `
---[[ Blushwovens Xeno v26.0 - Silent Aim using getfenv/setfenv ]]
+--[[ Blushwovens Xeno v26.1 - Silent Aim using getfenv/setfenv ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -3910,7 +3910,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Xeno v26.0 - Loading...")
+print("Blushwovens Xeno v26.1 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -5616,15 +5616,15 @@ if ST.RagebotEnabled then StartRagebot() end
 if ST.KillAuraEnabled then StartKillAura() end
 if ST.RageTeleport then StartRageTeleport() end
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Xeno v26.0 - Loaded successfully!")
+print("Blushwovens Xeno v26.1 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// DELTA SCRIPT - FIXED v26.0
+// DELTA SCRIPT - FIXED v26.1
 // ============================================
 const DELTA_SCRIPT = `
---[[ Blushwovens Delta v26.0 - Silent Aim using mouse manipulation ]]
+--[[ Blushwovens Delta v26.1 - Silent Aim using mouse manipulation ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -5639,7 +5639,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Delta v26.0 - Loading...")
+print("Blushwovens Delta v26.1 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -7318,7 +7318,7 @@ const SCRIPTS = {
 function generateLoaderScript(username, password, serverUrl, key, version) {
     const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
     return `
--- Blushwovens Loader v26.0 - ${version.toUpperCase()} VERSION
+-- Blushwovens Loader v26.1 - ${version.toUpperCase()} VERSION
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
 local KEY = "${key}"
@@ -7440,8 +7440,8 @@ spawn(function()
     end
 end)
 
-print("Blushwovens Loader v26.0 (${version}) - Starting...")
-notify("Loading ${version} v26.0... Please wait.", false)
+print("Blushwovens Loader v26.1 (${version}) - Starting...")
+notify("Loading ${version} v26.1... Please wait.", false)
 
 local ok, response = pcall(request)
 if not ok then
@@ -7472,7 +7472,7 @@ if not data.success then
     error("Error: " .. data.reason)
 end
 
-notify("✅ v26.0 loaded successfully!", false)
+notify("✅ v26.1 loaded successfully!", false)
 loadstring(data.chunk)()
 `;
 }
@@ -7652,7 +7652,7 @@ const commands = [
                 .setRequired(true))
         .addStringOption(option =>
             option.setName("version")
-                .setDescription("The version to force (e.g., 26.0)")
+                .setDescription("The version to force (e.g., 26.1)")
                 .setRequired(true)),
 
     new SlashCommandBuilder()
@@ -8259,7 +8259,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // ============================================
     if (command === "announce-update") {
         const message = interaction.options.getString("message");
-        const version = interaction.options.getString("version") || "26.0";
+        const version = interaction.options.getString("version") || "26.1";
 
         try {
             const channel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
@@ -8564,7 +8564,7 @@ app.post('/check-version', (req, res) => {
     res.json({ outdated: false });
 });
 
-app.get('/', (req, res) => res.send('Blushwovens v26.0 Bot is running!'));
+app.get('/', (req, res) => res.send('Blushwovens v26.1 Bot is running!'));
 app.get('/version', (req, res) => {
     res.json({ version: CURRENT_VERSION });
 });
