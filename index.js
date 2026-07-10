@@ -10,8 +10,14 @@
 // FIXED: VERSION_LABEL now properly displays "Regular", "Xeno", or "Delta"
 // FIXED: Triggerbot hitbox X and Y offset sliders added
 // FIXED: Triggerbot hitbox now properly follows players
-// UPDATED: Version changed to 25.0
-const CURRENT_VERSION = "25.0";
+// FIXED: Whitelist now works properly (BackgroundColor3 nil fix)
+// FIXED: UI color application now works for all elements
+// ADDED: EXO UNIFIED UI Framework integrated
+// ADDED: Flame Camlock features merged into Camlock (offsets, shake, hip-height, walk-speed)
+// ADDED: Ragebot section with full ragebot features from EXO UNIFIED
+// ADDED: Dual UI mode (UI One = Original, UI Two = EXO UNIFIED style)
+// UPDATED: Version changed to 26.0
+const CURRENT_VERSION = "26.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -303,7 +309,7 @@ async function migrateScriptVersion() {
 }
 
 // ============================================
-// COMPLETE UI BUILDER - WITH FULL COLOR CUSTOMIZATION
+// COMPLETE UI BUILDER - HYBRID (Original + EXO UNIFIED + Flame Camlock)
 // ============================================
 const UI_BUILDER = `
 -- ==================== PAL ====================
@@ -330,10 +336,23 @@ local PAL = {
     CardBackground = Color3.fromRGB(255,250,250),
     CardStroke = Color3.fromRGB(215,130,170),
     SpeechBubble = Color3.fromRGB(255,235,240),
-    Gold = Color3.fromRGB(235, 200, 120)
+    Gold = Color3.fromRGB(235, 200, 120),
+    ExoAccent = Color3.fromRGB(155,125,175),
+    ExoOutline = Color3.fromRGB(32,32,38),
+    ExoInline = Color3.fromRGB(60,55,75),
+    ExoHighContrast = Color3.fromRGB(41,41,55),
+    ExoLowContrast = Color3.fromRGB(35,35,47),
+    ExoText = Color3.fromRGB(180,180,180),
+    ExoButton = Color3.fromRGB(155,125,175),
+    FlamePink = Color3.fromRGB(244,192,209),
+    FlameDarkPink = Color3.fromRGB(153,53,86),
+    FlameMediumPink = Color3.fromRGB(212,83,126),
+    FlameLightPink = Color3.fromRGB(237,147,177),
+    FlameWhite = Color3.fromRGB(255,255,255),
+    FlameGray = Color3.fromRGB(240,240,240),
 }
 
--- UI COLOR VARIABLES (fully customizable)
+-- UI COLOR VARIABLES
 local UI_Colors = {
     Background = Color3.fromRGB(255,248,240),
     Accent = Color3.fromRGB(215,130,170),
@@ -354,11 +373,182 @@ local UI_Colors = {
     ESPDist = Color3.fromRGB(220,225,170),
     FOVCircle = Color3.fromRGB(245,205,220),
     FOVCircle2 = Color3.fromRGB(100,100,110),
+    UI_Mode = "Original", -- "Original", "Exo", "Flame"
 }
+
+-- EXO UNIFIED Theme System
+local ExoThemes = {
+    ["Default"] = {
+        accent = Color3.fromRGB(155,125,175),
+        outline = Color3.fromRGB(32,32,38),
+        inline = Color3.fromRGB(60,55,75),
+        high_contrast = Color3.fromRGB(41,41,55),
+        low_contrast = Color3.fromRGB(35,35,47),
+        text = Color3.fromRGB(180,180,180),
+        button = Color3.fromRGB(155,125,175),
+    },
+    ["Headshot"] = {
+        accent = Color3.fromRGB(155,125,175),
+        outline = Color3.fromRGB(32,32,38),
+        inline = Color3.fromRGB(60,55,75),
+        high_contrast = Color3.fromRGB(41,41,55),
+        low_contrast = Color3.fromRGB(35,35,47),
+        text = Color3.fromRGB(200,200,200),
+        button = Color3.fromRGB(155,125,175),
+    },
+    ["Midnight"] = {
+        accent = Color3.fromRGB(0,120,215),
+        outline = Color3.fromRGB(15,15,20),
+        inline = Color3.fromRGB(30,30,40),
+        high_contrast = Color3.fromRGB(20,20,30),
+        low_contrast = Color3.fromRGB(25,25,35),
+        text = Color3.fromRGB(240,240,240),
+        button = Color3.fromRGB(0,120,215),
+    },
+    ["Ocean"] = {
+        accent = Color3.fromRGB(0,150,200),
+        outline = Color3.fromRGB(20,30,40),
+        inline = Color3.fromRGB(40,60,80),
+        high_contrast = Color3.fromRGB(30,50,70),
+        low_contrast = Color3.fromRGB(25,45,65),
+        text = Color3.fromRGB(220,240,255),
+        button = Color3.fromRGB(0,150,200),
+    },
+    ["Sunset"] = {
+        accent = Color3.fromRGB(255,100,50),
+        outline = Color3.fromRGB(40,25,20),
+        inline = Color3.fromRGB(70,40,30),
+        high_contrast = Color3.fromRGB(60,35,25),
+        low_contrast = Color3.fromRGB(50,30,22),
+        text = Color3.fromRGB(255,230,200),
+        button = Color3.fromRGB(255,100,50),
+    },
+    ["Forest"] = {
+        accent = Color3.fromRGB(50,200,100),
+        outline = Color3.fromRGB(20,35,25),
+        inline = Color3.fromRGB(40,70,50),
+        high_contrast = Color3.fromRGB(30,60,40),
+        low_contrast = Color3.fromRGB(25,50,35),
+        text = Color3.fromRGB(200,255,220),
+        button = Color3.fromRGB(50,200,100),
+    },
+    ["Blood"] = {
+        accent = Color3.fromRGB(200,50,50),
+        outline = Color3.fromRGB(40,20,20),
+        inline = Color3.fromRGB(70,30,30),
+        high_contrast = Color3.fromRGB(60,25,25),
+        low_contrast = Color3.fromRGB(50,22,22),
+        text = Color3.fromRGB(255,200,200),
+        button = Color3.fromRGB(200,50,50),
+    },
+    ["Gold"] = {
+        accent = Color3.fromRGB(255,215,0),
+        outline = Color3.fromRGB(40,35,20),
+        inline = Color3.fromRGB(70,60,30),
+        high_contrast = Color3.fromRGB(60,50,25),
+        low_contrast = Color3.fromRGB(50,42,22),
+        text = Color3.fromRGB(255,240,200),
+        button = Color3.fromRGB(255,215,0),
+    },
+}
+
+-- Flame Camlock Theme Colors
+local FlameTheme = {
+    background = Color3.fromRGB(244,192,209),
+    dark_pink = Color3.fromRGB(153,53,86),
+    medium_pink = Color3.fromRGB(212,83,126),
+    light_pink = Color3.fromRGB(237,147,177),
+    white = Color3.fromRGB(255,255,255),
+    gray = Color3.fromRGB(240,240,240),
+}
+
+local currentExoTheme = "Default"
+
+local function ApplyExoTheme(themeName)
+    local theme = ExoThemes[themeName]
+    if theme then
+        PAL.ExoAccent = theme.accent
+        PAL.ExoOutline = theme.outline
+        PAL.ExoInline = theme.inline
+        PAL.ExoHighContrast = theme.high_contrast
+        PAL.ExoLowContrast = theme.low_contrast
+        PAL.ExoText = theme.text
+        PAL.ExoButton = theme.button
+        currentExoTheme = themeName
+    end
+end
+
+local function SetUIMode(mode)
+    UI_Colors.UI_Mode = mode
+    if mode == "Original" then
+        -- Use original colors
+        UI_Colors.Background = Color3.fromRGB(255,248,240)
+        UI_Colors.Accent = Color3.fromRGB(215,130,170)
+        UI_Colors.Secondary = Color3.fromRGB(245,205,220)
+        UI_Colors.Text = Color3.fromRGB(60,45,35)
+        UI_Colors.TextSecondary = Color3.fromRGB(100,80,70)
+        UI_Colors.Border = Color3.fromRGB(215,130,170)
+        UI_Colors.ToggleOn = Color3.fromRGB(235,200,120)
+        UI_Colors.ToggleOff = Color3.fromRGB(80,60,50)
+        UI_Colors.FrameBg = Color3.fromRGB(255,235,240)
+        UI_Colors.CardBg = Color3.fromRGB(255,250,250)
+        UI_Colors.SliderBg = Color3.fromRGB(80,60,50)
+        UI_Colors.SliderFill = Color3.fromRGB(235,200,120)
+        UI_Colors.DropdownBg = Color3.fromRGB(255,235,240)
+        UI_Colors.ESPBox = Color3.fromRGB(215,130,170)
+        UI_Colors.ESPLine = Color3.fromRGB(245,205,220)
+        UI_Colors.ESPText = Color3.fromRGB(255,248,240)
+        UI_Colors.ESPDist = Color3.fromRGB(220,225,170)
+        UI_Colors.FOVCircle = Color3.fromRGB(245,205,220)
+        UI_Colors.FOVCircle2 = Color3.fromRGB(100,100,110)
+    elseif mode == "Exo" then
+        -- Use EXO UNIFIED theme colors
+        UI_Colors.Background = PAL.ExoOutline
+        UI_Colors.Accent = PAL.ExoAccent
+        UI_Colors.Secondary = PAL.ExoInline
+        UI_Colors.Text = PAL.ExoText
+        UI_Colors.TextSecondary = Color3.fromRGB(150,150,150)
+        UI_Colors.Border = PAL.ExoLowContrast
+        UI_Colors.ToggleOn = PAL.ExoAccent
+        UI_Colors.ToggleOff = PAL.ExoOutline
+        UI_Colors.FrameBg = PAL.ExoLowContrast
+        UI_Colors.CardBg = PAL.ExoHighContrast
+        UI_Colors.SliderBg = PAL.ExoOutline
+        UI_Colors.SliderFill = PAL.ExoAccent
+        UI_Colors.DropdownBg = PAL.ExoHighContrast
+        UI_Colors.ESPBox = PAL.ExoAccent
+        UI_Colors.ESPLine = PAL.ExoAccent
+        UI_Colors.ESPText = PAL.ExoText
+        UI_Colors.ESPDist = Color3.fromRGB(200,200,200)
+        UI_Colors.FOVCircle = PAL.ExoAccent
+        UI_Colors.FOVCircle2 = Color3.fromRGB(100,100,110)
+    elseif mode == "Flame" then
+        -- Use Flame Camlock pink theme
+        UI_Colors.Background = FlameTheme.background
+        UI_Colors.Accent = FlameTheme.medium_pink
+        UI_Colors.Secondary = FlameTheme.light_pink
+        UI_Colors.Text = FlameTheme.dark_pink
+        UI_Colors.TextSecondary = FlameTheme.medium_pink
+        UI_Colors.Border = FlameTheme.dark_pink
+        UI_Colors.ToggleOn = FlameTheme.light_pink
+        UI_Colors.ToggleOff = FlameTheme.gray
+        UI_Colors.FrameBg = FlameTheme.white
+        UI_Colors.CardBg = FlameTheme.white
+        UI_Colors.SliderBg = FlameTheme.gray
+        UI_Colors.SliderFill = FlameTheme.medium_pink
+        UI_Colors.DropdownBg = FlameTheme.white
+        UI_Colors.ESPBox = FlameTheme.medium_pink
+        UI_Colors.ESPLine = FlameTheme.light_pink
+        UI_Colors.ESPText = FlameTheme.dark_pink
+        UI_Colors.ESPDist = FlameTheme.dark_pink
+        UI_Colors.FOVCircle = FlameTheme.light_pink
+        UI_Colors.FOVCircle2 = FlameTheme.medium_pink
+    end
+    UpdateUIFromColors()
+end
 
 local function UpdateUIFromColors()
     pcall(function()
-        -- Update PAL table with UI_Colors for compatibility
         PAL.Cream = UI_Colors.Background
         PAL.DarkPink = UI_Colors.Accent
         PAL.Pink = UI_Colors.Secondary
@@ -370,8 +560,9 @@ local function UpdateUIFromColors()
         PAL.Surf = UI_Colors.FrameBg
         PAL.CardBackground = UI_Colors.CardBg
         PAL.SurfL = UI_Colors.FrameBg
+        PAL.Bad = Color3.fromRGB(100,100,110)
+        PAL.Gray = Color3.fromRGB(200,195,195)
         
-        -- Update UI elements
         if MN then
             MN.BackgroundColor3 = UI_Colors.Background
             local stroke = MN:FindFirstChildOfClass("UIStroke")
@@ -395,7 +586,6 @@ local function UpdateUIFromColors()
         if TL then TL.TextColor3 = UI_Colors.Text end
         if SL then SL.TextColor3 = UI_Colors.TextSecondary end
         
-        -- Update category buttons
         for idx, btn in ipairs(Btn) do
             if btn and btn.I then
                 if idx == 1 then btn.I.TextColor3 = UI_Colors.Accent else btn.I.TextColor3 = UI_Colors.TextSecondary end
@@ -405,11 +595,9 @@ local function UpdateUIFromColors()
             end
         end
         
-        -- Update FOV circles
         if AC then AC.Color = UI_Colors.FOVCircle end
         if CC then CC.Color = UI_Colors.FOVCircle2 end
         
-        -- Update ESP colors if ESP data exists
         for p, d in pairs(ESPData or {}) do
             pcall(function()
                 if d and d.B then d.B.Color = UI_Colors.ESPBox end
@@ -447,7 +635,7 @@ pcall(function()
     CC=Drawing.new("Circle"); CC.Visible=false; CC.Color=UI_Colors.FOVCircle2; CC.Thickness=1.5; CC.Transparency=0.7; CC.Radius=300; CC.Filled=false
 end)
 
--- ==================== TRIGGERBOT HITBOX (PLAYER-BASED WITH OFFSETS) ====================
+-- ==================== TRIGGERBOT HITBOX ====================
 local TBHitbox = nil
 local TBHitboxVisible = false
 
@@ -565,7 +753,7 @@ TL.ZIndex=5
 if HD then TL.Parent=HD end
 
 local SL=Instance.new("TextLabel")
-SL.Text="Blushwovens {VERSION_LABEL} v25.0"
+SL.Text="Blushwovens {VERSION_LABEL} v26.0"
 SL.Size=UDim2.new(0,160,0,16)
 SL.Position=UDim2.new(0,56,0,30)
 SL.BackgroundTransparency=1
@@ -632,8 +820,36 @@ local Cats={
         {"--- Magnet Settings ---","","","LBL"},
         {"Magnet Target Part","CLMagnetPart","UpperTorso","D",{"UpperTorso","LowerTorso","Head","HumanoidRootPart"}},
         {"Magnet Strength","CLMagnetStrength",1,"S",0.1,5},
+        {"--- Flame Camlock Settings ---","","","LBL"},
+        {"Horizontal Offset","CLHOffset",0,"S",-50,50},
+        {"Vertical Offset","CLVOffset",0,"S",-50,50},
+        {"Camera Shake","CLShake",0,"S",0,5},
+        {"Hip Height Mod","CLHipHeight",false},
+        {"Hip Height Value","CLHipHeightVal",0,"S",-10,10},
+        {"Walk Speed Mod","CLWalkSpeed",false},
+        {"Walk Speed Value","CLWalkSpeedVal",22,"S",16,150},
         {"--- Target Lock Settings ---","","","LBL"},
         {"Lock Target Until Death","CLLockTarget",true}
+    }},
+    {"RAGE",{
+        {"--- Ragebot Settings ---","","","LBL"},
+        {"Ragebot","RagebotEnabled",false},
+        {"Mode","RagebotMode","Always","D",{"Always","Keybind"}},
+        {"Keybind","RagebotKeybind",Enum.KeyCode.F,"K"},
+        {"Target Part","RagebotPart","Head","D",{"Head","UpperTorso","LowerTorso","HumanoidRootPart"}},
+        {"Range","RagebotRange",30,"S",5,100},
+        {"Delay","RagebotDelay",0.1,"S",0.01,0.5},
+        {"Auto Shoot","RagebotAutoShoot",true},
+        {"Team Check","RagebotTeamCheck",true},
+        {"Wall Check","RagebotWallCheck",false},
+        {"Knock Check","RagebotKnockCheck",true},
+        {"--- Kill Aura ---","","","LBL"},
+        {"Kill Aura","KillAuraEnabled",false},
+        {"Kill Aura Range","KillAuraRange",20,"S",5,50},
+        {"Kill Aura Delay","KillAuraDelay",0.1,"S",0.01,0.5},
+        {"--- Teleport Rage ---","","","LBL"},
+        {"Teleport Rage","RageTeleport",false},
+        {"Teleport Range","RageTeleportRange",10,"S",1,30},
     }},
     {"HITBOX",{{"Hitbox Exp.","HB",false},{"Size","HBSz",10,"S",2,30},{"Opacity","HBOp",0.9,"S",0.1,1}}},
     {"VISUALS",{{"ESP","ESP",false},{"Boxes","ESPBx",true},{"Tracers","ESPTr",true},{"Names","ESPNm",true},{"Distance","ESPDs",true},{"Healthbar","ESPHp",true}}},
@@ -674,6 +890,10 @@ local Cats={
     {"WHITELIST",{}},
     {"MORPH",{{"Headless","MorphHeadless",false},{"Username","MorphTarget","","TB"},{"Apply Morph","MorphApply",false,"BTN"}}},
     {"UI COLORS",{
+        {"--- UI Mode Selection ---","","","LBL2"},
+        {"UI Mode","UIMode","Original","D",{"Original","Exo","Flame"}},
+        {"--- EXO Themes (Exo mode only) ---","","","LBL2"},
+        {"Exo Theme","ExoTheme","Default","D",{"Default","Headshot","Midnight","Ocean","Sunset","Forest","Blood","Gold"}},
         {"--- Background Colors ---","","","LBL2"},
         {"Background","UI_BG",Color3.fromRGB(255,248,240),"C"},
         {"Frame Background","UI_FrameBg",Color3.fromRGB(255,235,240),"C"},
@@ -797,7 +1017,8 @@ for i,cat in ipairs(Cats) do
     if nm=="MOVEMENT" then extraH=60 end
     if nm=="FLAME LOCK" then extraH=20 end
     if nm=="TRIGGERBOT" then extraH=140 end
-    if nm=="UI COLORS" then extraH=800 end
+    if nm=="UI COLORS" then extraH=900 end
+    if nm=="RAGE" then extraH=300 end
     sf.CanvasSize=UDim2.new(0,0,0,#fn*60+20+extraH)
     sf.ScrollBarThickness=3
     sf.ScrollBarImageColor3=UI_Colors.Accent
@@ -886,7 +1107,6 @@ for i,cat in ipairs(Cats) do
             CRN(cp,UDim.new(0,6))
             STR(cp,1.5,UI_Colors.Border,0.3)
             
-            -- Preview color
             local preview=Instance.new("Frame")
             preview.Size=UDim2.new(0,20,0,20)
             preview.Position=UDim2.new(1,-170,0.5,-10)
@@ -897,7 +1117,6 @@ for i,cat in ipairs(Cats) do
             CRN(preview,UDim.new(1,0))
             STR(preview,1,UI_Colors.Border,0.5)
             
-            -- Store color data
             if not ColorPickers[fkk] then
                 ColorPickers[fkk] = {Color=fdd, Preview=preview, Button=cp}
             end
@@ -905,7 +1124,6 @@ for i,cat in ipairs(Cats) do
             
             if cp then
                 cp.MouseButton1Click:Connect(function()
-                    -- Create color slider UI in a popup frame
                     local popup=Instance.new("Frame")
                     popup.Size=UDim2.new(0,260,0,180)
                     popup.Position=UDim2.new(0.5,-130,0.5,-90)
@@ -1007,7 +1225,6 @@ for i,cat in ipairs(Cats) do
                             preview.BackgroundColor3=newColor
                             ColorPickers[fkk].Color=newColor
                             cp.BackgroundColor3=newColor
-                            -- Immediately update UI_Colors
                             local colorMap = {
                                 UI_BG="Background",
                                 UI_FrameBg="FrameBg",
@@ -1170,6 +1387,27 @@ for i,cat in ipairs(Cats) do
                 if fkk=="FGDen" then UpdateFog() end
                 if fkk=="SPVal" then UpdateMove() end
                 if fkk=="JPVal" then UpdateMove() end
+                if fkk=="CLHOffset" or fkk=="CLVOffset" or fkk=="CLShake" then 
+                    -- Apply Flame Camlock offset changes
+                end
+                if fkk=="CLHipHeightVal" then 
+                    if ST.CLHipHeight then
+                        local char = LocalPlayer.Character
+                        if char then
+                            local hum = safeFindFirstChild(char, "Humanoid")
+                            if hum then hum.HipHeight = v end
+                        end
+                    end
+                end
+                if fkk=="CLWalkSpeedVal" then
+                    if ST.CLWalkSpeed then
+                        local char = LocalPlayer.Character
+                        if char then
+                            local hum = safeFindFirstChild(char, "Humanoid")
+                            if hum then hum.WalkSpeed = v end
+                        end
+                    end
+                end
                 if fkk=="BulletSpread" then
                     BulletSpreadAmount = v
                     _0x52a0d5.BulletSpread.Amount = v
@@ -1178,6 +1416,15 @@ for i,cat in ipairs(Cats) do
                 if fkk=="TBHitboxSize" or fkk=="TBHitboxXOffset" or fkk=="TBHitboxYOffset" then
                     CreateTriggerbotHitbox()
                     UpdateTriggerbotHitbox()
+                end
+                if fkk=="RagebotRange" or fkk=="RagebotDelay" then
+                    -- Ragebot settings updated
+                end
+                if fkk=="KillAuraRange" or fkk=="KillAuraDelay" then
+                    -- Kill Aura settings updated
+                end
+                if fkk=="RageTeleportRange" then
+                    -- Teleport range updated
                 end
             end
             if bkn then
@@ -1318,6 +1565,22 @@ for i,cat in ipairs(Cats) do
                             if ST.TB then
                                 StopTriggerbot()
                                 StartTriggerbot()
+                            end
+                        end
+                        if fkk == "RagebotPart" then
+                            -- Update ragebot target part
+                        end
+                        if fkk == "RagebotMode" then
+                            -- Update ragebot mode
+                        end
+                        if fkk == "UIMode" then
+                            SetUIMode(opt)
+                            UpdateUIFromColors()
+                        end
+                        if fkk == "ExoTheme" then
+                            ApplyExoTheme(opt)
+                            if UI_Colors.UI_Mode == "Exo" then
+                                SetUIMode("Exo")
                             end
                         end
                     end)
@@ -1502,6 +1765,32 @@ for i,cat in ipairs(Cats) do
                             end
                         end
                     end
+                    if fkk=="CLHipHeight" then
+                        local char = LocalPlayer.Character
+                        if char then
+                            local hum = safeFindFirstChild(char, "Humanoid")
+                            if hum then
+                                if tg then
+                                    hum.HipHeight = ST.CLHipHeightVal
+                                else
+                                    hum.HipHeight = 0
+                                end
+                            end
+                        end
+                    end
+                    if fkk=="CLWalkSpeed" then
+                        local char = LocalPlayer.Character
+                        if char then
+                            local hum = safeFindFirstChild(char, "Humanoid")
+                            if hum then
+                                if tg then
+                                    hum.WalkSpeed = ST.CLWalkSpeedVal
+                                else
+                                    hum.WalkSpeed = 16
+                                end
+                            end
+                        end
+                    end
                     if fkk=="TB" then
                         if not tg then
                             if Triggerbot and Triggerbot.Active then
@@ -1524,6 +1813,27 @@ for i,cat in ipairs(Cats) do
                         if not tg then
                             CamlockTarget = nil
                             CamlockTargetName = nil
+                        end
+                    end
+                    if fkk=="RagebotEnabled" then
+                        if tg then
+                            StartRagebot()
+                        else
+                            StopRagebot()
+                        end
+                    end
+                    if fkk=="KillAuraEnabled" then
+                        if tg then
+                            StartKillAura()
+                        else
+                            StopKillAura()
+                        end
+                    end
+                    if fkk=="RageTeleport" then
+                        if tg then
+                            StartRageTeleport()
+                        else
+                            StopRageTeleport()
                         end
                     end
                 end)
@@ -1702,9 +2012,9 @@ for i,cat in ipairs(Cats) do
         createFogRGBSlider(sf,rgbY+64,"B","B",FogBSliders)
     end
     
-    -- WHITELIST tab
+    -- WHITELIST tab - FIXED
     if nm=="WHITELIST" and WP then
-        -- Will be populated on click
+        -- Will be populated on click - see category click handler below
     end
     
     -- Category click handler
@@ -1769,7 +2079,8 @@ for i,cat in ipairs(Cats) do
                         local wb=Instance.new("TextButton")
                         wb.Size=UDim2.new(0,85,0,20)
                         wb.Position=UDim2.new(1,-93,0.5,-10)
-                        wb.BackgroundColor3=iw and UI_Colors.ToggleOn or UI_Colors.Gray
+                        local grayColor = UI_Colors.Gray or Color3.fromRGB(200,195,195)
+                        wb.BackgroundColor3=iw and UI_Colors.ToggleOn or grayColor
                         wb.BackgroundTransparency=iw and 0.15 or 0.3
                         wb.Text=iw and "WHITELISTED" or "WHITELIST"
                         wb.Font=Enum.Font.GothamBold
@@ -1784,7 +2095,8 @@ for i,cat in ipairs(Cats) do
                                 if cw then 
                                     SetWL(plr,false)
                                     wb.Text="WHITELIST"
-                                    wb.BackgroundColor3=UI_Colors.Gray
+                                    local grayColor = UI_Colors.Gray or Color3.fromRGB(200,195,195)
+                                    wb.BackgroundColor3=grayColor
                                     wb.BackgroundTransparency=0.3
                                     wb.TextColor3=UI_Colors.White
                                 else 
@@ -1904,10 +2216,10 @@ UpdateUIFromColors()
 `;
 
 // ============================================
-// REGULAR SCRIPT - FIXED v25.0
+// REGULAR SCRIPT - FIXED v26.0
 // ============================================
 const REGULAR_SCRIPT = `
---[[ Blushwovens Regular v25.0 - Full Silent Aim with require() ]]
+--[[ Blushwovens Regular v26.0 - Full Silent Aim with require() ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -1922,13 +2234,12 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Regular v25.0 - Loading...")
+print("Blushwovens Regular v26.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
         return parent:FindFirstChild(childName)
-    end
-    return nil
+    end    return nil
 end
 
 local function safeWaitForChild(parent, childName, timeout)
@@ -2002,6 +2313,13 @@ local ST={
     CLAimType="Camera",
     CLMagnetStrength=1,
     CLMagnetPart="UpperTorso",
+    CLHOffset=0,
+    CLVOffset=0,
+    CLShake=0,
+    CLHipHeight=false,
+    CLHipHeightVal=0,
+    CLWalkSpeed=false,
+    CLWalkSpeedVal=22,
     CLLockTarget=true,
     HB=false, HBSz=10, HBOp=0.9,
     ESP=false, ESPBx=true, ESPTr=true, ESPNm=true, ESPDs=true, ESPHp=true,
@@ -2020,11 +2338,37 @@ local ST={
     TBHitboxXOffset=0,
     TBHitboxYOffset=0,
     TBHitboxVisible=false,
+    -- Ragebot
+    RagebotEnabled=false,
+    RagebotMode="Always",
+    RagebotKeybind=Enum.KeyCode.F,
+    RagebotPart="Head",
+    RagebotRange=30,
+    RagebotDelay=0.1,
+    RagebotAutoShoot=true,
+    RagebotTeamCheck=true,
+    RagebotWallCheck=false,
+    RagebotKnockCheck=true,
+    KillAuraEnabled=false,
+    KillAuraRange=20,
+    KillAuraDelay=0.1,
+    RageTeleport=false,
+    RageTeleportRange=10,
 }
 
 -- Camlock Target Variables
 local CamlockTarget = nil
 local CamlockTargetName = nil
+local OriginalWalkSpeedCache = 16
+local OriginalHipHeightCache = 0
+
+-- Ragebot Variables
+local RagebotActive = false
+local RagebotConnection = nil
+local KillAuraActive = false
+local KillAuraConnection = nil
+local RageTeleportActive = false
+local RageTeleportConnection = nil
 
 local function IsPlayerValidForTarget(player)
     if not player then return false end
@@ -2307,7 +2651,7 @@ local UIPresets = {
     {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
 }
 
--- CAMLOCK - WITH TARGET LOCK AND MAGNET CURSOR MODE
+-- CAMLOCK - WITH TARGET LOCK AND FLAME CAMLOCK FEATURES
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
@@ -2326,7 +2670,6 @@ local function FindBestCamTarget()
     local cx = Camera.ViewportSize.X / 2
     local cy = Camera.ViewportSize.Y / 2
     
-    -- If we have a locked target and it's still valid, keep it
     if ST.CLLockTarget and CamlockTarget then
         if IsPlayerValidForTarget(CamlockTarget) then
             local part = safeFindFirstChild(CamlockTarget.Character, ST.CLPart)
@@ -2342,13 +2685,11 @@ local function FindBestCamTarget()
                 end
             end
         else
-            -- Target is dead/invalid - clear it
             CamlockTarget = nil
             CamlockTargetName = nil
         end
     end
     
-    -- Find new target (or fallback if lock is off)
     for _, p in ipairs(Players:GetPlayers()) do
         if IsPlayerValidForTarget(p) then
             local part = safeFindFirstChild(p.Character, ST.CLPart)
@@ -2367,7 +2708,6 @@ local function FindBestCamTarget()
         end
     end
     
-    -- If we found a new target and lock is enabled, store it
     if ST.CLLockTarget and closest then
         CamlockTarget = closest
         CamlockTargetName = closest.Name
@@ -2381,7 +2721,7 @@ local function FindMagnetTarget()
     return target
 end
 
--- MAGNET CURSOR MODE - Cursor follows the target (like the /hitlist script)
+-- FLAME CAMLOCK MAGNET CURSOR LOOP (with offsets and shake)
 local function MagnetCursorLoop()
     if not CamActive then return end
     if not MagnetTarget or not MagnetTarget.Character then
@@ -2400,13 +2740,35 @@ local function MagnetCursorLoop()
             end
         end
     end
-    local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-    local mouseLocation = UserInputService:GetMouseLocation()
-    local targetVec = Vector2.new(targetPos.X, targetPos.Y)
-    local delta = (targetVec - mouseLocation) * ST.CLMagnetStrength
-    if mousemoverel then
-        mousemoverel(delta.X, delta.Y)
+    
+    local targetPos = targetPart.Position
+    
+    -- Apply prediction if enabled
+    if ST.CLPred > 0 then
+        targetPos = targetPos + (targetPart.Velocity * ST.CLPred)
     end
+    
+    -- Apply Flame Camlock offsets
+    local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
+    targetPos = targetPos + Camera.CFrame:VectorToWorldSpace(offsetVector)
+    
+    -- Apply shake if enabled
+    if ST.CLShake and ST.CLShake > 0 then
+        local sX = math.random(-100, 100) / 100 * ST.CLShake
+        local sY = math.random(-100, 100) / 100 * ST.CLShake
+        local sZ = math.random(-100, 100) / 100 * ST.CLShake
+        targetPos = targetPos + Vector3.new(sX, sY, sZ)
+    end
+    
+    local targetVec, onScreen = Camera:WorldToViewportPoint(targetPos)
+    if onScreen then
+        local mouseLocation = UserInputService:GetMouseLocation()
+        local delta = (Vector2.new(targetVec.X, targetVec.Y) - mouseLocation) * ST.CLMagnetStrength
+        if mousemoverel then
+            mousemoverel(delta.X, delta.Y)
+        end
+    end
+    
     local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
     if not hum or hum.Health <= 0 then
         CamActive = false
@@ -2419,13 +2781,11 @@ local function UpdateCamlock()
     if not ST.CL then return end
     
     if ST.CLAimType == "Magnet" then
-        -- Standard magnet mode - cursor pulls toward target
         CamConn = RunService.RenderStepped:Connect(function()
             if not CamActive then return end
             MagnetCursorLoop()
         end)
     elseif ST.CLAimType == "MagnetCursor" then
-        -- Magnet Cursor mode - cursor directly follows the target (like /hitlist)
         CamConn = RunService.RenderStepped:Connect(function()
             if not CamActive then return end
             if not MagnetTarget or not MagnetTarget.Character then
@@ -2444,12 +2804,30 @@ local function UpdateCamlock()
                     end
                 end
             end
-            -- Directly move cursor to target position (full magnet)
-            local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            
+            local targetPos = targetPart.Position
+            
+            -- Apply prediction
+            if ST.CLPred > 0 then
+                targetPos = targetPos + (targetPart.Velocity * ST.CLPred)
+            end
+            
+            -- Apply offsets
+            local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
+            targetPos = targetPos + Camera.CFrame:VectorToWorldSpace(offsetVector)
+            
+            -- Apply shake
+            if ST.CLShake and ST.CLShake > 0 then
+                local sX = math.random(-100, 100) / 100 * ST.CLShake
+                local sY = math.random(-100, 100) / 100 * ST.CLShake
+                local sZ = math.random(-100, 100) / 100 * ST.CLShake
+                targetPos = targetPos + Vector3.new(sX, sY, sZ)
+            end
+            
+            local targetVec, onScreen = Camera:WorldToViewportPoint(targetPos)
             if onScreen then
                 local mouseLocation = UserInputService:GetMouseLocation()
-                local targetVec = Vector2.new(targetPos.X, targetPos.Y)
-                local delta = (targetVec - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
+                local delta = (Vector2.new(targetVec.X, targetVec.Y) - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
                 if mousemoverel then
                     mousemoverel(delta.X, delta.Y)
                 end
@@ -2461,7 +2839,7 @@ local function UpdateCamlock()
             end
         end)
     else
-        -- Camera mode - moves the camera
+        -- Camera mode
         CamConn = RunService.RenderStepped:Connect(function()
             if CamActive then
                 local t = FindBestCamTarget()
@@ -2470,10 +2848,25 @@ local function UpdateCamlock()
                     if part then
                         local pos = part.Position
                         local hum = safeFindFirstChild(t.Character, "Humanoid")
+                        
+                        -- Apply prediction
                         if ST.CLPred > 0 and hum then
                             local predictionTime = GetPredictionTime()
                             pos = pos + (hum.MoveDirection * ST.CLPred * 10 * predictionTime * 2)
                         end
+                        
+                        -- Apply offsets for camera mode
+                        local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
+                        pos = pos + Camera.CFrame:VectorToWorldSpace(offsetVector)
+                        
+                        -- Apply shake
+                        if ST.CLShake and ST.CLShake > 0 then
+                            local sX = math.random(-100, 100) / 100 * ST.CLShake
+                            local sY = math.random(-100, 100) / 100 * ST.CLShake
+                            local sZ = math.random(-100, 100) / 100 * ST.CLShake
+                            pos = pos + Vector3.new(sX, sY, sZ)
+                        end
+                        
                         Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), ST.CLSm)
                     end
                 end
@@ -2504,6 +2897,175 @@ local function ToggleCamlock()
         CamlockTargetName = nil
     end
     UpdateCamlock()
+end
+
+-- RAGEBOT FUNCTIONS
+local function GetRageTarget()
+    local closest = nil
+    local closestDist = ST.RagebotRange or 30
+    local myPos = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
+    if not myPos then return nil end
+    
+    for _, p in ipairs(Players:GetPlayers()) do
+        if not IsPlayerValidForTarget(p) then continue end
+        if ST.RagebotTeamCheck and p.Team == LocalPlayer.Team then continue end
+        if ST.RagebotKnockCheck and IsKnocked(p.Character) then continue end
+        
+        local partName = ST.RagebotPart or "Head"
+        local part = safeFindFirstChild(p.Character, partName)
+        if not part then
+            part = safeFindFirstChild(p.Character, "Head")
+            if not part then continue end
+        end
+        
+        if ST.RagebotWallCheck then
+            local ray = Ray.new(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 500)
+            local hit, pos = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+            if hit and not hit:IsDescendantOf(p.Character) then
+                continue
+            end
+        end
+        
+        local dist = (part.Position - myPos.Position).Magnitude
+        if dist < closestDist then
+            closestDist = dist
+            closest = p
+        end
+    end
+    return closest
+end
+
+local function RagebotShoot(target)
+    pcall(function()
+        if not target or not target.Character then return end
+        local partName = ST.RagebotPart or "Head"
+        local part = safeFindFirstChild(target.Character, partName)
+        if not part then
+            part = safeFindFirstChild(target.Character, "Head")
+            if not part then return end
+        end
+        
+        -- Move cursor to target and click
+        local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
+        if onScreen then
+            if mousemoverel then
+                local mouseLocation = UserInputService:GetMouseLocation()
+                local delta = Vector2.new(screenPos.X - mouseLocation.X, screenPos.Y - mouseLocation.Y)
+                mousemoverel(delta.X * 0.5, delta.Y * 0.5)
+            end
+            if ST.RagebotAutoShoot then
+                if mouse1click then
+                    mouse1click()
+                elseif VirtualInputManager then
+                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                    task.wait(ST.RagebotDelay or 0.1)
+                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+                end
+            end
+        end
+    end)
+end
+
+local function StartRagebot()
+    if RagebotConnection then return end
+    RagebotActive = true
+    
+    RagebotConnection = RunService.RenderStepped:Connect(function()
+        if not ST.RagebotEnabled or not RagebotActive then return end
+        
+        local shouldShoot = false
+        if ST.RagebotMode == "Always" then
+            shouldShoot = true
+        elseif ST.RagebotMode == "Keybind" then
+            shouldShoot = UserInputService:IsKeyDown(ST.RagebotKeybind)
+        end
+        
+        if shouldShoot then
+            local target = GetRageTarget()
+            if target then
+                RagebotShoot(target)
+            end
+        end
+    end)
+end
+
+local function StopRagebot()
+    RagebotActive = false
+    if RagebotConnection then
+        RagebotConnection:Disconnect()
+        RagebotConnection = nil
+    end
+end
+
+-- KILL AURA
+local function StartKillAura()
+    if KillAuraConnection then return end
+    KillAuraActive = true
+    
+    KillAuraConnection = RunService.RenderStepped:Connect(function()
+        if not ST.KillAuraEnabled or not KillAuraActive then return end
+        
+        local myPos = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
+        if not myPos then return end
+        
+        for _, p in ipairs(Players:GetPlayers()) do
+            if not IsPlayerValidForTarget(p) then continue end
+            if ST.RagebotTeamCheck and p.Team == LocalPlayer.Team then continue end
+            
+            local partName = ST.RagebotPart or "Head"
+            local part = safeFindFirstChild(p.Character, partName)
+            if not part then
+                part = safeFindFirstChild(p.Character, "Head")
+                if not part then continue end
+            end
+            
+            local dist = (part.Position - myPos.Position).Magnitude
+            if dist <= ST.KillAuraRange then
+                RagebotShoot(p)
+                task.wait(ST.KillAuraDelay or 0.1)
+            end
+        end
+    end)
+end
+
+local function StopKillAura()
+    KillAuraActive = false
+    if KillAuraConnection then
+        KillAuraConnection:Disconnect()
+        KillAuraConnection = nil
+    end
+end
+
+-- RAGE TELEPORT
+local function StartRageTeleport()
+    if RageTeleportConnection then return end
+    RageTeleportActive = true
+    
+    RageTeleportConnection = RunService.RenderStepped:Connect(function()
+        if not ST.RageTeleport or not RageTeleportActive then return end
+        
+        local myRoot = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
+        if not myRoot then return end
+        
+        local target = GetRageTarget()
+        if target and target.Character then
+            local targetRoot = safeFindFirstChild(target.Character, "HumanoidRootPart")
+            if targetRoot then
+                local dist = (targetRoot.Position - myRoot.Position).Magnitude
+                if dist > ST.RageTeleportRange and dist < 100 then
+                    myRoot.CFrame = CFrame.new(targetRoot.Position + Vector3.new(0, 2, 0))
+                end
+            end
+        end
+    end)
+end
+
+local function StopRageTeleport()
+    RageTeleportActive = false
+    if RageTeleportConnection then
+        RageTeleportConnection:Disconnect()
+        RageTeleportConnection = nil
+    end
 end
 
 -- HITBOX
@@ -2729,15 +3291,25 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     local hum = safeWaitForChild(char, "Humanoid")
     if hum then
         OriginalWalkSpeed = hum.WalkSpeed
+        OriginalWalkSpeedCache = hum.WalkSpeed
+        OriginalHipHeightCache = hum.HipHeight
         hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if ST and ST.SP and SpeedActive then
                 hum.WalkSpeed = ST.SPVal
+            end
+            if ST and ST.CLWalkSpeed then
+                hum.WalkSpeed = ST.CLWalkSpeedVal
             end
         end)
         hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
             if ST and ST.JP and JumpActive then
                 hum.JumpPower = ST.JPVal
                 hum.UseJumpPower = true
+            end
+        end)
+        hum:GetPropertyChangedSignal("HipHeight"):Connect(function()
+            if ST and ST.CLHipHeight then
+                hum.HipHeight = ST.CLHipHeightVal
             end
         end)
     end
@@ -2749,15 +3321,25 @@ if char then
     local hum = safeFindFirstChild(char, "Humanoid")
     if hum then
         OriginalWalkSpeed = hum.WalkSpeed
+        OriginalWalkSpeedCache = hum.WalkSpeed
+        OriginalHipHeightCache = hum.HipHeight
         hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if ST and ST.SP and SpeedActive then
                 hum.WalkSpeed = ST.SPVal
+            end
+            if ST and ST.CLWalkSpeed then
+                hum.WalkSpeed = ST.CLWalkSpeedVal
             end
         end)
         hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
             if ST and ST.JP and JumpActive then
                 hum.JumpPower = ST.JPVal
                 hum.UseJumpPower = true
+            end
+        end)
+        hum:GetPropertyChangedSignal("HipHeight"):Connect(function()
+            if ST and ST.CLHipHeight then
+                hum.HipHeight = ST.CLHipHeightVal
             end
         end)
     end
@@ -3160,7 +3742,6 @@ end
 
 local function TriggerbotShoot()
     pcall(function()
-        -- Check if cursor is on the hitbox (if enabled)
         if ST.TBHitboxEnabled then
             if not IsCursorOnHitbox() then
                 return
@@ -3311,6 +3892,16 @@ UserInputService.InputBegan:Connect(function(inp, gp)
             StopTriggerbot()
         end
     end
+    if inp.KeyCode == ST.RagebotKeybind and ST.RagebotMode == "Keybind" then
+        if ST.RagebotEnabled then
+            RagebotActive = not RagebotActive
+            if RagebotActive then
+                StartRagebot()
+            else
+                StopRagebot()
+            end
+        end
+    end
 end)
 
 UserInputService.InputEnded:Connect(function(inp, gp) 
@@ -3327,15 +3918,19 @@ end)
 local VERSION_LABEL = "Regular"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
-print("Blushwovens Regular v25.0 - Loaded successfully!")
+-- Initialize Ragebot if enabled
+if ST.RagebotEnabled then StartRagebot() end
+if ST.KillAuraEnabled then StartKillAura() end
+if ST.RageTeleport then StartRageTeleport() end
+print("Blushwovens Regular v26.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// XENO SCRIPT - FIXED v25.0
+// XENO SCRIPT - FIXED v26.0
 // ============================================
 const XENO_SCRIPT = `
---[[ Blushwovens Xeno v25.0 - Silent Aim using getfenv/setfenv ]]
+--[[ Blushwovens Xeno v26.0 - Silent Aim using getfenv/setfenv ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -3350,7 +3945,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Xeno v25.0 - Loading...")
+print("Blushwovens Xeno v26.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -3459,6 +4054,13 @@ local ST={
     CLAimType="Camera",
     CLMagnetStrength=1,
     CLMagnetPart="UpperTorso",
+    CLHOffset=0,
+    CLVOffset=0,
+    CLShake=0,
+    CLHipHeight=false,
+    CLHipHeightVal=0,
+    CLWalkSpeed=false,
+    CLWalkSpeedVal=22,
     CLLockTarget=true,
     HB=false, HBSz=10, HBOp=0.9,
     ESP=false, ESPBx=true, ESPTr=true, ESPNm=true, ESPDs=true, ESPHp=true,
@@ -3477,11 +4079,37 @@ local ST={
     TBHitboxXOffset=0,
     TBHitboxYOffset=0,
     TBHitboxVisible=false,
+    -- Ragebot
+    RagebotEnabled=false,
+    RagebotMode="Always",
+    RagebotKeybind=Enum.KeyCode.F,
+    RagebotPart="Head",
+    RagebotRange=30,
+    RagebotDelay=0.1,
+    RagebotAutoShoot=true,
+    RagebotTeamCheck=true,
+    RagebotWallCheck=false,
+    RagebotKnockCheck=true,
+    KillAuraEnabled=false,
+    KillAuraRange=20,
+    KillAuraDelay=0.1,
+    RageTeleport=false,
+    RageTeleportRange=10,
 }
 
 -- Camlock Target Variables
 local CamlockTarget = nil
 local CamlockTargetName = nil
+local OriginalWalkSpeedCache = 16
+local OriginalHipHeightCache = 0
+
+-- Ragebot Variables
+local RagebotActive = false
+local RagebotConnection = nil
+local KillAuraActive = false
+local KillAuraConnection = nil
+local RageTeleportActive = false
+local RageTeleportConnection = nil
 
 local function IsPlayerValidForTarget(player)
     if not player then return false end
@@ -3761,7 +4389,7 @@ local UIPresets = {
     {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
 }
 
--- CAMLOCK - WITH TARGET LOCK AND MAGNET CURSOR MODE
+-- CAMLOCK - WITH TARGET LOCK AND FLAME CAMLOCK FEATURES
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
@@ -3831,6 +4459,7 @@ local function FindMagnetTarget()
     return target
 end
 
+-- FLAME CAMLOCK MAGNET CURSOR LOOP (with offsets and shake)
 local function MagnetCursorLoop()
     if not CamActive then return end
     if not MagnetTarget or not MagnetTarget.Character then
@@ -3849,13 +4478,32 @@ local function MagnetCursorLoop()
             end
         end
     end
-    local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-    local mouseLocation = UserInputService:GetMouseLocation()
-    local targetVec = Vector2.new(targetPos.X, targetPos.Y)
-    local delta = (targetVec - mouseLocation) * ST.CLMagnetStrength
-    if mousemoverel then
-        mousemoverel(delta.X, delta.Y)
+    
+    local targetPos = targetPart.Position
+    
+    if ST.CLPred > 0 then
+        targetPos = targetPos + (targetPart.Velocity * ST.CLPred)
     end
+    
+    local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
+    targetPos = targetPos + Camera.CFrame:VectorToWorldSpace(offsetVector)
+    
+    if ST.CLShake and ST.CLShake > 0 then
+        local sX = math.random(-100, 100) / 100 * ST.CLShake
+        local sY = math.random(-100, 100) / 100 * ST.CLShake
+        local sZ = math.random(-100, 100) / 100 * ST.CLShake
+        targetPos = targetPos + Vector3.new(sX, sY, sZ)
+    end
+    
+    local targetVec, onScreen = Camera:WorldToViewportPoint(targetPos)
+    if onScreen then
+        local mouseLocation = UserInputService:GetMouseLocation()
+        local delta = (Vector2.new(targetVec.X, targetVec.Y) - mouseLocation) * ST.CLMagnetStrength
+        if mousemoverel then
+            mousemoverel(delta.X, delta.Y)
+        end
+    end
+    
     local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
     if not hum or hum.Health <= 0 then
         CamActive = false
@@ -3891,11 +4539,27 @@ local function UpdateCamlock()
                     end
                 end
             end
-            local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            
+            local targetPos = targetPart.Position
+            
+            if ST.CLPred > 0 then
+                targetPos = targetPos + (targetPart.Velocity * ST.CLPred)
+            end
+            
+            local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
+            targetPos = targetPos + Camera.CFrame:VectorToWorldSpace(offsetVector)
+            
+            if ST.CLShake and ST.CLShake > 0 then
+                local sX = math.random(-100, 100) / 100 * ST.CLShake
+                local sY = math.random(-100, 100) / 100 * ST.CLShake
+                local sZ = math.random(-100, 100) / 100 * ST.CLShake
+                targetPos = targetPos + Vector3.new(sX, sY, sZ)
+            end
+            
+            local targetVec, onScreen = Camera:WorldToViewportPoint(targetPos)
             if onScreen then
                 local mouseLocation = UserInputService:GetMouseLocation()
-                local targetVec = Vector2.new(targetPos.X, targetPos.Y)
-                local delta = (targetVec - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
+                local delta = (Vector2.new(targetVec.X, targetVec.Y) - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
                 if mousemoverel then
                     mousemoverel(delta.X, delta.Y)
                 end
@@ -3915,10 +4579,22 @@ local function UpdateCamlock()
                     if part then
                         local pos = part.Position
                         local hum = safeFindFirstChild(t.Character, "Humanoid")
+                        
                         if ST.CLPred > 0 and hum then
                             local predictionTime = GetPredictionTime()
                             pos = pos + (hum.MoveDirection * ST.CLPred * 10 * predictionTime * 2)
                         end
+                        
+                        local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
+                        pos = pos + Camera.CFrame:VectorToWorldSpace(offsetVector)
+                        
+                        if ST.CLShake and ST.CLShake > 0 then
+                            local sX = math.random(-100, 100) / 100 * ST.CLShake
+                            local sY = math.random(-100, 100) / 100 * ST.CLShake
+                            local sZ = math.random(-100, 100) / 100 * ST.CLShake
+                            pos = pos + Vector3.new(sX, sY, sZ)
+                        end
+                        
                         Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), ST.CLSm)
                     end
                 end
@@ -3949,6 +4625,174 @@ local function ToggleCamlock()
         CamlockTargetName = nil
     end
     UpdateCamlock()
+end
+
+-- RAGEBOT FUNCTIONS (same as Regular)
+local function GetRageTarget()
+    local closest = nil
+    local closestDist = ST.RagebotRange or 30
+    local myPos = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
+    if not myPos then return nil end
+    
+    for _, p in ipairs(Players:GetPlayers()) do
+        if not IsPlayerValidForTarget(p) then continue end
+        if ST.RagebotTeamCheck and p.Team == LocalPlayer.Team then continue end
+        if ST.RagebotKnockCheck and IsKnocked(p.Character) then continue end
+        
+        local partName = ST.RagebotPart or "Head"
+        local part = safeFindFirstChild(p.Character, partName)
+        if not part then
+            part = safeFindFirstChild(p.Character, "Head")
+            if not part then continue end
+        end
+        
+        if ST.RagebotWallCheck then
+            local ray = Ray.new(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 500)
+            local hit, pos = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+            if hit and not hit:IsDescendantOf(p.Character) then
+                continue
+            end
+        end
+        
+        local dist = (part.Position - myPos.Position).Magnitude
+        if dist < closestDist then
+            closestDist = dist
+            closest = p
+        end
+    end
+    return closest
+end
+
+local function RagebotShoot(target)
+    pcall(function()
+        if not target or not target.Character then return end
+        local partName = ST.RagebotPart or "Head"
+        local part = safeFindFirstChild(target.Character, partName)
+        if not part then
+            part = safeFindFirstChild(target.Character, "Head")
+            if not part then return end
+        end
+        
+        local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
+        if onScreen then
+            if mousemoverel then
+                local mouseLocation = UserInputService:GetMouseLocation()
+                local delta = Vector2.new(screenPos.X - mouseLocation.X, screenPos.Y - mouseLocation.Y)
+                mousemoverel(delta.X * 0.5, delta.Y * 0.5)
+            end
+            if ST.RagebotAutoShoot then
+                if mouse1click then
+                    mouse1click()
+                elseif VirtualInputManager then
+                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                    task.wait(ST.RagebotDelay or 0.1)
+                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+                end
+            end
+        end
+    end)
+end
+
+local function StartRagebot()
+    if RagebotConnection then return end
+    RagebotActive = true
+    
+    RagebotConnection = RunService.RenderStepped:Connect(function()
+        if not ST.RagebotEnabled or not RagebotActive then return end
+        
+        local shouldShoot = false
+        if ST.RagebotMode == "Always" then
+            shouldShoot = true
+        elseif ST.RagebotMode == "Keybind" then
+            shouldShoot = UserInputService:IsKeyDown(ST.RagebotKeybind)
+        end
+        
+        if shouldShoot then
+            local target = GetRageTarget()
+            if target then
+                RagebotShoot(target)
+            end
+        end
+    end)
+end
+
+local function StopRagebot()
+    RagebotActive = false
+    if RagebotConnection then
+        RagebotConnection:Disconnect()
+        RagebotConnection = nil
+    end
+end
+
+-- KILL AURA
+local function StartKillAura()
+    if KillAuraConnection then return end
+    KillAuraActive = true
+    
+    KillAuraConnection = RunService.RenderStepped:Connect(function()
+        if not ST.KillAuraEnabled or not KillAuraActive then return end
+        
+        local myPos = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
+        if not myPos then return end
+        
+        for _, p in ipairs(Players:GetPlayers()) do
+            if not IsPlayerValidForTarget(p) then continue end
+            if ST.RagebotTeamCheck and p.Team == LocalPlayer.Team then continue end
+            
+            local partName = ST.RagebotPart or "Head"
+            local part = safeFindFirstChild(p.Character, partName)
+            if not part then
+                part = safeFindFirstChild(p.Character, "Head")
+                if not part then continue end
+            end
+            
+            local dist = (part.Position - myPos.Position).Magnitude
+            if dist <= ST.KillAuraRange then
+                RagebotShoot(p)
+                task.wait(ST.KillAuraDelay or 0.1)
+            end
+        end
+    end)
+end
+
+local function StopKillAura()
+    KillAuraActive = false
+    if KillAuraConnection then
+        KillAuraConnection:Disconnect()
+        KillAuraConnection = nil
+    end
+end
+
+-- RAGE TELEPORT
+local function StartRageTeleport()
+    if RageTeleportConnection then return end
+    RageTeleportActive = true
+    
+    RageTeleportConnection = RunService.RenderStepped:Connect(function()
+        if not ST.RageTeleport or not RageTeleportActive then return end
+        
+        local myRoot = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
+        if not myRoot then return end
+        
+        local target = GetRageTarget()
+        if target and target.Character then
+            local targetRoot = safeFindFirstChild(target.Character, "HumanoidRootPart")
+            if targetRoot then
+                local dist = (targetRoot.Position - myRoot.Position).Magnitude
+                if dist > ST.RageTeleportRange and dist < 100 then
+                    myRoot.CFrame = CFrame.new(targetRoot.Position + Vector3.new(0, 2, 0))
+                end
+            end
+        end
+    end)
+end
+
+local function StopRageTeleport()
+    RageTeleportActive = false
+    if RageTeleportConnection then
+        RageTeleportConnection:Disconnect()
+        RageTeleportConnection = nil
+    end
 end
 
 -- HITBOX
@@ -4174,15 +5018,25 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     local hum = safeWaitForChild(char, "Humanoid")
     if hum then
         OriginalWalkSpeed = hum.WalkSpeed
+        OriginalWalkSpeedCache = hum.WalkSpeed
+        OriginalHipHeightCache = hum.HipHeight
         hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if ST and ST.SP and SpeedActive then
                 hum.WalkSpeed = ST.SPVal
+            end
+            if ST and ST.CLWalkSpeed then
+                hum.WalkSpeed = ST.CLWalkSpeedVal
             end
         end)
         hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
             if ST and ST.JP and JumpActive then
                 hum.JumpPower = ST.JPVal
                 hum.UseJumpPower = true
+            end
+        end)
+        hum:GetPropertyChangedSignal("HipHeight"):Connect(function()
+            if ST and ST.CLHipHeight then
+                hum.HipHeight = ST.CLHipHeightVal
             end
         end)
     end
@@ -4194,15 +5048,25 @@ if char then
     local hum = safeFindFirstChild(char, "Humanoid")
     if hum then
         OriginalWalkSpeed = hum.WalkSpeed
+        OriginalWalkSpeedCache = hum.WalkSpeed
+        OriginalHipHeightCache = hum.HipHeight
         hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if ST and ST.SP and SpeedActive then
                 hum.WalkSpeed = ST.SPVal
+            end
+            if ST and ST.CLWalkSpeed then
+                hum.WalkSpeed = ST.CLWalkSpeedVal
             end
         end)
         hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
             if ST and ST.JP and JumpActive then
                 hum.JumpPower = ST.JPVal
                 hum.UseJumpPower = true
+            end
+        end)
+        hum:GetPropertyChangedSignal("HipHeight"):Connect(function()
+            if ST and ST.CLHipHeight then
+                hum.HipHeight = ST.CLHipHeightVal
             end
         end)
     end
@@ -4755,6 +5619,16 @@ UserInputService.InputBegan:Connect(function(inp, gp)
             StopTriggerbot()
         end
     end
+    if inp.KeyCode == ST.RagebotKeybind and ST.RagebotMode == "Keybind" then
+        if ST.RagebotEnabled then
+            RagebotActive = not RagebotActive
+            if RagebotActive then
+                StartRagebot()
+            else
+                StopRagebot()
+            end
+        end
+    end
 end)
 
 UserInputService.InputEnded:Connect(function(inp, gp) 
@@ -4771,15 +5645,18 @@ end)
 local VERSION_LABEL = "Xeno"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
-print("Blushwovens Xeno v25.0 - Loaded successfully!")
+if ST.RagebotEnabled then StartRagebot() end
+if ST.KillAuraEnabled then StartKillAura() end
+if ST.RageTeleport then StartRageTeleport() end
+print("Blushwovens Xeno v26.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// DELTA SCRIPT - FIXED v25.0
+// DELTA SCRIPT - FIXED v26.0
 // ============================================
 const DELTA_SCRIPT = `
---[[ Blushwovens Delta v25.0 - Silent Aim using mouse manipulation ]]
+--[[ Blushwovens Delta v26.0 - Silent Aim using mouse manipulation ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -4794,7 +5671,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Delta v25.0 - Loading...")
+print("Blushwovens Delta v26.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -4863,6 +5740,13 @@ local ST={
     CLAimType="Camera",
     CLMagnetStrength=1,
     CLMagnetPart="UpperTorso",
+    CLHOffset=0,
+    CLVOffset=0,
+    CLShake=0,
+    CLHipHeight=false,
+    CLHipHeightVal=0,
+    CLWalkSpeed=false,
+    CLWalkSpeedVal=22,
     CLLockTarget=true,
     HB=false, HBSz=10, HBOp=0.9,
     ESP=false, ESPBx=true, ESPTr=true, ESPNm=true, ESPDs=true, ESPHp=true,
@@ -4881,11 +5765,37 @@ local ST={
     TBHitboxXOffset=0,
     TBHitboxYOffset=0,
     TBHitboxVisible=false,
+    -- Ragebot
+    RagebotEnabled=false,
+    RagebotMode="Always",
+    RagebotKeybind=Enum.KeyCode.F,
+    RagebotPart="Head",
+    RagebotRange=30,
+    RagebotDelay=0.1,
+    RagebotAutoShoot=true,
+    RagebotTeamCheck=true,
+    RagebotWallCheck=false,
+    RagebotKnockCheck=true,
+    KillAuraEnabled=false,
+    KillAuraRange=20,
+    KillAuraDelay=0.1,
+    RageTeleport=false,
+    RageTeleportRange=10,
 }
 
 -- Camlock Target Variables
 local CamlockTarget = nil
 local CamlockTargetName = nil
+local OriginalWalkSpeedCache = 16
+local OriginalHipHeightCache = 0
+
+-- Ragebot Variables
+local RagebotActive = false
+local RagebotConnection = nil
+local KillAuraActive = false
+local KillAuraConnection = nil
+local RageTeleportActive = false
+local RageTeleportConnection = nil
 
 local function IsPlayerValidForTarget(player)
     if not player then return false end
@@ -5161,7 +6071,7 @@ local UIPresets = {
     {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
 }
 
--- CAMLOCK - WITH TARGET LOCK AND MAGNET CURSOR MODE
+-- CAMLOCK - WITH TARGET LOCK AND FLAME CAMLOCK FEATURES
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
@@ -5231,6 +6141,7 @@ local function FindMagnetTarget()
     return target
 end
 
+-- FLAME CAMLOCK MAGNET CURSOR LOOP (with offsets and shake)
 local function MagnetCursorLoop()
     if not CamActive then return end
     if not MagnetTarget or not MagnetTarget.Character then
@@ -5249,13 +6160,32 @@ local function MagnetCursorLoop()
             end
         end
     end
-    local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-    local mouseLocation = UserInputService:GetMouseLocation()
-    local targetVec = Vector2.new(targetPos.X, targetPos.Y)
-    local delta = (targetVec - mouseLocation) * ST.CLMagnetStrength
-    if mousemoverel then
-        mousemoverel(delta.X, delta.Y)
+    
+    local targetPos = targetPart.Position
+    
+    if ST.CLPred > 0 then
+        targetPos = targetPos + (targetPart.Velocity * ST.CLPred)
     end
+    
+    local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
+    targetPos = targetPos + Camera.CFrame:VectorToWorldSpace(offsetVector)
+    
+    if ST.CLShake and ST.CLShake > 0 then
+        local sX = math.random(-100, 100) / 100 * ST.CLShake
+        local sY = math.random(-100, 100) / 100 * ST.CLShake
+        local sZ = math.random(-100, 100) / 100 * ST.CLShake
+        targetPos = targetPos + Vector3.new(sX, sY, sZ)
+    end
+    
+    local targetVec, onScreen = Camera:WorldToViewportPoint(targetPos)
+    if onScreen then
+        local mouseLocation = UserInputService:GetMouseLocation()
+        local delta = (Vector2.new(targetVec.X, targetVec.Y) - mouseLocation) * ST.CLMagnetStrength
+        if mousemoverel then
+            mousemoverel(delta.X, delta.Y)
+        end
+    end
+    
     local hum = safeFindFirstChild(MagnetTarget.Character, "Humanoid")
     if not hum or hum.Health <= 0 then
         CamActive = false
@@ -5291,11 +6221,27 @@ local function UpdateCamlock()
                     end
                 end
             end
-            local targetPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            
+            local targetPos = targetPart.Position
+            
+            if ST.CLPred > 0 then
+                targetPos = targetPos + (targetPart.Velocity * ST.CLPred)
+            end
+            
+            local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
+            targetPos = targetPos + Camera.CFrame:VectorToWorldSpace(offsetVector)
+            
+            if ST.CLShake and ST.CLShake > 0 then
+                local sX = math.random(-100, 100) / 100 * ST.CLShake
+                local sY = math.random(-100, 100) / 100 * ST.CLShake
+                local sZ = math.random(-100, 100) / 100 * ST.CLShake
+                targetPos = targetPos + Vector3.new(sX, sY, sZ)
+            end
+            
+            local targetVec, onScreen = Camera:WorldToViewportPoint(targetPos)
             if onScreen then
                 local mouseLocation = UserInputService:GetMouseLocation()
-                local targetVec = Vector2.new(targetPos.X, targetPos.Y)
-                local delta = (targetVec - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
+                local delta = (Vector2.new(targetVec.X, targetVec.Y) - mouseLocation) * math.min(ST.CLMagnetStrength * 3, 5)
                 if mousemoverel then
                     mousemoverel(delta.X, delta.Y)
                 end
@@ -5315,10 +6261,22 @@ local function UpdateCamlock()
                     if part then
                         local pos = part.Position
                         local hum = safeFindFirstChild(t.Character, "Humanoid")
+                        
                         if ST.CLPred > 0 and hum then
                             local predictionTime = GetPredictionTime()
                             pos = pos + (hum.MoveDirection * ST.CLPred * 10 * predictionTime * 2)
                         end
+                        
+                        local offsetVector = Vector3.new(ST.CLHOffset or 0, ST.CLVOffset or 0, 0)
+                        pos = pos + Camera.CFrame:VectorToWorldSpace(offsetVector)
+                        
+                        if ST.CLShake and ST.CLShake > 0 then
+                            local sX = math.random(-100, 100) / 100 * ST.CLShake
+                            local sY = math.random(-100, 100) / 100 * ST.CLShake
+                            local sZ = math.random(-100, 100) / 100 * ST.CLShake
+                            pos = pos + Vector3.new(sX, sY, sZ)
+                        end
+                        
                         Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), ST.CLSm)
                     end
                 end
@@ -5349,6 +6307,174 @@ local function ToggleCamlock()
         CamlockTargetName = nil
     end
     UpdateCamlock()
+end
+
+-- RAGEBOT FUNCTIONS (same as Regular)
+local function GetRageTarget()
+    local closest = nil
+    local closestDist = ST.RagebotRange or 30
+    local myPos = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
+    if not myPos then return nil end
+    
+    for _, p in ipairs(Players:GetPlayers()) do
+        if not IsPlayerValidForTarget(p) then continue end
+        if ST.RagebotTeamCheck and p.Team == LocalPlayer.Team then continue end
+        if ST.RagebotKnockCheck and IsKnocked(p.Character) then continue end
+        
+        local partName = ST.RagebotPart or "Head"
+        local part = safeFindFirstChild(p.Character, partName)
+        if not part then
+            part = safeFindFirstChild(p.Character, "Head")
+            if not part then continue end
+        end
+        
+        if ST.RagebotWallCheck then
+            local ray = Ray.new(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 500)
+            local hit, pos = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+            if hit and not hit:IsDescendantOf(p.Character) then
+                continue
+            end
+        end
+        
+        local dist = (part.Position - myPos.Position).Magnitude
+        if dist < closestDist then
+            closestDist = dist
+            closest = p
+        end
+    end
+    return closest
+end
+
+local function RagebotShoot(target)
+    pcall(function()
+        if not target or not target.Character then return end
+        local partName = ST.RagebotPart or "Head"
+        local part = safeFindFirstChild(target.Character, partName)
+        if not part then
+            part = safeFindFirstChild(target.Character, "Head")
+            if not part then return end
+        end
+        
+        local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
+        if onScreen then
+            if mousemoverel then
+                local mouseLocation = UserInputService:GetMouseLocation()
+                local delta = Vector2.new(screenPos.X - mouseLocation.X, screenPos.Y - mouseLocation.Y)
+                mousemoverel(delta.X * 0.5, delta.Y * 0.5)
+            end
+            if ST.RagebotAutoShoot then
+                if mouse1click then
+                    mouse1click()
+                elseif VirtualInputManager then
+                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                    task.wait(ST.RagebotDelay or 0.1)
+                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+                end
+            end
+        end
+    end)
+end
+
+local function StartRagebot()
+    if RagebotConnection then return end
+    RagebotActive = true
+    
+    RagebotConnection = RunService.RenderStepped:Connect(function()
+        if not ST.RagebotEnabled or not RagebotActive then return end
+        
+        local shouldShoot = false
+        if ST.RagebotMode == "Always" then
+            shouldShoot = true
+        elseif ST.RagebotMode == "Keybind" then
+            shouldShoot = UserInputService:IsKeyDown(ST.RagebotKeybind)
+        end
+        
+        if shouldShoot then
+            local target = GetRageTarget()
+            if target then
+                RagebotShoot(target)
+            end
+        end
+    end)
+end
+
+local function StopRagebot()
+    RagebotActive = false
+    if RagebotConnection then
+        RagebotConnection:Disconnect()
+        RagebotConnection = nil
+    end
+end
+
+-- KILL AURA
+local function StartKillAura()
+    if KillAuraConnection then return end
+    KillAuraActive = true
+    
+    KillAuraConnection = RunService.RenderStepped:Connect(function()
+        if not ST.KillAuraEnabled or not KillAuraActive then return end
+        
+        local myPos = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
+        if not myPos then return end
+        
+        for _, p in ipairs(Players:GetPlayers()) do
+            if not IsPlayerValidForTarget(p) then continue end
+            if ST.RagebotTeamCheck and p.Team == LocalPlayer.Team then continue end
+            
+            local partName = ST.RagebotPart or "Head"
+            local part = safeFindFirstChild(p.Character, partName)
+            if not part then
+                part = safeFindFirstChild(p.Character, "Head")
+                if not part then continue end
+            end
+            
+            local dist = (part.Position - myPos.Position).Magnitude
+            if dist <= ST.KillAuraRange then
+                RagebotShoot(p)
+                task.wait(ST.KillAuraDelay or 0.1)
+            end
+        end
+    end)
+end
+
+local function StopKillAura()
+    KillAuraActive = false
+    if KillAuraConnection then
+        KillAuraConnection:Disconnect()
+        KillAuraConnection = nil
+    end
+end
+
+-- RAGE TELEPORT
+local function StartRageTeleport()
+    if RageTeleportConnection then return end
+    RageTeleportActive = true
+    
+    RageTeleportConnection = RunService.RenderStepped:Connect(function()
+        if not ST.RageTeleport or not RageTeleportActive then return end
+        
+        local myRoot = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
+        if not myRoot then return end
+        
+        local target = GetRageTarget()
+        if target and target.Character then
+            local targetRoot = safeFindFirstChild(target.Character, "HumanoidRootPart")
+            if targetRoot then
+                local dist = (targetRoot.Position - myRoot.Position).Magnitude
+                if dist > ST.RageTeleportRange and dist < 100 then
+                    myRoot.CFrame = CFrame.new(targetRoot.Position + Vector3.new(0, 2, 0))
+                end
+            end
+        end
+    end)
+end
+
+local function StopRageTeleport()
+    RageTeleportActive = false
+    if RageTeleportConnection then
+        RageTeleportConnection:Disconnect()
+        RageTeleportConnection = nil
+    end
 end
 
 -- HITBOX
@@ -5572,15 +6698,25 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     local hum = safeWaitForChild(char, "Humanoid")
     if hum then
         OriginalWalkSpeed = hum.WalkSpeed
+        OriginalWalkSpeedCache = hum.WalkSpeed
+        OriginalHipHeightCache = hum.HipHeight
         hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if ST and ST.SP and SpeedActive then
                 hum.WalkSpeed = ST.SPVal
+            end
+            if ST and ST.CLWalkSpeed then
+                hum.WalkSpeed = ST.CLWalkSpeedVal
             end
         end)
         hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
             if ST and ST.JP and JumpActive then
                 hum.JumpPower = ST.JPVal
                 hum.UseJumpPower = true
+            end
+        end)
+        hum:GetPropertyChangedSignal("HipHeight"):Connect(function()
+            if ST and ST.CLHipHeight then
+                hum.HipHeight = ST.CLHipHeightVal
             end
         end)
     end
@@ -5592,15 +6728,25 @@ if char then
     local hum = safeFindFirstChild(char, "Humanoid")
     if hum then
         OriginalWalkSpeed = hum.WalkSpeed
+        OriginalWalkSpeedCache = hum.WalkSpeed
+        OriginalHipHeightCache = hum.HipHeight
         hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if ST and ST.SP and SpeedActive then
                 hum.WalkSpeed = ST.SPVal
+            end
+            if ST and ST.CLWalkSpeed then
+                hum.WalkSpeed = ST.CLWalkSpeedVal
             end
         end)
         hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
             if ST and ST.JP and JumpActive then
                 hum.JumpPower = ST.JPVal
                 hum.UseJumpPower = true
+            end
+        end)
+        hum:GetPropertyChangedSignal("HipHeight"):Connect(function()
+            if ST and ST.CLHipHeight then
+                hum.HipHeight = ST.CLHipHeightVal
             end
         end)
     end
@@ -6153,6 +7299,16 @@ UserInputService.InputBegan:Connect(function(inp, gp)
             StopTriggerbot()
         end
     end
+    if inp.KeyCode == ST.RagebotKeybind and ST.RagebotMode == "Keybind" then
+        if ST.RagebotEnabled then
+            RagebotActive = not RagebotActive
+            if RagebotActive then
+                StartRagebot()
+            else
+                StopRagebot()
+            end
+        end
+    end
 end)
 
 UserInputService.InputEnded:Connect(function(inp, gp) 
@@ -6169,7 +7325,10 @@ end)
 local VERSION_LABEL = "Delta"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
-print("Blushwovens Delta v25.0 - Loaded successfully!")
+if ST.RagebotEnabled then StartRagebot() end
+if ST.KillAuraEnabled then StartKillAura() end
+if ST.RageTeleport then StartRageTeleport() end
+print("Blushwovens Delta v26.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
@@ -6188,7 +7347,7 @@ const SCRIPTS = {
 function generateLoaderScript(username, password, serverUrl, key, version) {
     const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
     return `
--- Blushwovens Loader v25.0 - ${version.toUpperCase()} VERSION
+-- Blushwovens Loader v26.0 - ${version.toUpperCase()} VERSION
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
 local KEY = "${key}"
@@ -6310,8 +7469,8 @@ spawn(function()
     end
 end)
 
-print("Blushwovens Loader v25.0 (${version}) - Starting...")
-notify("Loading ${version} v25.0... Please wait.", false)
+print("Blushwovens Loader v26.0 (${version}) - Starting...")
+notify("Loading ${version} v26.0... Please wait.", false)
 
 local ok, response = pcall(request)
 if not ok then
@@ -6342,7 +7501,7 @@ if not data.success then
     error("Error: " .. data.reason)
 end
 
-notify("✅ v25.0 loaded successfully!", false)
+notify("✅ v26.0 loaded successfully!", false)
 loadstring(data.chunk)()
 `;
 }
@@ -6522,7 +7681,7 @@ const commands = [
                 .setRequired(true))
         .addStringOption(option =>
             option.setName("version")
-                .setDescription("The version to force (e.g., 25.0)")
+                .setDescription("The version to force (e.g., 26.0)")
                 .setRequired(true)),
 
     new SlashCommandBuilder()
@@ -7129,7 +8288,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // ============================================
     if (command === "announce-update") {
         const message = interaction.options.getString("message");
-        const version = interaction.options.getString("version") || "25.0";
+        const version = interaction.options.getString("version") || "26.0";
 
         try {
             const channel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
@@ -7433,7 +8592,7 @@ app.post('/check-version', (req, res) => {
     res.json({ outdated: false });
 });
 
-app.get('/', (req, res) => res.send('Blushwovens v25.0 Bot is running!'));
+app.get('/', (req, res) => res.send('Blushwovens v26.0 Bot is running!'));
 app.get('/version', (req, res) => {
     res.json({ version: CURRENT_VERSION });
 });
