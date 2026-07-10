@@ -3,8 +3,10 @@
 // ADDED: Triggerbot Hitbox - customizable box that auto-shoots when cursor is over it
 // ADDED: Hitbox size slider for Triggerbot (10-200px)
 // ADDED: Hitbox visibility toggle for Triggerbot
-// UPDATED: Version changed to 23.0
-const CURRENT_VERSION = "23.0";
+// FIXED: BulletSpread nil check in all three versions
+// FIXED: W2S function added to Regular version (ESP fix)
+// UPDATED: Version changed to 24.0
+const CURRENT_VERSION = "24.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -444,7 +446,7 @@ TL.ZIndex=5
 if HD then TL.Parent=HD end
 
 local SL=Instance.new("TextLabel")
-SL.Text="Blushwovens {VERSION_LABEL} v23.0"
+SL.Text="Blushwovens {VERSION_LABEL} v24.0"
 SL.Size=UDim2.new(0,160,0,16)
 SL.Position=UDim2.new(0,56,0,30)
 SL.BackgroundTransparency=1
@@ -1101,7 +1103,6 @@ for i,cat in ipairs(Cats) do
                             if Triggerbot and Triggerbot.Active then
                                 StopTriggerbot()
                             end
-                            -- Hide hitbox when triggerbot is off
                             if TBHitbox then
                                 TBHitbox.Visible = false
                             end
@@ -1674,10 +1675,10 @@ CreateTriggerbotHitbox()
 `;
 
 // ============================================
-// REGULAR SCRIPT
+// REGULAR SCRIPT - FIXED v24.0
 // ============================================
 const REGULAR_SCRIPT = `
---[[ Blushwovens Regular v23.0 - Full Silent Aim with require() ]]
+--[[ Blushwovens Regular v24.0 - Full Silent Aim with require() ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -1692,7 +1693,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Regular v23.0 - Loading...")
+print("Blushwovens Regular v24.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -1748,12 +1749,16 @@ _0x9ba38e = hookfunction(math.random, function(...)
 end)
 
 local function UpdateBulletSpread()
-    if ST.BulletSpreadEnabled then
-        _0x52a0d5.BulletSpread.Enabled = true
+    if ST and ST.BulletSpreadEnabled ~= nil then
+        _0x52a0d5.BulletSpread.Enabled = ST.BulletSpreadEnabled
     else
-        _0x52a0d5.BulletSpread.Enabled = false
+        _0x52a0d5.BulletSpread.Enabled = true
     end
-    _0x52a0d5.BulletSpread.Amount = ST.BulletSpread
+    if ST and ST.BulletSpread ~= nil then
+        _0x52a0d5.BulletSpread.Amount = ST.BulletSpread
+    else
+        _0x52a0d5.BulletSpread.Amount = 100
+    end
 end
 
 local BulletSpreadAmount = 100
@@ -1955,7 +1960,7 @@ local function UpdateSilentAim()
                 if ST.RevolverBypass then
                     local currentTool = me.Character and me.Character:FindFirstChildOfClass("Tool")
                     if currentTool and (currentTool.Name == "[Revolver]" or currentTool.Name == "Revolver") then 
-                        return originalGetAim(origin, maxDist) 
+                        return originalGetAim(origin, maxDist)
                     end
                 end
                 local target = getClosest()
@@ -2050,6 +2055,15 @@ local UIPresets = {
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
+
+local function W2S(pos)
+    if not pos then return nil end
+    if typeof(pos)=="CFrame" then pos=pos.Position end
+    if typeof(pos)~="Vector3" then return nil end
+    local ok,r=pcall(function() return Camera:WorldToViewportPoint(pos) end)
+    if ok and r and r.Z>0 then return {X=r.X,Y=r.Y,Z=r.Z} end
+    return nil
+end
 
 local function FindCamTarget()
     local closest,shortest=nil,ST.CLFOV
@@ -2695,6 +2709,43 @@ end
 
 -- TRIGGERBOT WITH HITBOX
 local Triggerbot = {Active = false, Connection = nil}
+local TBHitbox = nil
+local TBHitboxVisible = false
+
+local function CreateTriggerbotHitbox()
+    pcall(function()
+        if TBHitbox then
+            TBHitbox:Remove()
+            TBHitbox = nil
+        end
+        TBHitbox = Drawing.new("Square")
+        TBHitbox.Visible = false
+        TBHitbox.Color = Color3.fromRGB(255, 50, 50)
+        TBHitbox.Thickness = 2
+        TBHitbox.Filled = false
+        TBHitbox.Transparency = 0.5
+        TBHitbox.Size = Vector2.new(ST.TBHitboxSize or 60, ST.TBHitboxSize or 60)
+        TBHitbox.Position = Vector2.new(Mouse.X - (ST.TBHitboxSize or 60)/2, Mouse.Y - (ST.TBHitboxSize or 60)/2)
+    end)
+end
+
+local function UpdateTriggerbotHitbox()
+    pcall(function()
+        if not TBHitbox then
+            CreateTriggerbotHitbox()
+        end
+        if TBHitbox then
+            local size = ST.TBHitboxSize or 60
+            TBHitbox.Size = Vector2.new(size, size)
+            TBHitbox.Position = Vector2.new(Mouse.X - size/2, Mouse.Y - size/2)
+            if ST.TB and ST.TBHitboxVisible then
+                TBHitbox.Visible = true
+            else
+                TBHitbox.Visible = false
+            end
+        end
+    end)
+end
 
 local function IsHoldingWeapon()
     local char = LocalPlayer.Character
@@ -2709,9 +2760,7 @@ local function IsCursorOnHitbox()
     local size = ST.TBHitboxSize or 60
     local half = size / 2
     local mx, my = Mouse.X, Mouse.Y
-    -- Get the hitbox position (centered on mouse when created, but we track it)
     local hx, hy = mx, my
-    -- Check if cursor is within the hitbox area
     if mx >= hx - half and mx <= hx + half and my >= hy - half and my <= hy + half then
         return true
     end
@@ -2720,7 +2769,6 @@ end
 
 local function TriggerbotShoot()
     pcall(function()
-        -- Check if cursor is on the hitbox
         if ST.TBHitboxEnabled and not IsCursorOnHitbox() then
             return
         end
@@ -2740,13 +2788,11 @@ local function StartTriggerbot()
     Triggerbot.Connection = RunService.RenderStepped:Connect(function()
         if not ST.TB or not Triggerbot.Active then return end
         if not IsHoldingWeapon() then return end
-        -- Check hitbox if enabled
         if ST.TBHitboxEnabled then
             if IsCursorOnHitbox() then
                 TriggerbotShoot()
             end
         else
-            -- Original behavior - shoot at closest player
             local target = GetClosestPlayerToCursor()
             if target then TriggerbotShoot() end
         end
@@ -2759,7 +2805,6 @@ local function StopTriggerbot()
         Triggerbot.Connection:Disconnect()
         Triggerbot.Connection = nil
     end
-    -- Hide hitbox when triggerbot is off
     if TBHitbox then
         TBHitbox.Visible = false
     end
@@ -2871,15 +2916,16 @@ end)
 -- ==================== INSERT UI BUILDER HERE ====================
 local VERSION_LABEL = "Regular"
 ` + UI_BUILDER + `
-print("Blushwovens Regular v23.0 - Loaded successfully!")
+UpdateBulletSpread()
+print("Blushwovens Regular v24.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// XENO SCRIPT - Silent Aim using environment manipulation
+// XENO SCRIPT - FIXED v24.0
 // ============================================
 const XENO_SCRIPT = `
---[[ Blushwovens Xeno v23.0 - Silent Aim using getfenv/setfenv ]]
+--[[ Blushwovens Xeno v24.0 - Silent Aim using getfenv/setfenv ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -2894,7 +2940,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Xeno v23.0 - Loading...")
+print("Blushwovens Xeno v24.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -2979,12 +3025,16 @@ _0x9ba38e = hookfunction(math.random, function(...)
 end)
 
 local function UpdateBulletSpread()
-    if ST.BulletSpreadEnabled then
-        _0x52a0d5.BulletSpread.Enabled = true
+    if ST and ST.BulletSpreadEnabled ~= nil then
+        _0x52a0d5.BulletSpread.Enabled = ST.BulletSpreadEnabled
     else
-        _0x52a0d5.BulletSpread.Enabled = false
+        _0x52a0d5.BulletSpread.Enabled = true
     end
-    _0x52a0d5.BulletSpread.Amount = ST.BulletSpread
+    if ST and ST.BulletSpread ~= nil then
+        _0x52a0d5.BulletSpread.Amount = ST.BulletSpread
+    else
+        _0x52a0d5.BulletSpread.Amount = 100
+    end
 end
 
 local BulletSpreadAmount = 100
@@ -3176,11 +3226,10 @@ local function getClosest()
     return best
 end
 
--- XENO UPDATE SILENT AIM - FIXED: properly handle environment
+-- XENO UPDATE SILENT AIM
 local function UpdateSilentAim()
     if handler and gunHandlerLoaded then
         if ST.SA then
-            -- Create a new function that uses our getClosest
             local newGetAim = function(origin, maxDist)
                 if ST.RevolverBypass then
                     local currentTool = me.Character and me.Character:FindFirstChildOfClass("Tool")
@@ -3196,10 +3245,8 @@ local function UpdateSilentAim()
                 end
                 return originalGetAim and originalGetAim(origin, maxDist) or origin, 0
             end
-            -- Assign to the environment
             handler.getAim = newGetAim
         else
-            -- Restore original
             if originalGetAim then
                 handler.getAim = originalGetAim
             end
@@ -3277,10 +3324,19 @@ local UIPresets = {
     {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
 }
 
--- CAMLOCK - FIXED: properly handle environment for camlock
+-- CAMLOCK
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
+
+local function W2S(pos)
+    if not pos then return nil end
+    if typeof(pos)=="CFrame" then pos=pos.Position end
+    if typeof(pos)~="Vector3" then return nil end
+    local ok,r=pcall(function() return Camera:WorldToViewportPoint(pos) end)
+    if ok and r and r.Z>0 then return {X=r.X,Y=r.Y,Z=r.Z} end
+    return nil
+end
 
 local function FindCamTarget()
     local closest,shortest=nil,ST.CLFOV
@@ -3924,8 +3980,44 @@ local function ToggleFlameLockActive()
     end
 end
 
--- TRIGGERBOT WITH HITBOX
-local Triggerbot = {Active = false, Connection = nil}
+-- TRIGGERBOT WITH HITBOXlocal Triggerbot = {Active = false, Connection = nil}
+local TBHitbox = nil
+local TBHitboxVisible = false
+
+local function CreateTriggerbotHitbox()
+    pcall(function()
+        if TBHitbox then
+            TBHitbox:Remove()
+            TBHitbox = nil
+        end
+        TBHitbox = Drawing.new("Square")
+        TBHitbox.Visible = false
+        TBHitbox.Color = Color3.fromRGB(255, 50, 50)
+        TBHitbox.Thickness = 2
+        TBHitbox.Filled = false
+        TBHitbox.Transparency = 0.5
+        TBHitbox.Size = Vector2.new(ST.TBHitboxSize or 60, ST.TBHitboxSize or 60)
+        TBHitbox.Position = Vector2.new(Mouse.X - (ST.TBHitboxSize or 60)/2, Mouse.Y - (ST.TBHitboxSize or 60)/2)
+    end)
+end
+
+local function UpdateTriggerbotHitbox()
+    pcall(function()
+        if not TBHitbox then
+            CreateTriggerbotHitbox()
+        end
+        if TBHitbox then
+            local size = ST.TBHitboxSize or 60
+            TBHitbox.Size = Vector2.new(size, size)
+            TBHitbox.Position = Vector2.new(Mouse.X - size/2, Mouse.Y - size/2)
+            if ST.TB and ST.TBHitboxVisible then
+                TBHitbox.Visible = true
+            else
+                TBHitbox.Visible = false
+            end
+        end
+    end)
+end
 
 local function IsHoldingWeapon()
     local char = LocalPlayer.Character
@@ -4096,15 +4188,16 @@ end)
 -- ==================== INSERT UI BUILDER HERE ====================
 local VERSION_LABEL = "Xeno"
 ` + UI_BUILDER + `
-print("Blushwovens Xeno v23.0 - Loaded successfully!")
+UpdateBulletSpread()
+print("Blushwovens Xeno v24.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// DELTA SCRIPT
+// DELTA SCRIPT - FIXED v24.0
 // ============================================
 const DELTA_SCRIPT = `
---[[ Blushwovens Delta v23.0 - Silent Aim using mouse manipulation ]]
+--[[ Blushwovens Delta v24.0 - Silent Aim using mouse manipulation ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -4119,7 +4212,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Delta v23.0 - Loading...")
+print("Blushwovens Delta v24.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -4164,12 +4257,16 @@ _0x9ba38e = hookfunction(math.random, function(...)
 end)
 
 local function UpdateBulletSpread()
-    if ST.BulletSpreadEnabled then
-        _0x52a0d5.BulletSpread.Enabled = true
+    if ST and ST.BulletSpreadEnabled ~= nil then
+        _0x52a0d5.BulletSpread.Enabled = ST.BulletSpreadEnabled
     else
-        _0x52a0d5.BulletSpread.Enabled = false
+        _0x52a0d5.BulletSpread.Enabled = true
     end
-    _0x52a0d5.BulletSpread.Amount = ST.BulletSpread
+    if ST and ST.BulletSpread ~= nil then
+        _0x52a0d5.BulletSpread.Amount = ST.BulletSpread
+    else
+        _0x52a0d5.BulletSpread.Amount = 100
+    end
 end
 
 local BulletSpreadAmount = 100
@@ -4468,6 +4565,15 @@ local UIPresets = {
 local CamActive = false
 local CamConn = nil
 local MagnetTarget = nil
+
+local function W2S(pos)
+    if not pos then return nil end
+    if typeof(pos)=="CFrame" then pos=pos.Position end
+    if typeof(pos)~="Vector3" then return nil end
+    local ok,r=pcall(function() return Camera:WorldToViewportPoint(pos) end)
+    if ok and r and r.Z>0 then return {X=r.X,Y=r.Y,Z=r.Z} end
+    return nil
+end
 
 local function FindCamTarget()
     local closest,shortest=nil,ST.CLFOV
@@ -5111,6 +5217,43 @@ end
 
 -- TRIGGERBOT WITH HITBOX
 local Triggerbot = {Active = false, Connection = nil}
+local TBHitbox = nil
+local TBHitboxVisible = false
+
+local function CreateTriggerbotHitbox()
+    pcall(function()
+        if TBHitbox then
+            TBHitbox:Remove()
+            TBHitbox = nil
+        end
+        TBHitbox = Drawing.new("Square")
+        TBHitbox.Visible = false
+        TBHitbox.Color = Color3.fromRGB(255, 50, 50)
+        TBHitbox.Thickness = 2
+        TBHitbox.Filled = false
+        TBHitbox.Transparency = 0.5
+        TBHitbox.Size = Vector2.new(ST.TBHitboxSize or 60, ST.TBHitboxSize or 60)
+        TBHitbox.Position = Vector2.new(Mouse.X - (ST.TBHitboxSize or 60)/2, Mouse.Y - (ST.TBHitboxSize or 60)/2)
+    end)
+end
+
+local function UpdateTriggerbotHitbox()
+    pcall(function()
+        if not TBHitbox then
+            CreateTriggerbotHitbox()
+        end
+        if TBHitbox then
+            local size = ST.TBHitboxSize or 60
+            TBHitbox.Size = Vector2.new(size, size)
+            TBHitbox.Position = Vector2.new(Mouse.X - size/2, Mouse.Y - size/2)
+            if ST.TB and ST.TBHitboxVisible then
+                TBHitbox.Visible = true
+            else
+                TBHitbox.Visible = false
+            end
+        end
+    end)
+end
 
 local function IsHoldingWeapon()
     local char = LocalPlayer.Character
@@ -5281,7 +5424,8 @@ end)
 -- ==================== INSERT UI BUILDER HERE ====================
 local VERSION_LABEL = "Delta"
 ` + UI_BUILDER + `
-print("Blushwovens Delta v23.0 - Loaded successfully!")
+UpdateBulletSpread()
+print("Blushwovens Delta v24.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
@@ -5300,7 +5444,7 @@ const SCRIPTS = {
 function generateLoaderScript(username, password, serverUrl, key, version) {
     const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
     return `
--- Blushwovens Loader v23.0 - ${version.toUpperCase()} VERSION
+-- Blushwovens Loader v24.0 - ${version.toUpperCase()} VERSION
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
 local KEY = "${key}"
@@ -5422,8 +5566,8 @@ spawn(function()
     end
 end)
 
-print("Blushwovens Loader v23.0 (${version}) - Starting...")
-notify("Loading ${version} v23.0... Please wait.", false)
+print("Blushwovens Loader v24.0 (${version}) - Starting...")
+notify("Loading ${version} v24.0... Please wait.", false)
 
 local ok, response = pcall(request)
 if not ok then
@@ -5451,7 +5595,7 @@ if not data.success then
     error("Error: " .. data.reason)
 end
 
-notify("✅ v23.0 loaded successfully!", false)
+notify("✅ v24.0 loaded successfully!", false)
 loadstring(data.chunk)()
 `;
 }
@@ -6219,7 +6363,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // ============================================
     if (command === "announce-update") {
         const message = interaction.options.getString("message");
-        const version = interaction.options.getString("version") || "Latest";
+        const version = interaction.options.getString("version") || "24.0";
 
         try {
             const channel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
@@ -6407,9 +6551,9 @@ app.post('/load', async (req, res) => {
     const scriptContent = SCRIPTS[scriptVersion] || SCRIPTS.regular;
 
     if (isFirstRun) {
-        console.log(`✅ HWID set for ${username} (First run, v23.0, Version: ${scriptVersion})`);
+        console.log(`✅ HWID set for ${username} (First run, v24.0, Version: ${scriptVersion})`);
     } else {
-        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v23.0, Version: ${scriptVersion})`);
+        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v24.0, Version: ${scriptVersion})`);
     }
 
     res.json({ success: true, chunk: scriptContent });
@@ -6477,7 +6621,7 @@ app.post('/check-version', (req, res) => {
     res.json({ outdated: false });
 });
 
-app.get('/', (req, res) => res.send('Blushwovens v23.0 Bot is running!'));
+app.get('/', (req, res) => res.send('Blushwovens v24.0 Bot is running!'));
 app.get('/version', (req, res) => {
     res.json({ version: CURRENT_VERSION });
 });
