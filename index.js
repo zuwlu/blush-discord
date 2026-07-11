@@ -11,7 +11,8 @@
 // FIXED: Triggerbot hitbox now properly follows players
 // FIXED: Whitelist now works properly (nil checks for all color properties)
 // FIXED: ESP now works properly (added missing W2S, fixed PAL reference)
-// FIXED: IsPlayerValidForTarget nil value error fixed (moved IsWL above)
+// FIXED: IsPlayerValidForTarget nil value error fixed (moved IsWL above and added nil checks)
+// FIXED: GunHandler compatibility - fixed getAim return values
 // FIXED: Flame Camlock moved to FLAME LOCK tab (not Camlock)
 // ADDED: UI Mode buttons instead of dropdown for Original/Exo/Flame
 // UPDATED: Version changed to 26.2
@@ -2187,7 +2188,7 @@ UpdateUIFromColors()
 `;
 
 // ============================================
-// REGULAR SCRIPT - FIXED v26.2
+// REGULAR SCRIPT - FIXED v26.2 - GunHandler fix, IsWL fix, nil checks
 // ============================================
 const REGULAR_SCRIPT = `
 --[[ Blushwovens Regular v26.2 - Full Silent Aim with require() ]]
@@ -2365,13 +2366,14 @@ local KillAuraConnection = nil
 local RageTeleportActive = false
 local RageTeleportConnection = nil
 
+-- IsPlayerValidForTarget - WITH NIL CHECKS FOR IsWL
 local function IsPlayerValidForTarget(player)
     if not player then return false end
     if player == LocalPlayer then return false end
     if not player.Character then return false end
     local hum = safeFindFirstChild(player.Character, "Humanoid")
     if not hum or hum.Health <= 0 then return false end
-    if IsKnocked(player.Character) then return false end
+    if IsKnocked and IsKnocked(player.Character) then return false end
     if IsWL and IsWL(player) then return false end
     return true
 end
@@ -2547,7 +2549,7 @@ end
 
 local originalGetAim = oldFunc
 
--- REGULAR UPDATE SILENT AIM
+-- REGULAR UPDATE SILENT AIM - FIXED GUNHANDLER COMPATIBILITY
 local function UpdateSilentAim()
     if handler and gunHandlerLoaded then
         if ST.SA then
@@ -2555,7 +2557,11 @@ local function UpdateSilentAim()
                 if ST.RevolverBypass then
                     local currentTool = me.Character and me.Character:FindFirstChildOfClass("Tool")
                     if currentTool and (currentTool.Name == "[Revolver]" or currentTool.Name == "Revolver") then 
-                        return originalGetAim(origin, maxDist)
+                        if originalGetAim then
+                            return originalGetAim(origin, maxDist)
+                        else
+                            return (CFrame.new(origin, origin + Vector3.new(0,0,-1))).LookVector, 200
+                        end
                     end
                 end
                 local target = getClosest()
@@ -2564,10 +2570,16 @@ local function UpdateSilentAim()
                     local dist = (target.Position - origin).Magnitude
                     return dir, math.min(dist, maxDist or 200)
                 end
-                return originalGetAim(origin, maxDist)
+                if originalGetAim then
+                    return originalGetAim(origin, maxDist)
+                else
+                    return (CFrame.new(origin, origin + Vector3.new(0,0,-1))).LookVector, 200
+                end
             end
         else
-            handler.getAim = originalGetAim
+            if originalGetAim then
+                handler.getAim = originalGetAim
+            end
         end
     end
 end
@@ -2646,7 +2658,7 @@ local function FindBestCamTarget()
     local cy = Camera.ViewportSize.Y / 2
     
     if ST.CLLockTarget and CamlockTarget then
-        if IsPlayerValidForTarget(CamlockTarget) then
+        if IsPlayerValidForTarget and IsPlayerValidForTarget(CamlockTarget) then
             local part = safeFindFirstChild(CamlockTarget.Character, ST.CLPart)
             if part then
                 local sc = W2S(part.Position)
@@ -2666,7 +2678,7 @@ local function FindBestCamTarget()
     end
     
     for _, p in ipairs(Players:GetPlayers()) do
-        if IsPlayerValidForTarget(p) then
+        if IsPlayerValidForTarget and IsPlayerValidForTarget(p) then
             local part = safeFindFirstChild(p.Character, ST.CLPart)
             if part then
                 local sc = W2S(part.Position)
@@ -4104,7 +4116,7 @@ local function IsPlayerValidForTarget(player)
     if not player.Character then return false end
     local hum = safeFindFirstChild(player.Character, "Humanoid")
     if not hum or hum.Health <= 0 then return false end
-    if IsKnocked(player.Character) then return false end
+    if IsKnocked and IsKnocked(player.Character) then return false end
     if IsWL and IsWL(player) then return false end
     return true
 end
@@ -4278,7 +4290,7 @@ local function getClosest()
     return best
 end
 
--- XENO UPDATE SILENT AIM
+-- XENO UPDATE SILENT AIM - FIXED GUNHANDLER COMPATIBILITY
 local function UpdateSilentAim()
     if handler and gunHandlerLoaded then
         if ST.SA then
@@ -4286,7 +4298,11 @@ local function UpdateSilentAim()
                 if ST.RevolverBypass then
                     local currentTool = me.Character and me.Character:FindFirstChildOfClass("Tool")
                     if currentTool and (currentTool.Name == "[Revolver]" or currentTool.Name == "Revolver") then 
-                        return originalGetAim and originalGetAim(origin, maxDist) or origin, 0
+                        if originalGetAim then
+                            return originalGetAim(origin, maxDist)
+                        else
+                            return (CFrame.new(origin, origin + Vector3.new(0,0,-1))).LookVector, 200
+                        end
                     end
                 end
                 local target = getClosest()
@@ -4295,7 +4311,11 @@ local function UpdateSilentAim()
                     local dist = (target.Position - origin).Magnitude
                     return dir, math.min(dist, maxDist or 200)
                 end
-                return originalGetAim and originalGetAim(origin, maxDist) or origin, 0
+                if originalGetAim then
+                    return originalGetAim(origin, maxDist)
+                else
+                    return (CFrame.new(origin, origin + Vector3.new(0,0,-1))).LookVector, 200
+                end
             end
             handler.getAim = newGetAim
         else
@@ -4376,7 +4396,7 @@ local function FindBestCamTarget()
     local cy = Camera.ViewportSize.Y / 2
     
     if ST.CLLockTarget and CamlockTarget then
-        if IsPlayerValidForTarget(CamlockTarget) then
+        if IsPlayerValidForTarget and IsPlayerValidForTarget(CamlockTarget) then
             local part = safeFindFirstChild(CamlockTarget.Character, ST.CLPart)
             if part then
                 local sc = W2S(part.Position)
@@ -4396,7 +4416,7 @@ local function FindBestCamTarget()
     end
     
     for _, p in ipairs(Players:GetPlayers()) do
-        if IsPlayerValidForTarget(p) then
+        if IsPlayerValidForTarget and IsPlayerValidForTarget(p) then
             local part = safeFindFirstChild(p.Character, ST.CLPart)
             if part then
                 local sc = W2S(part.Position)
@@ -5717,7 +5737,9 @@ local function SetWL(p,v)
         WL[p.UserId]=nil
         if SilentAimWhitelist then SilentAimWhitelist[p.UserId]=nil end
     end
-end-- STATE
+end
+
+-- STATE
 local ST={
     SA=false, SAFC=false, SAFOV=200, SAPart="Head",
     RevolverBypass=false, KnockCheck=false,
@@ -5792,7 +5814,7 @@ local function IsPlayerValidForTarget(player)
     if not player.Character then return false end
     local hum = safeFindFirstChild(player.Character, "Humanoid")
     if not hum or hum.Health <= 0 then return false end
-    if IsKnocked(player.Character) then return false end
+    if IsKnocked and IsKnocked(player.Character) then return false end
     if IsWL and IsWL(player) then return false end
     return true
 end
@@ -6060,7 +6082,7 @@ local function FindBestCamTarget()
     local cy = Camera.ViewportSize.Y / 2
     
     if ST.CLLockTarget and CamlockTarget then
-        if IsPlayerValidForTarget(CamlockTarget) then
+        if IsPlayerValidForTarget and IsPlayerValidForTarget(CamlockTarget) then
             local part = safeFindFirstChild(CamlockTarget.Character, ST.CLPart)
             if part then
                 local sc = W2S(part.Position)
@@ -6080,7 +6102,7 @@ local function FindBestCamTarget()
     end
     
     for _, p in ipairs(Players:GetPlayers()) do
-        if IsPlayerValidForTarget(p) then
+        if IsPlayerValidForTarget and IsPlayerValidForTarget(p) then
             local part = safeFindFirstChild(p.Character, ST.CLPart)
             if part then
                 local sc = W2S(part.Position)
@@ -6542,8 +6564,7 @@ local function UpdateESP()
     if not ST.ESP then 
         for _,d in pairs(ESPData) do 
             pcall(function()
-                if d and d.B then d.B.Enabled = false end
-                if d and d.N then d.N.Enabled = false end
+                if d and d.B then d.B.Enabled = false end                if d and d.N then d.N.Enabled = false end
                 if d and d.D then d.D.Enabled = false end
                 if d and d.HB then d.HB.Enabled = false end
                 if d and d.HF then d.HF.Enabled = false end
