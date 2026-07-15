@@ -561,12 +561,12 @@ local function ApplyUIPreset(presetName)
             UI_Colors[key] = value
         end
         currentUIPreset = presetName
-        UpdateUIFromColors()
+        pcall(UpdateUIFromColors)  -- CHANGED: wrap in pcall to prevent nil errors
     end
 end
 
 -- Initialize with Original preset
-ApplyUIPreset("Original")
+-- ApplyUIPreset("Original")  -- REMOVED - already called during initialization
 
 -- EXO UNIFIED Theme System (preserved for backwards compatibility)
 local ExoThemes = {
