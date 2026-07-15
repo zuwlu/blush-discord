@@ -1105,6 +1105,24 @@ local Cats={
 }
 
 -- ==================== UI BUILDER ====================
+-- UI COLOR VARIABLES
+local UI_Colors = {}
+local currentUIPreset = "Original"
+
+-- FIXED: Define ApplyUIPreset at TOP of script
+local function ApplyUIPreset(presetName)
+    local preset = UIPresets[presetName]
+    if preset then
+        for key, value in pairs(preset) do
+            UI_Colors[key] = value
+        end
+        currentUIPreset = presetName
+        -- Don't call UpdateUIFromColors here - it doesn't exist yet
+    end
+end
+
+-- Initialize with Original preset (only sets variables, no UI updates yet)
+ApplyUIPreset("Original")
 local Btn={}
 local Pgs={}
 local WP=nil
@@ -2398,8 +2416,11 @@ UIVis=true
 UpdateFog()
 UpdateCamlock()
 CreateTriggerbotHitbox()
-UpdateUIFromColors()
-ApplyUIPreset("Original")
+-- Apply the preset and update UI now that everything exists
+pcall(function()
+    UpdateUIFromColors()
+    ApplyUIPreset("Original")
+end)
 `;
 
 // ============================================
