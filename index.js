@@ -356,28 +356,39 @@ local PAL = {
     FlameGray = Color3.fromRGB(240,240,240),
 }
 
--- UI COLOR PRESET SYSTEM
-local UIPresets = {
-    ["Original"] = {
-        Background = Color3.fromRGB(255,248,240),
-        Accent = Color3.fromRGB(215,130,170),
-        Secondary = Color3.fromRGB(245,205,220),
-        Text = Color3.fromRGB(60,45,35),
-        TextSecondary = Color3.fromRGB(100,80,70),
-        Border = Color3.fromRGB(215,130,170),
-        ToggleOn = Color3.fromRGB(235,200,120),
-        ToggleOff = Color3.fromRGB(80,60,50),
-        FrameBg = Color3.fromRGB(255,235,240),
-        CardBg = Color3.fromRGB(255,250,250),
-        SliderBg = Color3.fromRGB(80,60,50),
-        SliderFill = Color3.fromRGB(235,200,120),
-        DropdownBg = Color3.fromRGB(255,235,240),
-        ESPBox = Color3.fromRGB(215,130,170),
-        ESPLine = Color3.fromRGB(245,205,220),
-        ESPText = Color3.fromRGB(255,248,240),
-        ESPDist = Color3.fromRGB(220,225,170),
-        FOVCircle = Color3.fromRGB(245,205,220),
-        FOVCircle2 = Color3.fromRGB(100,100,110)
+-- UI COLOR VARIABLES - Initialize with ALL keys
+local UI_Colors = {
+    Background = Color3.fromRGB(255,248,240),
+    Accent = Color3.fromRGB(215,130,170),
+    Secondary = Color3.fromRGB(245,205,220),
+    Text = Color3.fromRGB(60,45,35),
+    TextSecondary = Color3.fromRGB(100,80,70),
+    Border = Color3.fromRGB(215,130,170),
+    ToggleOn = Color3.fromRGB(235,200,120),
+    ToggleOff = Color3.fromRGB(80,60,50),
+    FrameBg = Color3.fromRGB(255,235,240),
+    CardBg = Color3.fromRGB(255,250,250),
+    SliderBg = Color3.fromRGB(80,60,50),
+    SliderFill = Color3.fromRGB(235,200,120),
+    DropdownBg = Color3.fromRGB(255,235,240),
+    ESPBox = Color3.fromRGB(215,130,170),
+    ESPLine = Color3.fromRGB(245,205,220),
+    ESPText = Color3.fromRGB(255,248,240),
+    ESPDist = Color3.fromRGB(220,225,170),
+    FOVCircle = Color3.fromRGB(245,205,220),
+    FOVCircle2 = Color3.fromRGB(100,100,110)
+}
+local currentUIPreset = "Original"
+
+local function ApplyUIPreset(presetName)
+    local preset = UIPresets[presetName]
+    if preset then
+        for key, value in pairs(preset) do
+            UI_Colors[key] = value
+        end
+        currentUIPreset = presetName
+    end
+end
     },
     ["Synthwave"] = {
         Background = Color3.fromRGB(20,10,35),
@@ -672,41 +683,42 @@ end
 
 local function UpdateUIFromColors()
     pcall(function()
-        PAL.Cream = UI_Colors.Background
-        PAL.DarkPink = UI_Colors.Accent
-        PAL.Pink = UI_Colors.Secondary
-        PAL.Txt = UI_Colors.Text
-        PAL.TxtS = UI_Colors.TextSecondary
-        PAL.Brd = UI_Colors.Border
-        PAL.Gold = UI_Colors.ToggleOn
-        PAL.Brown = UI_Colors.ToggleOff
-        PAL.Surf = UI_Colors.FrameBg
-        PAL.CardBackground = UI_Colors.CardBg
-        PAL.SurfL = UI_Colors.FrameBg
-        PAL.Bad = Color3.fromRGB(100,100,110)
+        PAL.Cream = UI_Colors.Background or Color3.fromRGB(255,248,240)
+        PAL.DarkPink = UI_Colors.Accent or Color3.fromRGB(215,130,170)
+        PAL.Pink = UI_Colors.Secondary or Color3.fromRGB(245,205,220)
+        PAL.Txt = UI_Colors.Text or Color3.fromRGB(60,45,35)
+        PAL.TxtS = UI_Colors.TextSecondary or Color3.fromRGB(100,80,70)
+        PAL.Brd = UI_Colors.Border or Color3.fromRGB(215,130,170)
+        PAL.Gold = UI_Colors.ToggleOn or Color3.fromRGB(235,200,120)
+        PAL.Brown = UI_Colors.ToggleOff or Color3.fromRGB(80,60,50)
+        PAL.Surf = UI_Colors.FrameBg or Color3.fromRGB(255,235,240)
+        PAL.CardBackground = UI_Colors.CardBg or Color3.fromRGB(255,250,250)
+        PAL.SurfL = UI_Colors.FrameBg or Color3.fromRGB(255,235,240)
         PAL.Gray = Color3.fromRGB(200,195,195)
+        PAL.Bad = Color3.fromRGB(100,100,110)
+        
         if MN then
-            MN.BackgroundColor3 = UI_Colors.Background
+            MN.BackgroundColor3 = UI_Colors.Background or Color3.fromRGB(255,248,240)
             local stroke = MN:FindFirstChildOfClass("UIStroke")
-            if stroke then stroke.Color = UI_Colors.Accent end
+            if stroke then stroke.Color = UI_Colors.Accent or Color3.fromRGB(215,130,170) end
         end
         if HD then
-            HD.BackgroundColor3 = UI_Colors.Accent
+            HD.BackgroundColor3 = UI_Colors.Accent or Color3.fromRGB(215,130,170)
             HD.BackgroundTransparency = 0.25
             local stroke = HD:FindFirstChildOfClass("UIStroke")
-            if stroke then stroke.Color = UI_Colors.Border end
+            if stroke then stroke.Color = UI_Colors.Border or Color3.fromRGB(215,130,170) end
         end
         if SB then
-            SB.BackgroundColor3 = UI_Colors.FrameBg
-            SB.ScrollBarImageColor3 = UI_Colors.Accent
+            SB.BackgroundColor3 = UI_Colors.FrameBg or Color3.fromRGB(255,235,240)
+            SB.ScrollBarImageColor3 = UI_Colors.Accent or Color3.fromRGB(215,130,170)
         end
         if SD then
-            SD.BackgroundColor3 = UI_Colors.Accent
+            SD.BackgroundColor3 = UI_Colors.Accent or Color3.fromRGB(215,130,170)
             local stroke = SD:FindFirstChildOfClass("UIStroke")
-            if stroke then stroke.Color = UI_Colors.Border end
+            if stroke then stroke.Color = UI_Colors.Border or Color3.fromRGB(215,130,170) end
         end
-        if TL then TL.TextColor3 = UI_Colors.Text end
-        if SL then SL.TextColor3 = UI_Colors.TextSecondary end
+        if TL then TL.TextColor3 = UI_Colors.Text or Color3.fromRGB(60,45,35) end
+        if SL then SL.TextColor3 = UI_Colors.TextSecondary or Color3.fromRGB(100,80,70) end
         for idx, btn in ipairs(Btn) do
             if btn and btn.I then
                 if idx == 1 then btn.I.TextColor3 = UI_Colors.Accent else btn.I.TextColor3 = UI_Colors.TextSecondary end
@@ -2416,10 +2428,10 @@ UIVis=true
 UpdateFog()
 UpdateCamlock()
 CreateTriggerbotHitbox()
--- Apply the preset and update UI now that everything exists
+-- FIX: Apply preset first, then update UI
+ApplyUIPreset("Original")
 pcall(function()
     UpdateUIFromColors()
-    ApplyUIPreset("Original")
 end)
 `;
 
