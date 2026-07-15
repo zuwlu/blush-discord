@@ -15,8 +15,12 @@
 // FIXED: GunHandler compatibility - fixed getAim return values
 // FIXED: Flame Camlock moved to FLAME LOCK tab (not Camlock)
 // ADDED: UI Mode buttons instead of dropdown for Original/Exo/Flame
-// UPDATED: Version changed to 26.2
-const CURRENT_VERSION = "26.2";
+// UPDATED: Version changed to 27.0
+// FIXED: Removed Hello Kitty theme and UI color theme changer
+// ADDED: UI color preset dropdown with full color application
+// ADDED: Player photos in whitelist
+// ADDED: Custom UI themes (Synthwave, Cyberpunk, etc.)
+const CURRENT_VERSION = "27.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -351,31 +355,218 @@ local PAL = {
     FlameGray = Color3.fromRGB(240,240,240),
 }
 
--- UI COLOR VARIABLES
-local UI_Colors = {
-    Background = Color3.fromRGB(255,248,240),
-    Accent = Color3.fromRGB(215,130,170),
-    Secondary = Color3.fromRGB(245,205,220),
-    Text = Color3.fromRGB(60,45,35),
-    TextSecondary = Color3.fromRGB(100,80,70),
-    Border = Color3.fromRGB(215,130,170),
-    ToggleOn = Color3.fromRGB(235,200,120),
-    ToggleOff = Color3.fromRGB(80,60,50),
-    FrameBg = Color3.fromRGB(255,235,240),
-    CardBg = Color3.fromRGB(255,250,250),
-    SliderBg = Color3.fromRGB(80,60,50),
-    SliderFill = Color3.fromRGB(235,200,120),
-    DropdownBg = Color3.fromRGB(255,235,240),
-    ESPBox = Color3.fromRGB(215,130,170),
-    ESPLine = Color3.fromRGB(245,205,220),
-    ESPText = Color3.fromRGB(255,248,240),
-    ESPDist = Color3.fromRGB(220,225,170),
-    FOVCircle = Color3.fromRGB(245,205,220),
-    FOVCircle2 = Color3.fromRGB(100,100,110),
-    UI_Mode = "Original",
+-- UI COLOR PRESET SYSTEM
+local UIPresets = {
+    ["Original"] = {
+        Background = Color3.fromRGB(255,248,240),
+        Accent = Color3.fromRGB(215,130,170),
+        Secondary = Color3.fromRGB(245,205,220),
+        Text = Color3.fromRGB(60,45,35),
+        TextSecondary = Color3.fromRGB(100,80,70),
+        Border = Color3.fromRGB(215,130,170),
+        ToggleOn = Color3.fromRGB(235,200,120),
+        ToggleOff = Color3.fromRGB(80,60,50),
+        FrameBg = Color3.fromRGB(255,235,240),
+        CardBg = Color3.fromRGB(255,250,250),
+        SliderBg = Color3.fromRGB(80,60,50),
+        SliderFill = Color3.fromRGB(235,200,120),
+        DropdownBg = Color3.fromRGB(255,235,240),
+        ESPBox = Color3.fromRGB(215,130,170),
+        ESPLine = Color3.fromRGB(245,205,220),
+        ESPText = Color3.fromRGB(255,248,240),
+        ESPDist = Color3.fromRGB(220,225,170),
+        FOVCircle = Color3.fromRGB(245,205,220),
+        FOVCircle2 = Color3.fromRGB(100,100,110)
+    },
+    ["Synthwave"] = {
+        Background = Color3.fromRGB(20,10,35),
+        Accent = Color3.fromRGB(255,0,200),
+        Secondary = Color3.fromRGB(150,0,255),
+        Text = Color3.fromRGB(255,200,255),
+        TextSecondary = Color3.fromRGB(200,150,255),
+        Border = Color3.fromRGB(255,0,200),
+        ToggleOn = Color3.fromRGB(255,0,200),
+        ToggleOff = Color3.fromRGB(80,50,100),
+        FrameBg = Color3.fromRGB(30,15,50),
+        CardBg = Color3.fromRGB(40,20,60),
+        SliderBg = Color3.fromRGB(80,50,100),
+        SliderFill = Color3.fromRGB(255,0,200),
+        DropdownBg = Color3.fromRGB(30,15,50),
+        ESPBox = Color3.fromRGB(255,0,200),
+        ESPLine = Color3.fromRGB(150,0,255),
+        ESPText = Color3.fromRGB(255,200,255),
+        ESPDist = Color3.fromRGB(200,150,255),
+        FOVCircle = Color3.fromRGB(255,0,200),
+        FOVCircle2 = Color3.fromRGB(100,50,150)
+    },
+    ["Cyberpunk"] = {
+        Background = Color3.fromRGB(10,10,20),
+        Accent = Color3.fromRGB(0,255,255),
+        Secondary = Color3.fromRGB(255,0,100),
+        Text = Color3.fromRGB(0,255,255),
+        TextSecondary = Color3.fromRGB(200,200,255),
+        Border = Color3.fromRGB(0,255,255),
+        ToggleOn = Color3.fromRGB(0,255,255),
+        ToggleOff = Color3.fromRGB(50,50,80),
+        FrameBg = Color3.fromRGB(20,20,40),
+        CardBg = Color3.fromRGB(30,30,50),
+        SliderBg = Color3.fromRGB(50,50,80),
+        SliderFill = Color3.fromRGB(0,255,255),
+        DropdownBg = Color3.fromRGB(20,20,40),
+        ESPBox = Color3.fromRGB(0,255,255),
+        ESPLine = Color3.fromRGB(255,0,100),
+        ESPText = Color3.fromRGB(0,255,255),
+        ESPDist = Color3.fromRGB(200,200,255),
+        FOVCircle = Color3.fromRGB(0,255,255),
+        FOVCircle2 = Color3.fromRGB(100,100,150)
+    },
+    ["Dark"] = {
+        Background = Color3.fromRGB(20,20,25),
+        Accent = Color3.fromRGB(100,180,255),
+        Secondary = Color3.fromRGB(60,120,200),
+        Text = Color3.fromRGB(220,230,240),
+        TextSecondary = Color3.fromRGB(160,170,180),
+        Border = Color3.fromRGB(100,180,255),
+        ToggleOn = Color3.fromRGB(100,180,255),
+        ToggleOff = Color3.fromRGB(60,60,70),
+        FrameBg = Color3.fromRGB(30,30,35),
+        CardBg = Color3.fromRGB(40,40,45),
+        SliderBg = Color3.fromRGB(60,60,70),
+        SliderFill = Color3.fromRGB(100,180,255),
+        DropdownBg = Color3.fromRGB(30,30,35),
+        ESPBox = Color3.fromRGB(100,180,255),
+        ESPLine = Color3.fromRGB(60,120,200),
+        ESPText = Color3.fromRGB(220,230,240),
+        ESPDist = Color3.fromRGB(160,170,180),
+        FOVCircle = Color3.fromRGB(100,180,255),
+        FOVCircle2 = Color3.fromRGB(80,80,100)
+    },
+    ["Blood"] = {
+        Background = Color3.fromRGB(30,10,10),
+        Accent = Color3.fromRGB(200,40,40),
+        Secondary = Color3.fromRGB(150,20,20),
+        Text = Color3.fromRGB(255,200,200),
+        TextSecondary = Color3.fromRGB(200,150,150),
+        Border = Color3.fromRGB(200,40,40),
+        ToggleOn = Color3.fromRGB(200,40,40),
+        ToggleOff = Color3.fromRGB(80,40,40),
+        FrameBg = Color3.fromRGB(50,20,20),
+        CardBg = Color3.fromRGB(60,25,25),
+        SliderBg = Color3.fromRGB(80,40,40),
+        SliderFill = Color3.fromRGB(200,40,40),
+        DropdownBg = Color3.fromRGB(50,20,20),
+        ESPBox = Color3.fromRGB(200,40,40),
+        ESPLine = Color3.fromRGB(150,20,20),
+        ESPText = Color3.fromRGB(255,200,200),
+        ESPDist = Color3.fromRGB(200,150,150),
+        FOVCircle = Color3.fromRGB(200,40,40),
+        FOVCircle2 = Color3.fromRGB(100,60,60)
+    },
+    ["Matrix"] = {
+        Background = Color3.fromRGB(0,10,0),
+        Accent = Color3.fromRGB(0,255,0),
+        Secondary = Color3.fromRGB(0,180,0),
+        Text = Color3.fromRGB(0,255,0),
+        TextSecondary = Color3.fromRGB(100,200,100),
+        Border = Color3.fromRGB(0,255,0),
+        ToggleOn = Color3.fromRGB(0,255,0),
+        ToggleOff = Color3.fromRGB(0,60,0),
+        FrameBg = Color3.fromRGB(0,20,0),
+        CardBg = Color3.fromRGB(0,30,0),
+        SliderBg = Color3.fromRGB(0,60,0),
+        SliderFill = Color3.fromRGB(0,255,0),
+        DropdownBg = Color3.fromRGB(0,20,0),
+        ESPBox = Color3.fromRGB(0,255,0),
+        ESPLine = Color3.fromRGB(0,180,0),
+        ESPText = Color3.fromRGB(0,255,0),
+        ESPDist = Color3.fromRGB(100,200,100),
+        FOVCircle = Color3.fromRGB(0,255,0),
+        FOVCircle2 = Color3.fromRGB(0,100,0)
+    },
+    ["Retro"] = {
+        Background = Color3.fromRGB(40,35,30),
+        Accent = Color3.fromRGB(255,200,100),
+        Secondary = Color3.fromRGB(200,150,80),
+        Text = Color3.fromRGB(255,220,180),
+        TextSecondary = Color3.fromRGB(200,170,140),
+        Border = Color3.fromRGB(255,200,100),
+        ToggleOn = Color3.fromRGB(255,200,100),
+        ToggleOff = Color3.fromRGB(80,70,60),
+        FrameBg = Color3.fromRGB(55,45,40),
+        CardBg = Color3.fromRGB(65,55,45),
+        SliderBg = Color3.fromRGB(80,70,60),
+        SliderFill = Color3.fromRGB(255,200,100),
+        DropdownBg = Color3.fromRGB(55,45,40),
+        ESPBox = Color3.fromRGB(255,200,100),
+        ESPLine = Color3.fromRGB(200,150,80),
+        ESPText = Color3.fromRGB(255,220,180),
+        ESPDist = Color3.fromRGB(200,170,140),
+        FOVCircle = Color3.fromRGB(255,200,100),
+        FOVCircle2 = Color3.fromRGB(120,100,80)
+    },
+    ["Exo"] = {
+        Background = Color3.fromRGB(32,32,38),
+        Accent = Color3.fromRGB(155,125,175),
+        Secondary = Color3.fromRGB(60,55,75),
+        Text = Color3.fromRGB(180,180,180),
+        TextSecondary = Color3.fromRGB(150,150,150),
+        Border = Color3.fromRGB(35,35,47),
+        ToggleOn = Color3.fromRGB(155,125,175),
+        ToggleOff = Color3.fromRGB(32,32,38),
+        FrameBg = Color3.fromRGB(35,35,47),
+        CardBg = Color3.fromRGB(41,41,55),
+        SliderBg = Color3.fromRGB(32,32,38),
+        SliderFill = Color3.fromRGB(155,125,175),
+        DropdownBg = Color3.fromRGB(41,41,55),
+        ESPBox = Color3.fromRGB(155,125,175),
+        ESPLine = Color3.fromRGB(155,125,175),
+        ESPText = Color3.fromRGB(180,180,180),
+        ESPDist = Color3.fromRGB(200,200,200),
+        FOVCircle = Color3.fromRGB(155,125,175),
+        FOVCircle2 = Color3.fromRGB(100,100,110)
+    },
+    ["Flame"] = {
+        Background = Color3.fromRGB(244,192,209),
+        Accent = Color3.fromRGB(212,83,126),
+        Secondary = Color3.fromRGB(237,147,177),
+        Text = Color3.fromRGB(153,53,86),
+        TextSecondary = Color3.fromRGB(212,83,126),
+        Border = Color3.fromRGB(153,53,86),
+        ToggleOn = Color3.fromRGB(237,147,177),
+        ToggleOff = Color3.fromRGB(240,240,240),
+        FrameBg = Color3.fromRGB(255,255,255),
+        CardBg = Color3.fromRGB(255,255,255),
+        SliderBg = Color3.fromRGB(240,240,240),
+        SliderFill = Color3.fromRGB(212,83,126),
+        DropdownBg = Color3.fromRGB(255,255,255),
+        ESPBox = Color3.fromRGB(212,83,126),
+        ESPLine = Color3.fromRGB(237,147,177),
+        ESPText = Color3.fromRGB(153,53,86),
+        ESPDist = Color3.fromRGB(153,53,86),
+        FOVCircle = Color3.fromRGB(237,147,177),
+        FOVCircle2 = Color3.fromRGB(212,83,126)
+    }
 }
 
--- EXO UNIFIED Theme System
+-- UI COLOR VARIABLES
+local UI_Colors = {}
+local currentUIPreset = "Original"
+
+local function ApplyUIPreset(presetName)
+    local preset = UIPresets[presetName]
+    if preset then
+        for key, value in pairs(preset) do
+            UI_Colors[key] = value
+        end
+        currentUIPreset = presetName
+        UpdateUIFromColors()
+    end
+end
+
+-- Initialize with Original preset
+ApplyUIPreset("Original")
+
+-- EXO UNIFIED Theme System (preserved for backwards compatibility)
 local ExoThemes = {
     ["Default"] = {
         accent = Color3.fromRGB(155,125,175),
@@ -451,7 +642,7 @@ local ExoThemes = {
     },
 }
 
--- Flame Camlock Theme Colors
+-- Flame Camlock Theme Colors (for backwards compatibility)
 local FlameTheme = {
     background = Color3.fromRGB(244,192,209),
     dark_pink = Color3.fromRGB(153,53,86),
@@ -475,72 +666,6 @@ local function ApplyExoTheme(themeName)
         PAL.ExoButton = theme.button
         currentExoTheme = themeName
     end
-end
-
-local function SetUIMode(mode)
-    UI_Colors.UI_Mode = mode
-    if mode == "Original" then
-        UI_Colors.Background = Color3.fromRGB(255,248,240)
-        UI_Colors.Accent = Color3.fromRGB(215,130,170)
-        UI_Colors.Secondary = Color3.fromRGB(245,205,220)
-        UI_Colors.Text = Color3.fromRGB(60,45,35)
-        UI_Colors.TextSecondary = Color3.fromRGB(100,80,70)
-        UI_Colors.Border = Color3.fromRGB(215,130,170)
-        UI_Colors.ToggleOn = Color3.fromRGB(235,200,120)
-        UI_Colors.ToggleOff = Color3.fromRGB(80,60,50)
-        UI_Colors.FrameBg = Color3.fromRGB(255,235,240)
-        UI_Colors.CardBg = Color3.fromRGB(255,250,250)
-        UI_Colors.SliderBg = Color3.fromRGB(80,60,50)
-        UI_Colors.SliderFill = Color3.fromRGB(235,200,120)
-        UI_Colors.DropdownBg = Color3.fromRGB(255,235,240)
-        UI_Colors.ESPBox = Color3.fromRGB(215,130,170)
-        UI_Colors.ESPLine = Color3.fromRGB(245,205,220)
-        UI_Colors.ESPText = Color3.fromRGB(255,248,240)
-        UI_Colors.ESPDist = Color3.fromRGB(220,225,170)
-        UI_Colors.FOVCircle = Color3.fromRGB(245,205,220)
-        UI_Colors.FOVCircle2 = Color3.fromRGB(100,100,110)
-    elseif mode == "Exo" then
-        UI_Colors.Background = PAL.ExoOutline
-        UI_Colors.Accent = PAL.ExoAccent
-        UI_Colors.Secondary = PAL.ExoInline
-        UI_Colors.Text = PAL.ExoText
-        UI_Colors.TextSecondary = Color3.fromRGB(150,150,150)
-        UI_Colors.Border = PAL.ExoLowContrast
-        UI_Colors.ToggleOn = PAL.ExoAccent
-        UI_Colors.ToggleOff = PAL.ExoOutline
-        UI_Colors.FrameBg = PAL.ExoLowContrast
-        UI_Colors.CardBg = PAL.ExoHighContrast
-        UI_Colors.SliderBg = PAL.ExoOutline
-        UI_Colors.SliderFill = PAL.ExoAccent
-        UI_Colors.DropdownBg = PAL.ExoHighContrast
-        UI_Colors.ESPBox = PAL.ExoAccent
-        UI_Colors.ESPLine = PAL.ExoAccent
-        UI_Colors.ESPText = PAL.ExoText
-        UI_Colors.ESPDist = Color3.fromRGB(200,200,200)
-        UI_Colors.FOVCircle = PAL.ExoAccent
-        UI_Colors.FOVCircle2 = Color3.fromRGB(100,100,110)
-    elseif mode == "Flame" then
-        UI_Colors.Background = FlameTheme.background
-        UI_Colors.Accent = FlameTheme.medium_pink
-        UI_Colors.Secondary = FlameTheme.light_pink
-        UI_Colors.Text = FlameTheme.dark_pink
-        UI_Colors.TextSecondary = FlameTheme.medium_pink
-        UI_Colors.Border = FlameTheme.dark_pink
-        UI_Colors.ToggleOn = FlameTheme.light_pink
-        UI_Colors.ToggleOff = FlameTheme.gray
-        UI_Colors.FrameBg = FlameTheme.white
-        UI_Colors.CardBg = FlameTheme.white
-        UI_Colors.SliderBg = FlameTheme.gray
-        UI_Colors.SliderFill = FlameTheme.medium_pink
-        UI_Colors.DropdownBg = FlameTheme.white
-        UI_Colors.ESPBox = FlameTheme.medium_pink
-        UI_Colors.ESPLine = FlameTheme.light_pink
-        UI_Colors.ESPText = FlameTheme.dark_pink
-        UI_Colors.ESPDist = FlameTheme.dark_pink
-        UI_Colors.FOVCircle = FlameTheme.light_pink
-        UI_Colors.FOVCircle2 = FlameTheme.medium_pink
-    end
-    UpdateUIFromColors()
 end
 
 local function UpdateUIFromColors()
@@ -597,6 +722,64 @@ local function UpdateUIFromColors()
                 if d and d.N then d.N.Color = UI_Colors.ESPText end
                 if d and d.D then d.D.Color = UI_Colors.ESPDist end
             end)
+        end
+        -- Update dropdown colors
+        for key, dropdown in pairs(Dropdowns or {}) do
+            if dropdown and dropdown.Main then
+                dropdown.Main.BackgroundColor3 = UI_Colors.DropdownBg
+                dropdown.Main.TextColor3 = UI_Colors.Text
+            end
+            if dropdown and dropdown.List then
+                dropdown.List.BackgroundColor3 = UI_Colors.DropdownBg
+                for _, child in pairs(dropdown.List:GetChildren()) do
+                    if child:IsA("TextButton") then
+                        child.BackgroundColor3 = UI_Colors.FrameBg
+                        child.TextColor3 = UI_Colors.TextSecondary
+                    end
+                end
+            end
+        end
+        -- Update toggle buttons
+        for key, toggle in pairs(ToggleButtons or {}) do
+            if toggle and toggle.Button then
+                if toggle.State then
+                    toggle.Button.BackgroundColor3 = UI_Colors.ToggleOn
+                else
+                    toggle.Button.BackgroundColor3 = UI_Colors.ToggleOff
+                end
+            end
+        end
+        -- Update sliders
+        for key, slider in pairs(SettingsRGBSliders or {}) do
+            if slider and slider.Fill then
+                slider.Fill.BackgroundColor3 = UI_Colors.SliderFill
+            end
+            if slider and slider.Bg then
+                slider.Bg.BackgroundColor3 = UI_Colors.SliderBg
+            end
+        end
+        -- Update whitelist
+        if WP then
+            local wlScroll = safeFindFirstChild(WP, "WLScroll")
+            if wlScroll then
+                for _, child in pairs(wlScroll:GetChildren()) do
+                    if child:IsA("Frame") then
+                        child.BackgroundColor3 = UI_Colors.FrameBg
+                        local text = child:FindFirstChildOfClass("TextLabel")
+                        if text then text.TextColor3 = UI_Colors.Text end
+                        local btn = child:FindFirstChildOfClass("TextButton")
+                        if btn then
+                            if btn.Text == "WHITELISTED" then
+                                btn.BackgroundColor3 = UI_Colors.ToggleOn
+                                btn.TextColor3 = UI_Colors.Text
+                            else
+                                btn.BackgroundColor3 = UI_Colors.Gray or Color3.fromRGB(200,195,195)
+                                btn.TextColor3 = UI_Colors.White
+                            end
+                        end
+                    end
+                end
+            end
         end
     end)
 end
@@ -744,7 +927,7 @@ TL.ZIndex=5
 if HD then TL.Parent=HD end
 
 local SL=Instance.new("TextLabel")
-SL.Text="Blushwovens {VERSION_LABEL} v26.2"
+SL.Text="Blushwovens {VERSION_LABEL} v27.0"
 SL.Size=UDim2.new(0,160,0,16)
 SL.Position=UDim2.new(0,56,0,30)
 SL.BackgroundTransparency=1
@@ -882,12 +1065,8 @@ local Cats={
     {"WHITELIST",{}},
     {"MORPH",{{"Headless","MorphHeadless",false},{"Username","MorphTarget","","TB"},{"Apply Morph","MorphApply",false,"BTN"}}},
     {"UI COLORS",{
-        {"--- UI Mode Selection ---","","","LBL2"},
-        {"Original UI","UIModeOrig",false,"BTN"},
-        {"Exo UI","UIModeExo",false,"BTN"},
-        {"Flame UI","UIModeFlame",false,"BTN"},
-        {"--- EXO Themes (Exo mode only) ---","","","LBL2"},
-        {"Exo Theme","ExoTheme","Default","D",{"Default","Headshot","Midnight","Ocean","Sunset","Forest","Blood","Gold"}},
+        {"--- UI Theme Presets ---","","","LBL2"},
+        {"UI Theme","UIPreset","Original","D",{"Original","Synthwave","Cyberpunk","Dark","Blood","Matrix","Retro","Exo","Flame"}},
         {"--- Background Colors ---","","","LBL2"},
         {"Background","UI_BG",Color3.fromRGB(255,248,240),"C"},
         {"Frame Background","UI_FrameBg",Color3.fromRGB(255,235,240),"C"},
@@ -932,7 +1111,6 @@ local SettingsRGBSliders = {}
 local Dropdowns = {}
 local ToggleButtons = {}
 local ColorPickers = {}
-local UIModeButtons = {}
 
 local function UpdateUIColors()
     UpdateUIFromColors()
@@ -1005,7 +1183,6 @@ for i,cat in ipairs(Cats) do
     sf.Size=UDim2.new(1,0,1,0)
     sf.BackgroundTransparency=1
     local extraH=0
-    if nm=="SETTINGS" then extraH=380 end
     if nm=="CREDITS" then extraH=40 end
     if nm=="SILENT AIM" then extraH=100 end
     if nm=="FOG" then extraH=380 end
@@ -1381,9 +1558,7 @@ for i,cat in ipairs(Cats) do
                 if fkk=="FGDen" then UpdateFog() end
                 if fkk=="SPVal" then UpdateMove() end
                 if fkk=="JPVal" then UpdateMove() end
-                if fkk=="FCamHOffset" or fkk=="FCamVOffset" or fkk=="FCamShake" then 
-                    -- Flame Camlock offset changes applied in render loop
-                end
+                if fkk=="FCamHOffset" or fkk=="FCamVOffset" or fkk=="FCamShake" then end
                 if fkk=="FCamHipHeightVal" then 
                     if ST.FCamHipHeight then
                         local char = LocalPlayer.Character
@@ -1556,7 +1731,46 @@ for i,cat in ipairs(Cats) do
                         if fkk=="RagebotMode" then end
                         if fkk=="ExoTheme" then
                             ApplyExoTheme(opt)
-                            if UI_Colors.UI_Mode=="Exo" then SetUIMode("Exo") end
+                            if UI_Colors.UI_Mode=="Exo" then ApplyUIPreset("Exo") end
+                        end
+                        if fkk=="UIPreset" then
+                            ApplyUIPreset(opt)
+                            -- Update all color pickers to match new preset
+                            local preset = UIPresets[opt]
+                            if preset then
+                                for key, value in pairs(preset) do
+                                    local colorKey = {
+                                        Background = "UI_BG",
+                                        FrameBg = "UI_FrameBg",
+                                        CardBg = "UI_CardBg",
+                                        Accent = "UI_Accent",
+                                        Secondary = "UI_Secondary",
+                                        Border = "UI_Border",
+                                        Text = "UI_Text",
+                                        TextSecondary = "UI_TextSec",
+                                        ToggleOn = "UI_ToggleOn",
+                                        ToggleOff = "UI_ToggleOff",
+                                        SliderBg = "UI_SliderBg",
+                                        SliderFill = "UI_SliderFill",
+                                        ESPBox = "UI_ESPBox",
+                                        ESPLine = "UI_ESPLine",
+                                        ESPText = "UI_ESPText",
+                                        ESPDist = "UI_ESPDist",
+                                        FOVCircle = "UI_FOV1",
+                                        FOVCircle2 = "UI_FOV2"
+                                    }
+                                    if colorKey[key] and ColorPickers[colorKey[key]] then
+                                        ColorPickers[colorKey[key]].Color = value
+                                        if ColorPickers[colorKey[key]].Preview then
+                                            ColorPickers[colorKey[key]].Preview.BackgroundColor3 = value
+                                        end
+                                        if ColorPickers[colorKey[key]].Button then
+                                            ColorPickers[colorKey[key]].Button.BackgroundColor3 = value
+                                        end
+                                    end
+                                end
+                                UpdateUIFromColors()
+                            end
                         end
                     end)
                     ob.MouseEnter:Connect(function()
@@ -1667,28 +1881,6 @@ for i,cat in ipairs(Cats) do
                         print("UI Colors Applied!")
                     end)
                 end
-            end
-            -- UI Mode buttons
-            if fkk=="UIModeOrig" then
-                ab.Text="Original"
-                ab.MouseButton1Click:Connect(function()
-                    SetUIMode("Original")
-                    UpdateUIFromColors()
-                end)
-            end
-            if fkk=="UIModeExo" then
-                ab.Text="Exo"
-                ab.MouseButton1Click:Connect(function()
-                    SetUIMode("Exo")
-                    UpdateUIFromColors()
-                end)
-            end
-            if fkk=="UIModeFlame" then
-                ab.Text="Flame"
-                ab.MouseButton1Click:Connect(function()
-                    SetUIMode("Flame")
-                    UpdateUIFromColors()
-                end)
             end
         else
             local tb=Instance.new("TextButton")
@@ -1980,9 +2172,8 @@ for i,cat in ipairs(Cats) do
         createFogRGBSlider(sf,rgbY,"R","R",FogRSliders)
         createFogRGBSlider(sf,rgbY+32,"G","G",FogGSliders)
         createFogRGBSlider(sf,rgbY+64,"B","B",FogBSliders)
-    end
-    
-    -- WHITELIST tab - FIXED
+    end    
+    -- WHITELIST tab - WITH PLAYER PHOTOS
     if nm=="WHITELIST" and WP then end
     
     -- Category click handler
@@ -2013,7 +2204,7 @@ for i,cat in ipairs(Cats) do
                     s.Name="WLScroll"
                     s.Size=UDim2.new(1,0,1,0)
                     s.BackgroundTransparency=1
-                    s.CanvasSize=UDim2.new(0,0,0,math.max(#Players:GetPlayers()*38,400))
+                    s.CanvasSize=UDim2.new(0,0,0,math.max(#Players:GetPlayers()*48,400))
                     s.ScrollBarThickness=3
                     s.ScrollBarImageColor3=UI_Colors.Accent
                     s.ZIndex=5
@@ -2023,8 +2214,8 @@ for i,cat in ipairs(Cats) do
                 if ok and sc then
                     for idx,plr in ipairs(Players:GetPlayers()) do
                         local pf=Instance.new("Frame")
-                        pf.Size=UDim2.new(1,-6,0,32)
-                        pf.Position=UDim2.new(0,3,0,8+(idx-1)*38)
+                        pf.Size=UDim2.new(1,-6,0,40)
+                        pf.Position=UDim2.new(0,3,0,8+(idx-1)*44)
                         pf.BackgroundColor3=UI_Colors.FrameBg
                         pf.BackgroundTransparency=0.5
                         pf.BorderSizePixel=0
@@ -2032,10 +2223,31 @@ for i,cat in ipairs(Cats) do
                         if sc then pf.Parent=sc end
                         CRN(pf,UDim.new(0,7))
                         STR(pf,1,UI_Colors.ToggleOn,0.3)
+                        
+                        -- Player Avatar Photo
+                        local photoFrame=Instance.new("Frame")
+                        photoFrame.Size=UDim2.new(0,28,0,28)
+                        photoFrame.Position=UDim2.new(0,6,0.5,-14)
+                        photoFrame.BackgroundColor3=UI_Colors.CardBg
+                        photoFrame.BorderSizePixel=0
+                        photoFrame.ZIndex=6
+                        if pf then photoFrame.Parent=pf end
+                        CRN(photoFrame,UDim.new(1,0))
+                        STR(photoFrame,1.5,UI_Colors.Border,0)
+                        
+                        local photoImage=Instance.new("ImageLabel")
+                        photoImage.Size=UDim2.new(1,0,1,0)
+                        photoImage.BackgroundTransparency=1
+                        photoImage.ZIndex=7
+                        if photoFrame then photoImage.Parent=photoFrame end
+                        if plr.UserId then
+                            photoImage.Image="https://www.roblox.com/headshot-thumbnail/image?userId="..plr.UserId.."&width=420&height=420&format=png"
+                        end
+                        
                         local pn=Instance.new("TextLabel")
                         pn.Text=(plr==LocalPlayer and "[YOU] " or "")..plr.Name.." ("..plr.UserId..")"
-                        pn.Size=UDim2.new(0.6,0,1,0)
-                        pn.Position=UDim2.new(0,8,0,0)
+                        pn.Size=UDim2.new(0.55,0,1,0)
+                        pn.Position=UDim2.new(0,44,0,0)
                         pn.BackgroundTransparency=1
                         pn.Font=Enum.Font.Gotham
                         pn.TextSize=10
@@ -2043,6 +2255,7 @@ for i,cat in ipairs(Cats) do
                         pn.TextXAlignment=Enum.TextXAlignment.Left
                         pn.ZIndex=6
                         if pf then pn.Parent=pf end
+                        
                         local iw=IsWL(plr)
                         local wb=Instance.new("TextButton")
                         wb.Size=UDim2.new(0,85,0,20)
@@ -2143,7 +2356,6 @@ RunService.RenderStepped:Connect(function()
     UpdateHitbox()
     UpdateMove()
     UpdateTriggerbotHitbox()
-    -- Flame Camlock render loop
     if ST.FlameCamlock and FlameCamlockActive then
         RunFlameCamlock()
     end
@@ -2185,13 +2397,14 @@ UpdateFog()
 UpdateCamlock()
 CreateTriggerbotHitbox()
 UpdateUIFromColors()
+ApplyUIPreset("Original")
 `;
 
 // ============================================
-// REGULAR SCRIPT - FIXED v26.2 - GunHandler fix, IsWL fix, nil checks
+// REGULAR SCRIPT - FIXED v27.0 - GunHandler fix, IsWL fix, nil checks
 // ============================================
 const REGULAR_SCRIPT = `
---[[ Blushwovens Regular v26.2 - Full Silent Aim with require() ]]
+--[[ Blushwovens Regular v27.0 - Full Silent Aim with require() ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -2206,7 +2419,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Regular v26.2 - Loading...")
+print("Blushwovens Regular v27.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -3898,15 +4111,15 @@ if ST.RagebotEnabled then StartRagebot() end
 if ST.KillAuraEnabled then StartKillAura() end
 if ST.RageTeleport then StartRageTeleport() end
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Regular v26.2 - Loaded successfully!")
+print("Blushwovens Regular v27.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// XENO SCRIPT - FIXED v26.2
+// XENO SCRIPT - FIXED v27.0
 // ============================================
 const XENO_SCRIPT = `
---[[ Blushwovens Xeno v26.2 - Silent Aim using getfenv/setfenv ]]
+--[[ Blushwovens Xeno v27.0 - Silent Aim using getfenv/setfenv ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -3921,7 +4134,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Xeno v26.2 - Loading...")
+print("Blushwovens Xeno v27.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -5636,15 +5849,15 @@ if ST.RagebotEnabled then StartRagebot() end
 if ST.KillAuraEnabled then StartKillAura() end
 if ST.RageTeleport then StartRageTeleport() end
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Xeno v26.2 - Loaded successfully!")
+print("Blushwovens Xeno v27.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// DELTA SCRIPT - FIXED v26.2
+// DELTA SCRIPT - FIXED v27.0
 // ============================================
 const DELTA_SCRIPT = `
---[[ Blushwovens Delta v26.2 - Silent Aim using mouse manipulation ]]
+--[[ Blushwovens Delta v27.0 - Silent Aim using mouse manipulation ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -5659,7 +5872,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Delta v26.2 - Loading...")
+print("Blushwovens Delta v27.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -7319,7 +7532,7 @@ if ST.RagebotEnabled then StartRagebot() end
 if ST.KillAuraEnabled then StartKillAura() end
 if ST.RageTeleport then StartRageTeleport() end
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Delta v26.2 - Loaded successfully!")
+print("Blushwovens Delta v27.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
@@ -7338,7 +7551,7 @@ const SCRIPTS = {
 function generateLoaderScript(username, password, serverUrl, key, version) {
     const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
     return `
--- Blushwovens Loader v26.2 - ${version.toUpperCase()} VERSION
+-- Blushwovens Loader v27.0 - ${version.toUpperCase()} VERSION
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
 local KEY = "${key}"
@@ -7460,8 +7673,8 @@ spawn(function()
     end
 end)
 
-print("Blushwovens Loader v26.2 (${version}) - Starting...")
-notify("Loading ${version} v26.2... Please wait.", false)
+print("Blushwovens Loader v27.0 (${version}) - Starting...")
+notify("Loading ${version} v27.0... Please wait.", false)
 
 local ok, response = pcall(request)
 if not ok then
@@ -7492,7 +7705,7 @@ if not data.success then
     error("Error: " .. data.reason)
 end
 
-notify("✅ v26.2 loaded successfully!", false)
+notify("✅ v27.0 loaded successfully!", false)
 loadstring(data.chunk)()
 `;
 }
@@ -7672,7 +7885,7 @@ const commands = [
                 .setRequired(true))
         .addStringOption(option =>
             option.setName("version")
-                .setDescription("The version to force (e.g., 26.2)")
+                .setDescription("The version to force (e.g., 27.0)")
                 .setRequired(true)),
 
     new SlashCommandBuilder()
@@ -8279,7 +8492,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // ============================================
     if (command === "announce-update") {
         const message = interaction.options.getString("message");
-        const version = interaction.options.getString("version") || "26.2";
+        const version = interaction.options.getString("version") || "27.0";
 
         try {
             const channel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
@@ -8584,7 +8797,7 @@ app.post('/check-version', (req, res) => {
     res.json({ outdated: false });
 });
 
-app.get('/', (req, res) => res.send('Blushwovens v26.2 Bot is running!'));
+app.get('/', (req, res) => res.send('Blushwovens v27.0 Bot is running!'));
 app.get('/version', (req, res) => {
     res.json({ version: CURRENT_VERSION });
 });
