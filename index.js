@@ -20,6 +20,7 @@
 // ADDED: UI color preset dropdown with full color application
 // ADDED: Player photos in whitelist
 // ADDED: Custom UI themes (Synthwave, Cyberpunk, etc.)
+// FIXED: ApplyUIPreset nil error - function now properly defined before use
 const CURRENT_VERSION = "27.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
@@ -552,6 +553,7 @@ local UIPresets = {
 local UI_Colors = {}
 local currentUIPreset = "Original"
 
+-- FIXED: ApplyUIPreset defined BEFORE it's called
 local function ApplyUIPreset(presetName)
     local preset = UIPresets[presetName]
     if preset then
@@ -3870,8 +3872,7 @@ local function IsHoldingWeapon()
 end
 
 local function IsCursorOnHitbox()
-    if not Mouse or not Mouse.X or not Mouse.Y then return false end
-    if not ST.TBHitboxEnabled then return false end
+    if not Mouse or not Mouse.X or not Mouse.Y then return false end    if not ST.TBHitboxEnabled then return false end
     if not TBHitbox or not TBHitbox.Visible then return false end
     
     local mx, my = Mouse.X, Mouse.Y
@@ -5608,8 +5609,7 @@ local function IsHoldingWeapon()
 end
 
 local function IsCursorOnHitbox()
-    if not Mouse or not Mouse.X or not Mouse.Y then return false end
-    if not ST.TBHitboxEnabled then return false end
+    if not Mouse or not Mouse.X or not Mouse.Y then return false end    if not ST.TBHitboxEnabled then return false end
     if not TBHitbox or not TBHitbox.Visible then return false end
     
     local mx, my = Mouse.X, Mouse.Y
@@ -7291,8 +7291,7 @@ local function IsHoldingWeapon()
 end
 
 local function IsCursorOnHitbox()
-    if not Mouse or not Mouse.X or not Mouse.Y then return false end
-    if not ST.TBHitboxEnabled then return false end
+    if not Mouse or not Mouse.X or not Mouse.Y then return false end    if not ST.TBHitboxEnabled then return false end
     if not TBHitbox or not TBHitbox.Visible then return false end
     
     local mx, my = Mouse.X, Mouse.Y
