@@ -3905,7 +3905,8 @@ local function IsHoldingWeapon()
 end
 
 local function IsCursorOnHitbox()
-    if not Mouse or not Mouse.X or not Mouse.Y then return false end    if not ST.TBHitboxEnabled then return false end
+    if not Mouse or not Mouse.X or not Mouse.Y then return false end
+    if not ST.TBHitboxEnabled then return false end
     if not TBHitbox or not TBHitbox.Visible then return false end
     
     local mx, my = Mouse.X, Mouse.Y
@@ -6810,7 +6811,8 @@ local function UpdateESP()
     if not ST.ESP then 
         for _,d in pairs(ESPData) do 
             pcall(function()
-                if d and d.B then d.B.Enabled = false end                if d and d.N then d.N.Enabled = false end
+                if d and d.B then d.B.Enabled = false end
+                if d and d.N then d.N.Enabled = false end
                 if d and d.D then d.D.Enabled = false end
                 if d and d.HB then d.HB.Enabled = false end
                 if d and d.HF then d.HF.Enabled = false end
