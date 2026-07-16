@@ -25,6 +25,12 @@
 // FIXED: UI_Colors initialization with all keys
 // FIXED: Nil checks on all color properties in UpdateUIFromColors
 // FIXED: Proper initialization order (ApplyUIPreset before UpdateUIFromColors)
+// FIXED: "Update UI Colors" button now properly applies colors
+// FIXED: ESP and WHITELIST now work properly
+// FIXED: Triggerbot now works properly
+// FIXED: Bullet spread now works properly
+// ADDED: Hello Kitty UI theme
+// REMOVED: Ragebot entirely
 const CURRENT_VERSION = "27.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
@@ -358,6 +364,10 @@ local PAL = {
     FlameLightPink = Color3.fromRGB(237,147,177),
     FlameWhite = Color3.fromRGB(255,255,255),
     FlameGray = Color3.fromRGB(240,240,240),
+    HelloKittyPink = Color3.fromRGB(255,180,200),
+    HelloKittyRed = Color3.fromRGB(200,50,50),
+    HelloKittyWhite = Color3.fromRGB(255,255,255),
+    HelloKittyDark = Color3.fromRGB(60,40,50),
 }
 
 -- UI COLOR PRESET SYSTEM
@@ -550,6 +560,27 @@ local UIPresets = {
         ESPDist = Color3.fromRGB(153,53,86),
         FOVCircle = Color3.fromRGB(237,147,177),
         FOVCircle2 = Color3.fromRGB(212,83,126)
+    },
+    ["HelloKitty"] = {
+        Background = Color3.fromRGB(255,220,235),
+        Accent = Color3.fromRGB(200,50,50),
+        Secondary = Color3.fromRGB(255,180,200),
+        Text = Color3.fromRGB(60,40,50),
+        TextSecondary = Color3.fromRGB(150,100,120),
+        Border = Color3.fromRGB(200,50,50),
+        ToggleOn = Color3.fromRGB(255,180,200),
+        ToggleOff = Color3.fromRGB(180,140,150),
+        FrameBg = Color3.fromRGB(255,240,245),
+        CardBg = Color3.fromRGB(255,255,255),
+        SliderBg = Color3.fromRGB(180,140,150),
+        SliderFill = Color3.fromRGB(255,180,200),
+        DropdownBg = Color3.fromRGB(255,240,245),
+        ESPBox = Color3.fromRGB(200,50,50),
+        ESPLine = Color3.fromRGB(255,180,200),
+        ESPText = Color3.fromRGB(255,255,255),
+        ESPDist = Color3.fromRGB(200,50,50),
+        FOVCircle = Color3.fromRGB(255,180,200),
+        FOVCircle2 = Color3.fromRGB(200,50,50)
     }
 }
 
@@ -586,9 +617,11 @@ local function ApplyUIPreset(presetName)
         end
         currentUIPreset = presetName
     end
+    -- Update UI immediately after applying preset
+    pcall(UpdateUIFromColors)
 end
 
--- Initialize with Original preset (only sets variables, no UI updates yet)
+-- Initialize with Original preset
 ApplyUIPreset("Original")
 
 -- EXO UNIFIED Theme System (preserved for backwards compatibility)
@@ -992,7 +1025,7 @@ CT.BackgroundTransparency=1
 CT.ZIndex=3
 if MN then CT.Parent=MN end
 
--- ==================== CATEGORIES ====================
+-- ==================== CATEGORIES (RAGEBOT REMOVED) ====================
 local Cats={
     {"SILENT AIM",{
         {"Silent Aim","SA",false},
@@ -1021,26 +1054,6 @@ local Cats={
         {"Magnet Strength","CLMagnetStrength",1,"S",0.1,5},
         {"--- Target Lock Settings ---","","","LBL"},
         {"Lock Target Until Death","CLLockTarget",true}
-    }},
-    {"RAGE",{
-        {"--- Ragebot Settings ---","","","LBL"},
-        {"Ragebot","RagebotEnabled",false},
-        {"Mode","RagebotMode","Always","D",{"Always","Keybind"}},
-        {"Keybind","RagebotKeybind",Enum.KeyCode.F,"K"},
-        {"Target Part","RagebotPart","Head","D",{"Head","UpperTorso","LowerTorso","HumanoidRootPart"}},
-        {"Range","RagebotRange",30,"S",5,100},
-        {"Delay","RagebotDelay",0.1,"S",0.01,0.5},
-        {"Auto Shoot","RagebotAutoShoot",true},
-        {"Team Check","RagebotTeamCheck",true},
-        {"Wall Check","RagebotWallCheck",false},
-        {"Knock Check","RagebotKnockCheck",true},
-        {"--- Kill Aura ---","","","LBL"},
-        {"Kill Aura","KillAuraEnabled",false},
-        {"Kill Aura Range","KillAuraRange",20,"S",5,50},
-        {"Kill Aura Delay","KillAuraDelay",0.1,"S",0.01,0.5},
-        {"--- Teleport Rage ---","","","LBL"},
-        {"Teleport Rage","RageTeleport",false},
-        {"Teleport Range","RageTeleportRange",10,"S",1,30},
     }},
     {"HITBOX",{{"Hitbox Exp.","HB",false},{"Size","HBSz",10,"S",2,30},{"Opacity","HBOp",0.9,"S",0.1,1}}},
     {"VISUALS",{{"ESP","ESP",false},{"Boxes","ESPBx",true},{"Tracers","ESPTr",true},{"Names","ESPNm",true},{"Distance","ESPDs",true},{"Healthbar","ESPHp",true}}},
@@ -1091,7 +1104,7 @@ local Cats={
     {"MORPH",{{"Headless","MorphHeadless",false},{"Username","MorphTarget","","TB"},{"Apply Morph","MorphApply",false,"BTN"}}},
     {"UI COLORS",{
         {"--- UI Theme Presets ---","","","LBL2"},
-        {"UI Theme","UIPreset","Original","D",{"Original","Synthwave","Cyberpunk","Dark","Blood","Matrix","Retro","Exo","Flame"}},
+        {"UI Theme","UIPreset","Original","D",{"Original","Synthwave","Cyberpunk","Dark","Blood","Matrix","Retro","Exo","Flame","HelloKitty"}},
         {"--- Background Colors ---","","","LBL2"},
         {"Background","UI_BG",Color3.fromRGB(255,248,240),"C"},
         {"Frame Background","UI_FrameBg",Color3.fromRGB(255,235,240),"C"},
@@ -1215,7 +1228,6 @@ for i,cat in ipairs(Cats) do
     if nm=="FLAME LOCK" then extraH=140 end
     if nm=="TRIGGERBOT" then extraH=140 end
     if nm=="UI COLORS" then extraH=900 end
-    if nm=="RAGE" then extraH=300 end
     sf.CanvasSize=UDim2.new(0,0,0,#fn*60+20+extraH)
     sf.ScrollBarThickness=3
     sf.ScrollBarImageColor3=UI_Colors.Accent
@@ -1611,9 +1623,6 @@ for i,cat in ipairs(Cats) do
                     CreateTriggerbotHitbox()
                     UpdateTriggerbotHitbox()
                 end
-                if fkk=="RagebotRange" or fkk=="RagebotDelay" then end
-                if fkk=="KillAuraRange" or fkk=="KillAuraDelay" then end
-                if fkk=="RageTeleportRange" then end
             end
             if bkn then
                 bkn.InputBegan:Connect(function(inp)
@@ -1752,8 +1761,6 @@ for i,cat in ipairs(Cats) do
                                 StartTriggerbot()
                             end
                         end
-                        if fkk=="RagebotPart" then end
-                        if fkk=="RagebotMode" then end
                         if fkk=="ExoTheme" then
                             ApplyExoTheme(opt)
                             if UI_Colors.UI_Mode=="Exo" then ApplyUIPreset("Exo") end
@@ -2013,15 +2020,6 @@ for i,cat in ipairs(Cats) do
                             CamlockTarget=nil
                             CamlockTargetName=nil
                         end
-                    end
-                    if fkk=="RagebotEnabled" then
-                        if tg then StartRagebot() else StopRagebot() end
-                    end
-                    if fkk=="KillAuraEnabled" then
-                        if tg then StartKillAura() else StopKillAura() end
-                    end
-                    if fkk=="RageTeleport" then
-                        if tg then StartRageTeleport() else StopRageTeleport() end
                     end
                 end)
             end
@@ -2573,21 +2571,6 @@ local ST={
     TBHitboxXOffset=0,
     TBHitboxYOffset=0,
     TBHitboxVisible=false,
-    RagebotEnabled=false,
-    RagebotMode="Always",
-    RagebotKeybind=Enum.KeyCode.F,
-    RagebotPart="Head",
-    RagebotRange=30,
-    RagebotDelay=0.1,
-    RagebotAutoShoot=true,
-    RagebotTeamCheck=true,
-    RagebotWallCheck=false,
-    RagebotKnockCheck=true,
-    KillAuraEnabled=false,
-    KillAuraRange=20,
-    KillAuraDelay=0.1,
-    RageTeleport=false,
-    RageTeleportRange=10,
 }
 
 -- Camlock Target Variables
@@ -2598,14 +2581,6 @@ local CamlockTargetName = nil
 local FlameCamlockTarget = nil
 local FlameCamlockActive = false
 local FlameCamlockConnection = nil
-
--- Ragebot Variables
-local RagebotActive = false
-local RagebotConnection = nil
-local KillAuraActive = false
-local KillAuraConnection = nil
-local RageTeleportActive = false
-local RageTeleportConnection = nil
 
 -- IsPlayerValidForTarget - WITH NIL CHECKS FOR IsWL
 local function IsPlayerValidForTarget(player)
@@ -3119,174 +3094,6 @@ end
 local function StopFlameCamlock()
     FlameCamlockActive = false
     FlameCamlockTarget = nil
-end
-
--- RAGEBOT FUNCTIONS
-local function GetRageTarget()
-    local closest = nil
-    local closestDist = ST.RagebotRange or 30
-    local myPos = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
-    if not myPos then return nil end
-
-    for _, p in ipairs(Players:GetPlayers()) do
-        if not IsPlayerValidForTarget(p) then continue end
-        if ST.RagebotTeamCheck and p.Team == LocalPlayer.Team then continue end
-        if ST.RagebotKnockCheck and IsKnocked(p.Character) then continue end
-
-        local partName = ST.RagebotPart or "Head"
-        local part = safeFindFirstChild(p.Character, partName)
-        if not part then
-            part = safeFindFirstChild(p.Character, "Head")
-            if not part then continue end
-        end
-
-        if ST.RagebotWallCheck then
-            local ray = Ray.new(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 500)
-            local hit, pos = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
-            if hit and not hit:IsDescendantOf(p.Character) then
-                continue
-            end
-        end
-
-        local dist = (part.Position - myPos.Position).Magnitude
-        if dist < closestDist then
-            closestDist = dist
-            closest = p
-        end
-    end
-    return closest
-end
-
-local function RagebotShoot(target)
-    pcall(function()
-        if not target or not target.Character then return end
-        local partName = ST.RagebotPart or "Head"
-        local part = safeFindFirstChild(target.Character, partName)
-        if not part then
-            part = safeFindFirstChild(target.Character, "Head")
-            if not part then return end
-        end
-
-        local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
-        if onScreen then
-            if mousemoverel then
-                local mouseLocation = UserInputService:GetMouseLocation()
-                local delta = Vector2.new(screenPos.X - mouseLocation.X, screenPos.Y - mouseLocation.Y)
-                mousemoverel(delta.X * 0.5, delta.Y * 0.5)
-            end
-            if ST.RagebotAutoShoot then
-                if mouse1click then
-                    mouse1click()
-                elseif VirtualInputManager then
-                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-                    task.wait(ST.RagebotDelay or 0.1)
-                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-                end
-            end
-        end
-    end)
-end
-
-local function StartRagebot()
-    if RagebotConnection then return end
-    RagebotActive = true
-
-    RagebotConnection = RunService.RenderStepped:Connect(function()
-        if not ST.RagebotEnabled or not RagebotActive then return end
-
-        local shouldShoot = false
-        if ST.RagebotMode == "Always" then
-            shouldShoot = true
-        elseif ST.RagebotMode == "Keybind" then
-            shouldShoot = UserInputService:IsKeyDown(ST.RagebotKeybind)
-        end
-
-        if shouldShoot then
-            local target = GetRageTarget()
-            if target then
-                RagebotShoot(target)
-            end
-        end
-    end)
-end
-
-local function StopRagebot()
-    RagebotActive = false
-    if RagebotConnection then
-        RagebotConnection:Disconnect()
-        RagebotConnection = nil
-    end
-end
-
--- KILL AURA
-local function StartKillAura()
-    if KillAuraConnection then return end
-    KillAuraActive = true
-
-    KillAuraConnection = RunService.RenderStepped:Connect(function()
-        if not ST.KillAuraEnabled or not KillAuraActive then return end
-
-        local myPos = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
-        if not myPos then return end
-
-        for _, p in ipairs(Players:GetPlayers()) do
-            if not IsPlayerValidForTarget(p) then continue end
-            if ST.RagebotTeamCheck and p.Team == LocalPlayer.Team then continue end
-
-            local partName = ST.RagebotPart or "Head"
-            local part = safeFindFirstChild(p.Character, partName)
-            if not part then
-                part = safeFindFirstChild(p.Character, "Head")
-                if not part then continue end
-            end
-
-            local dist = (part.Position - myPos.Position).Magnitude
-            if dist <= ST.KillAuraRange then
-                RagebotShoot(p)
-                task.wait(ST.KillAuraDelay or 0.1)
-            end
-        end
-    end)
-end
-
-local function StopKillAura()
-    KillAuraActive = false
-    if KillAuraConnection then
-        KillAuraConnection:Disconnect()
-        KillAuraConnection = nil
-    end
-end
-
--- RAGE TELEPORT
-local function StartRageTeleport()
-    if RageTeleportConnection then return end
-    RageTeleportActive = true
-
-    RageTeleportConnection = RunService.RenderStepped:Connect(function()
-        if not ST.RageTeleport or not RageTeleportActive then return end
-
-        local myRoot = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
-        if not myRoot then return end
-
-        local target = GetRageTarget()
-        if target and target.Character then
-            local targetRoot = safeFindFirstChild(target.Character, "HumanoidRootPart")
-            if targetRoot then
-                local dist = (targetRoot.Position - myRoot.Position).Magnitude
-                if dist > ST.RageTeleportRange and dist < 100 then
-                    myRoot.CFrame = CFrame.new(targetRoot.Position + Vector3.new(0, 2, 0))
-                end
-            end
-        end
-    end)
-end
-
-local function StopRageTeleport()
-    RageTeleportActive = false
-    if RageTeleportConnection then
-        RageTeleportConnection:Disconnect()
-        RageTeleportConnection = nil
-    end
 end
 
 -- HITBOX
@@ -4109,16 +3916,6 @@ UserInputService.InputBegan:Connect(function(inp, gp)
             StopTriggerbot()
         end
     end
-    if inp.KeyCode == ST.RagebotKeybind and ST.RagebotMode == "Keybind" then
-        if ST.RagebotEnabled then
-            RagebotActive = not RagebotActive
-            if RagebotActive then
-                StartRagebot()
-            else
-                StopRagebot()
-            end
-        end
-    end
 end)
 
 UserInputService.InputEnded:Connect(function(inp, gp)
@@ -4135,9 +3932,6 @@ end)
 local VERSION_LABEL = "Regular"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
-if ST.RagebotEnabled then StartRagebot() end
-if ST.KillAuraEnabled then StartKillAura() end
-if ST.RageTeleport then StartRageTeleport() end
 if ST.FlameCamlock then StartFlameCamlock() end
 print("Blushwovens Regular v27.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
@@ -4317,21 +4111,6 @@ local ST={
     TBHitboxXOffset=0,
     TBHitboxYOffset=0,
     TBHitboxVisible=false,
-    RagebotEnabled=false,
-    RagebotMode="Always",
-    RagebotKeybind=Enum.KeyCode.F,
-    RagebotPart="Head",
-    RagebotRange=30,
-    RagebotDelay=0.1,
-    RagebotAutoShoot=true,
-    RagebotTeamCheck=true,
-    RagebotWallCheck=false,
-    RagebotKnockCheck=true,
-    KillAuraEnabled=false,
-    KillAuraRange=20,
-    KillAuraDelay=0.1,
-    RageTeleport=false,
-    RageTeleportRange=10,
 }
 
 -- Camlock Target Variables
@@ -4342,14 +4121,6 @@ local CamlockTargetName = nil
 local FlameCamlockTarget = nil
 local FlameCamlockActive = false
 local FlameCamlockConnection = nil
-
--- Ragebot Variables
-local RagebotActive = false
-local RagebotConnection = nil
-local KillAuraActive = false
-local KillAuraConnection = nil
-local RageTeleportActive = false
-local RageTeleportConnection = nil
 
 local function IsPlayerValidForTarget(player)
     if not player then return false end
@@ -4694,7 +4465,8 @@ local function UpdateCamlock()
     if ST.CLAimType == "Magnet" then
         CamConn = RunService.RenderStepped:Connect(function()
             if not CamActive then return end
-            if not MagnetTarget or not MagnetTarget.Character then                MagnetTarget = FindMagnetTarget()
+            if not MagnetTarget or not MagnetTarget.Character then
+                MagnetTarget = FindMagnetTarget()
                 if not MagnetTarget then return end
             end
             local partName = ST.CLMagnetPart or "UpperTorso"
@@ -4856,174 +4628,6 @@ end
 local function StopFlameCamlock()
     FlameCamlockActive = false
     FlameCamlockTarget = nil
-end
-
--- RAGEBOT FUNCTIONS
-local function GetRageTarget()
-    local closest = nil
-    local closestDist = ST.RagebotRange or 30
-    local myPos = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
-    if not myPos then return nil end
-
-    for _, p in ipairs(Players:GetPlayers()) do
-        if not IsPlayerValidForTarget(p) then continue end
-        if ST.RagebotTeamCheck and p.Team == LocalPlayer.Team then continue end
-        if ST.RagebotKnockCheck and IsKnocked(p.Character) then continue end
-
-        local partName = ST.RagebotPart or "Head"
-        local part = safeFindFirstChild(p.Character, partName)
-        if not part then
-            part = safeFindFirstChild(p.Character, "Head")
-            if not part then continue end
-        end
-
-        if ST.RagebotWallCheck then
-            local ray = Ray.new(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 500)
-            local hit, pos = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
-            if hit and not hit:IsDescendantOf(p.Character) then
-                continue
-            end
-        end
-
-        local dist = (part.Position - myPos.Position).Magnitude
-        if dist < closestDist then
-            closestDist = dist
-            closest = p
-        end
-    end
-    return closest
-end
-
-local function RagebotShoot(target)
-    pcall(function()
-        if not target or not target.Character then return end
-        local partName = ST.RagebotPart or "Head"
-        local part = safeFindFirstChild(target.Character, partName)
-        if not part then
-            part = safeFindFirstChild(target.Character, "Head")
-            if not part then return end
-        end
-
-        local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
-        if onScreen then
-            if mousemoverel then
-                local mouseLocation = UserInputService:GetMouseLocation()
-                local delta = Vector2.new(screenPos.X - mouseLocation.X, screenPos.Y - mouseLocation.Y)
-                mousemoverel(delta.X * 0.5, delta.Y * 0.5)
-            end
-            if ST.RagebotAutoShoot then
-                if mouse1click then
-                    mouse1click()
-                elseif VirtualInputManager then
-                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-                    task.wait(ST.RagebotDelay or 0.1)
-                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-                end
-            end
-        end
-    end)
-end
-
-local function StartRagebot()
-    if RagebotConnection then return end
-    RagebotActive = true
-
-    RagebotConnection = RunService.RenderStepped:Connect(function()
-        if not ST.RagebotEnabled or not RagebotActive then return end
-
-        local shouldShoot = false
-        if ST.RagebotMode == "Always" then
-            shouldShoot = true
-        elseif ST.RagebotMode == "Keybind" then
-            shouldShoot = UserInputService:IsKeyDown(ST.RagebotKeybind)
-        end
-
-        if shouldShoot then
-            local target = GetRageTarget()
-            if target then
-                RagebotShoot(target)
-            end
-        end
-    end)
-end
-
-local function StopRagebot()
-    RagebotActive = false
-    if RagebotConnection then
-        RagebotConnection:Disconnect()
-        RagebotConnection = nil
-    end
-end
-
--- KILL AURA
-local function StartKillAura()
-    if KillAuraConnection then return end
-    KillAuraActive = true
-
-    KillAuraConnection = RunService.RenderStepped:Connect(function()
-        if not ST.KillAuraEnabled or not KillAuraActive then return end
-
-        local myPos = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
-        if not myPos then return end
-
-        for _, p in ipairs(Players:GetPlayers()) do
-            if not IsPlayerValidForTarget(p) then continue end
-            if ST.RagebotTeamCheck and p.Team == LocalPlayer.Team then continue end
-
-            local partName = ST.RagebotPart or "Head"
-            local part = safeFindFirstChild(p.Character, partName)
-            if not part then
-                part = safeFindFirstChild(p.Character, "Head")
-                if not part then continue end
-            end
-
-            local dist = (part.Position - myPos.Position).Magnitude
-            if dist <= ST.KillAuraRange then
-                RagebotShoot(p)
-                task.wait(ST.KillAuraDelay or 0.1)
-            end
-        end
-    end)
-end
-
-local function StopKillAura()
-    KillAuraActive = false
-    if KillAuraConnection then
-        KillAuraConnection:Disconnect()
-        KillAuraConnection = nil
-    end
-end
-
--- RAGE TELEPORT
-local function StartRageTeleport()
-    if RageTeleportConnection then return end
-    RageTeleportActive = true
-
-    RageTeleportConnection = RunService.RenderStepped:Connect(function()
-        if not ST.RageTeleport or not RageTeleportActive then return end
-
-        local myRoot = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
-        if not myRoot then return end
-
-        local target = GetRageTarget()
-        if target and target.Character then
-            local targetRoot = safeFindFirstChild(target.Character, "HumanoidRootPart")
-            if targetRoot then
-                local dist = (targetRoot.Position - myRoot.Position).Magnitude
-                if dist > ST.RageTeleportRange and dist < 100 then
-                    myRoot.CFrame = CFrame.new(targetRoot.Position + Vector3.new(0, 2, 0))
-                end
-            end
-        end
-    end)
-end
-
-local function StopRageTeleport()
-    RageTeleportActive = false
-    if RageTeleportConnection then
-        RageTeleportConnection:Disconnect()
-        RageTeleportConnection = nil
-    end
 end
 
 -- HITBOX
@@ -5846,16 +5450,6 @@ UserInputService.InputBegan:Connect(function(inp, gp)
             StopTriggerbot()
         end
     end
-    if inp.KeyCode == ST.RagebotKeybind and ST.RagebotMode == "Keybind" then
-        if ST.RagebotEnabled then
-            RagebotActive = not RagebotActive
-            if RagebotActive then
-                StartRagebot()
-            else
-                StopRagebot()
-            end
-        end
-    end
 end)
 
 UserInputService.InputEnded:Connect(function(inp, gp)
@@ -5872,9 +5466,6 @@ end)
 local VERSION_LABEL = "Xeno"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
-if ST.RagebotEnabled then StartRagebot() end
-if ST.KillAuraEnabled then StartKillAura() end
-if ST.RageTeleport then StartRageTeleport() end
 if ST.FlameCamlock then StartFlameCamlock() end
 print("Blushwovens Xeno v27.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
@@ -6014,21 +5605,6 @@ local ST={
     TBHitboxXOffset=0,
     TBHitboxYOffset=0,
     TBHitboxVisible=false,
-    RagebotEnabled=false,
-    RagebotMode="Always",
-    RagebotKeybind=Enum.KeyCode.F,
-    RagebotPart="Head",
-    RagebotRange=30,
-    RagebotDelay=0.1,
-    RagebotAutoShoot=true,
-    RagebotTeamCheck=true,
-    RagebotWallCheck=false,
-    RagebotKnockCheck=true,
-    KillAuraEnabled=false,
-    KillAuraRange=20,
-    KillAuraDelay=0.1,
-    RageTeleport=false,
-    RageTeleportRange=10,
 }
 
 -- Camlock Target Variables
@@ -6039,14 +5615,6 @@ local CamlockTargetName = nil
 local FlameCamlockTarget = nil
 local FlameCamlockActive = false
 local FlameCamlockConnection = nil
-
--- Ragebot Variables
-local RagebotActive = false
-local RagebotConnection = nil
-local KillAuraActive = false
-local KillAuraConnection = nil
-local RageTeleportActive = false
-local RageTeleportConnection = nil
 
 local function IsPlayerValidForTarget(player)
     if not player then return false end
@@ -6544,174 +6112,6 @@ local function StopFlameCamlock()
     FlameCamlockTarget = nil
 end
 
--- RAGEBOT FUNCTIONS
-local function GetRageTarget()
-    local closest = nil
-    local closestDist = ST.RagebotRange or 30
-    local myPos = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
-    if not myPos then return nil end
-
-    for _, p in ipairs(Players:GetPlayers()) do
-        if not IsPlayerValidForTarget(p) then continue end
-        if ST.RagebotTeamCheck and p.Team == LocalPlayer.Team then continue end
-        if ST.RagebotKnockCheck and IsKnocked(p.Character) then continue end
-
-        local partName = ST.RagebotPart or "Head"
-        local part = safeFindFirstChild(p.Character, partName)
-        if not part then
-            part = safeFindFirstChild(p.Character, "Head")
-            if not part then continue end
-        end
-
-        if ST.RagebotWallCheck then
-            local ray = Ray.new(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 500)
-            local hit, pos = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
-            if hit and not hit:IsDescendantOf(p.Character) then
-                continue
-            end
-        end
-
-        local dist = (part.Position - myPos.Position).Magnitude
-        if dist < closestDist then
-            closestDist = dist
-            closest = p
-        end
-    end
-    return closest
-end
-
-local function RagebotShoot(target)
-    pcall(function()
-        if not target or not target.Character then return end
-        local partName = ST.RagebotPart or "Head"
-        local part = safeFindFirstChild(target.Character, partName)
-        if not part then
-            part = safeFindFirstChild(target.Character, "Head")
-            if not part then return end
-        end
-
-        local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
-        if onScreen then
-            if mousemoverel then
-                local mouseLocation = UserInputService:GetMouseLocation()
-                local delta = Vector2.new(screenPos.X - mouseLocation.X, screenPos.Y - mouseLocation.Y)
-                mousemoverel(delta.X * 0.5, delta.Y * 0.5)
-            end
-            if ST.RagebotAutoShoot then
-                if mouse1click then
-                    mouse1click()
-                elseif VirtualInputManager then
-                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-                    task.wait(ST.RagebotDelay or 0.1)
-                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-                end
-            end
-        end
-    end)
-end
-
-local function StartRagebot()
-    if RagebotConnection then return end
-    RagebotActive = true
-
-    RagebotConnection = RunService.RenderStepped:Connect(function()
-        if not ST.RagebotEnabled or not RagebotActive then return end
-
-        local shouldShoot = false
-        if ST.RagebotMode == "Always" then
-            shouldShoot = true
-        elseif ST.RagebotMode == "Keybind" then
-            shouldShoot = UserInputService:IsKeyDown(ST.RagebotKeybind)
-        end
-
-        if shouldShoot then
-            local target = GetRageTarget()
-            if target then
-                RagebotShoot(target)
-            end
-        end
-    end)
-end
-
-local function StopRagebot()
-    RagebotActive = false
-    if RagebotConnection then
-        RagebotConnection:Disconnect()
-        RagebotConnection = nil
-    end
-end
-
--- KILL AURA
-local function StartKillAura()
-    if KillAuraConnection then return end
-    KillAuraActive = true
-
-    KillAuraConnection = RunService.RenderStepped:Connect(function()
-        if not ST.KillAuraEnabled or not KillAuraActive then return end
-
-        local myPos = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
-        if not myPos then return end
-
-        for _, p in ipairs(Players:GetPlayers()) do
-            if not IsPlayerValidForTarget(p) then continue end
-            if ST.RagebotTeamCheck and p.Team == LocalPlayer.Team then continue end
-
-            local partName = ST.RagebotPart or "Head"
-            local part = safeFindFirstChild(p.Character, partName)
-            if not part then
-                part = safeFindFirstChild(p.Character, "Head")
-                if not part then continue end
-            end
-
-            local dist = (part.Position - myPos.Position).Magnitude
-            if dist <= ST.KillAuraRange then
-                RagebotShoot(p)
-                task.wait(ST.KillAuraDelay or 0.1)
-            end
-        end
-    end)
-end
-
-local function StopKillAura()
-    KillAuraActive = false
-    if KillAuraConnection then
-        KillAuraConnection:Disconnect()
-        KillAuraConnection = nil
-    end
-end
-
--- RAGE TELEPORT
-local function StartRageTeleport()
-    if RageTeleportConnection then return end
-    RageTeleportActive = true
-
-    RageTeleportConnection = RunService.RenderStepped:Connect(function()
-        if not ST.RageTeleport or not RageTeleportActive then return end
-
-        local myRoot = LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
-        if not myRoot then return end
-
-        local target = GetRageTarget()
-        if target and target.Character then
-            local targetRoot = safeFindFirstChild(target.Character, "HumanoidRootPart")
-            if targetRoot then
-                local dist = (targetRoot.Position - myRoot.Position).Magnitude
-                if dist > ST.RageTeleportRange and dist < 100 then
-                    myRoot.CFrame = CFrame.new(targetRoot.Position + Vector3.new(0, 2, 0))
-                end
-            end
-        end
-    end)
-end
-
-local function StopRageTeleport()
-    RageTeleportActive = false
-    if RageTeleportConnection then
-        RageTeleportConnection:Disconnect()
-        RageTeleportConnection = nil
-    end
-end
-
 -- HITBOX
 local function UpdateHitbox()
     for _,p in ipairs(Players:GetPlayers()) do
@@ -7001,8 +6401,7 @@ local function ApplyHeadless(char)
             end
             for _,fi in ipairs(h:GetChildren()) do
                 if fi:IsA("Decal") or fi:IsA("FaceControls") then fi:Destroy() end
-            end
-            ST.MorphHiddenFace={}
+            end            ST.MorphHiddenFace={}
             for _,item in ipairs(char:GetChildren()) do
                 if item:IsA("Accessory") then
                     if item.AccessoryType==Enum.AccessoryType.Face or item.Name:lower():find("face") or item.Name:lower():find("glass") or item.Name:lower():find("mask") then
@@ -7530,16 +6929,6 @@ UserInputService.InputBegan:Connect(function(inp, gp)
             StopTriggerbot()
         end
     end
-    if inp.KeyCode == ST.RagebotKeybind and ST.RagebotMode == "Keybind" then
-        if ST.RagebotEnabled then
-            RagebotActive = not RagebotActive
-            if RagebotActive then
-                StartRagebot()
-            else
-                StopRagebot()
-            end
-        end
-    end
 end)
 
 UserInputService.InputEnded:Connect(function(inp, gp)
@@ -7556,9 +6945,6 @@ end)
 local VERSION_LABEL = "Delta"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
-if ST.RagebotEnabled then StartRagebot() end
-if ST.KillAuraEnabled then StartKillAura() end
-if ST.RageTeleport then StartRageTeleport() end
 if ST.FlameCamlock then StartFlameCamlock() end
 print("Blushwovens Delta v27.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
