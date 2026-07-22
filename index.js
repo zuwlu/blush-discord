@@ -15,7 +15,7 @@
 // FIXED: GunHandler compatibility - fixed getAim return values
 // FIXED: Flame Camlock moved to FLAME LOCK tab (not Camlock)
 // ADDED: UI Mode buttons instead of dropdown for Original/Exo/Flame
-// UPDATED: Version changed to 27.0
+// UPDATED: Version changed to 28.0
 // FIXED: Removed Hello Kitty theme and UI color theme changer
 // ADDED: UI color preset dropdown with full color application
 // ADDED: Player photos in whitelist
@@ -31,7 +31,10 @@
 // FIXED: Bullet spread now works properly
 // ADDED: Hello Kitty UI theme
 // REMOVED: Ragebot entirely
-const CURRENT_VERSION = "27.0";
+// REMOVED: UI settings from in-game script (now controlled via Discord command)
+// ADDED: /set-ui-theme command for Discord
+// UPDATED: Version changed to 28.0
+const CURRENT_VERSION = "28.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -85,6 +88,20 @@ let activeUsers = {};
 let globalKickFlag = false;
 let versionCache = {};
 
+// UI Theme mapping for Discord command
+const UI_THEMES = {
+    "original": "Original",
+    "synthwave": "Synthwave",
+    "cyberpunk": "Cyberpunk",
+    "dark": "Dark",
+    "blood": "Blood",
+    "matrix": "Matrix",
+    "retro": "Retro",
+    "exo": "Exo",
+    "flame": "Flame",
+    "hellokitty": "HelloKitty"
+};
+
 // ============================================
 // GOOGLE SHEETS SETUP
 // ============================================
@@ -117,16 +134,16 @@ async function loadUsers() {
     try {
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SHEET_ID,
-            range: `${SHEET_NAME}!A:M`,
+            range: `${SHEET_NAME}!A:N`,
         });
         const rows = response.data.values || [];
         if (rows.length === 0) {
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SHEET_ID,
-                range: `${SHEET_NAME}!A1:M1`,
+                range: `${SHEET_NAME}!A1:N1`,
                 valueInputOption: "USER_ENTERED",
                 requestBody: {
-                    values: [["discordId", "username", "password", "discordTag", "key", "hwid", "created", "expires", "maxUses", "used", "active", "version", "scriptVersion"]]
+                    values: [["discordId", "username", "password", "discordTag", "key", "hwid", "created", "expires", "maxUses", "used", "active", "version", "scriptVersion", "uiTheme"]]
                 }
             });
             return { users: {} };
@@ -149,7 +166,8 @@ async function loadUsers() {
                     used: parseInt(row[9]) || 0,
                     active: row[10] === "TRUE" || row[10] === "true" || false,
                     version: row[11] || "regular",
-                    scriptVersion: row[12] || CURRENT_VERSION
+                    scriptVersion: row[12] || CURRENT_VERSION,
+                    uiTheme: row[13] || "Original"
                 };
             }
         }
@@ -175,11 +193,12 @@ async function saveUser(userId, userData) {
             String(userData.used || 0),
             userData.active ? "TRUE" : "FALSE",
             userData.version || "regular",
-            userData.scriptVersion || CURRENT_VERSION
+            userData.scriptVersion || CURRENT_VERSION,
+            userData.uiTheme || "Original"
         ];
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SHEET_ID,
-            range: `${SHEET_NAME}!A:M`,
+            range: `${SHEET_NAME}!A:N`,
         });
         const rows = response.data.values || [];
         let rowIndex = -1;
@@ -192,14 +211,14 @@ async function saveUser(userId, userData) {
         if (rowIndex === -1) {
             await sheets.spreadsheets.values.append({
                 spreadsheetId: SHEET_ID,
-                range: `${SHEET_NAME}!A:M`,
+                range: `${SHEET_NAME}!A:N`,
                 valueInputOption: "USER_ENTERED",
                 requestBody: { values: [rowData] }
             });
         } else {
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SHEET_ID,
-                range: `${SHEET_NAME}!A${rowIndex + 1}:M${rowIndex + 1}`,
+                range: `${SHEET_NAME}!A${rowIndex + 1}:N${rowIndex + 1}`,
                 valueInputOption: "USER_ENTERED",
                 requestBody: { values: [rowData] }
             });
@@ -315,8 +334,13 @@ async function migrateScriptVersion() {
                 await saveUser(userId, db.users[userId]);
                 count++;
             }
+            if (!db.users[userId].uiTheme || db.users[userId].uiTheme === "") {
+                db.users[userId].uiTheme = "Original";
+                await saveUser(userId, db.users[userId]);
+                count++;
+            }
         }
-        console.log(`✅ Migration complete - ${count} users updated to scriptVersion ${CURRENT_VERSION}`);
+        console.log(`✅ Migration complete - ${count} users updated`);
     } catch (error) {
         console.error("❌ Migration error:", error);
     }
@@ -606,7 +630,7 @@ local UI_Colors = {
     FOVCircle = Color3.fromRGB(245,205,220),
     FOVCircle2 = Color3.fromRGB(100,100,110)
 }
-local currentUIPreset = "Original"
+local currentUIPreset = "{{UI_THEME}}"
 
 -- FIXED: Define ApplyUIPreset at TOP of script
 local function ApplyUIPreset(presetName)
@@ -621,8 +645,8 @@ local function ApplyUIPreset(presetName)
     pcall(UpdateUIFromColors)
 end
 
--- Initialize with Original preset
-ApplyUIPreset("Original")
+-- Initialize with user's UI theme
+ApplyUIPreset("{{UI_THEME}}")
 
 -- EXO UNIFIED Theme System (preserved for backwards compatibility)
 local ExoThemes = {
@@ -985,7 +1009,7 @@ TL.ZIndex=5
 if HD then TL.Parent=HD end
 
 local SL=Instance.new("TextLabel")
-SL.Text="Blushwovens {VERSION_LABEL} v27.0"
+SL.Text="Blushwovens {VERSION_LABEL} v28.0"
 SL.Size=UDim2.new(0,160,0,16)
 SL.Position=UDim2.new(0,56,0,30)
 SL.BackgroundTransparency=1
@@ -1025,7 +1049,7 @@ CT.BackgroundTransparency=1
 CT.ZIndex=3
 if MN then CT.Parent=MN end
 
--- ==================== CATEGORIES (RAGEBOT REMOVED) ====================
+-- ==================== CATEGORIES (RAGEBOT REMOVED, UI COLORS REMOVED) ====================
 local Cats={
     {"SILENT AIM",{
         {"Silent Aim","SA",false},
@@ -1102,37 +1126,6 @@ local Cats={
     }},
     {"WHITELIST",{}},
     {"MORPH",{{"Headless","MorphHeadless",false},{"Username","MorphTarget","","TB"},{"Apply Morph","MorphApply",false,"BTN"}}},
-    {"UI COLORS",{
-        {"--- UI Theme Presets ---","","","LBL2"},
-        {"UI Theme","UIPreset","Original","D",{"Original","Synthwave","Cyberpunk","Dark","Blood","Matrix","Retro","Exo","Flame","HelloKitty"}},
-        {"--- Background Colors ---","","","LBL2"},
-        {"Background","UI_BG",Color3.fromRGB(255,248,240),"C"},
-        {"Frame Background","UI_FrameBg",Color3.fromRGB(255,235,240),"C"},
-        {"Card Background","UI_CardBg",Color3.fromRGB(255,250,250),"C"},
-        {"--- Accent Colors ---","","","LBL2"},
-        {"Accent","UI_Accent",Color3.fromRGB(215,130,170),"C"},
-        {"Secondary","UI_Secondary",Color3.fromRGB(245,205,220),"C"},
-        {"Border","UI_Border",Color3.fromRGB(215,130,170),"C"},
-        {"--- Text Colors ---","","","LBL2"},
-        {"Text","UI_Text",Color3.fromRGB(60,45,35),"C"},
-        {"Text Secondary","UI_TextSec",Color3.fromRGB(100,80,70),"C"},
-        {"--- Toggle Colors ---","","","LBL2"},
-        {"Toggle On","UI_ToggleOn",Color3.fromRGB(235,200,120),"C"},
-        {"Toggle Off","UI_ToggleOff",Color3.fromRGB(80,60,50),"C"},
-        {"--- Slider Colors ---","","","LBL2"},
-        {"Slider Background","UI_SliderBg",Color3.fromRGB(80,60,50),"C"},
-        {"Slider Fill","UI_SliderFill",Color3.fromRGB(235,200,120),"C"},
-        {"--- ESP Colors ---","","","LBL2"},
-        {"ESP Box","UI_ESPBox",Color3.fromRGB(215,130,170),"C"},
-        {"ESP Line","UI_ESPLine",Color3.fromRGB(245,205,220),"C"},
-        {"ESP Text","UI_ESPText",Color3.fromRGB(255,248,240),"C"},
-        {"ESP Distance","UI_ESPDist",Color3.fromRGB(220,225,170),"C"},
-        {"--- FOV Colors ---","","","LBL2"},
-        {"FOV Circle 1","UI_FOV1",Color3.fromRGB(245,205,220),"C"},
-        {"FOV Circle 2","UI_FOV2",Color3.fromRGB(100,100,110),"C"},
-        {"--- Apply Colors ---","","","LBL2"},
-        {"Apply UI Colors","UI_Apply",false,"BTN"}
-    }},
     {"CREDITS",{
         {"zuwlu / blushwoven","","","LBL"},
         {"izzy / whoreirl - flamelock","","","LBL"},
@@ -1148,7 +1141,6 @@ local MorphInput=nil
 local SettingsRGBSliders = {}
 local Dropdowns = {}
 local ToggleButtons = {}
-local ColorPickers = {}
 
 local function UpdateUIColors()
     UpdateUIFromColors()
@@ -1227,7 +1219,6 @@ for i,cat in ipairs(Cats) do
     if nm=="MOVEMENT" then extraH=60 end
     if nm=="FLAME LOCK" then extraH=140 end
     if nm=="TRIGGERBOT" then extraH=140 end
-    if nm=="UI COLORS" then extraH=900 end
     sf.CanvasSize=UDim2.new(0,0,0,#fn*60+20+extraH)
     sf.ScrollBarThickness=3
     sf.ScrollBarImageColor3=UI_Colors.Accent
@@ -1300,246 +1291,6 @@ for i,cat in ipairs(Cats) do
             lb.TextSize=11
             lb.TextXAlignment=Enum.TextXAlignment.Center
             lb.ZIndex=6
-        elseif ftt=="C" then
-            local cp=Instance.new("TextButton")
-            cp.Size=UDim2.new(0,70,0,26)
-            cp.Position=UDim2.new(1,-84,0.5,-13)
-            cp.BackgroundColor3=fdd
-            cp.BackgroundTransparency=0.15
-            cp.Text="🎨"
-            cp.Font=Enum.Font.GothamBold
-            cp.TextSize=14
-            cp.TextColor3=UI_Colors.Text
-            cp.ZIndex=6
-            if fr then cp.Parent=fr end
-            CRN(cp,UDim.new(0,6))
-            STR(cp,1.5,UI_Colors.Border,0.3)
-
-            local preview=Instance.new("Frame")
-            preview.Size=UDim2.new(0,20,0,20)
-            preview.Position=UDim2.new(1,-170,0.5,-10)
-            preview.BackgroundColor3=fdd
-            preview.BorderSizePixel=0
-            preview.ZIndex=7
-            if fr then preview.Parent=fr end
-            CRN(preview,UDim.new(1,0))
-            STR(preview,1,UI_Colors.Border,0.5)
-
-            if not ColorPickers[fkk] then
-                ColorPickers[fkk] = {Color=fdd, Preview=preview, Button=cp}
-            end
-            ColorPickers[fkk].Preview = preview
-
-            if cp then
-                cp.MouseButton1Click:Connect(function()
-                    local popup=Instance.new("Frame")
-                    popup.Size=UDim2.new(0,260,0,180)
-                    popup.Position=UDim2.new(0.5,-130,0.5,-90)
-                    popup.BackgroundColor3=UI_Colors.CardBg
-                    popup.BorderSizePixel=0
-                    popup.ZIndex=20
-                    if SG then popup.Parent=SG end
-                    CRN(popup,UDim.new(0,12))
-                    STR(popup,2,UI_Colors.Accent,0.5)
-
-                    local popupTitle=Instance.new("TextLabel")
-                    popupTitle.Text=fnn
-                    popupTitle.Size=UDim2.new(1,0,0,30)
-                    popupTitle.Position=UDim2.new(0,0,0,0)
-                    popupTitle.BackgroundTransparency=1
-                    popupTitle.Font=Enum.Font.GothamBold
-                    popupTitle.TextSize=14
-                    popupTitle.TextColor3=UI_Colors.Text
-                    popupTitle.ZIndex=21
-                    if popup then popupTitle.Parent=popup end
-
-                    local closeBtn=Instance.new("TextButton")
-                    closeBtn.Size=UDim2.new(0,30,0,30)
-                    closeBtn.Position=UDim2.new(1,-34,0,0)
-                    closeBtn.BackgroundTransparency=1
-                    closeBtn.Text="✕"
-                    closeBtn.Font=Enum.Font.GothamBold
-                    closeBtn.TextSize=16
-                    closeBtn.TextColor3=UI_Colors.Text
-                    closeBtn.ZIndex=21
-                    if popup then closeBtn.Parent=popup end
-                    closeBtn.MouseButton1Click:Connect(function() popup:Destroy() end)
-
-                    local previewBox=Instance.new("Frame")
-                    previewBox.Size=UDim2.new(0,40,0,40)
-                    previewBox.Position=UDim2.new(0,10,0,40)
-                    previewBox.BackgroundColor3=fdd
-                    previewBox.BorderSizePixel=0
-                    previewBox.ZIndex=21
-                    if popup then previewBox.Parent=popup end
-                    CRN(previewBox,UDim.new(0,8))
-                    STR(previewBox,2,UI_Colors.Border,0.5)
-
-                    local r,g,b=fdd.R*255,fdd.G*255,fdd.B*255
-
-                    local function createColorSlider(parent,yPos,label,colorKey)
-                        local sliderLabel=Instance.new("TextLabel")
-                        local val = math.floor(colorKey=="R" and r or colorKey=="G" and g or b)
-                        sliderLabel.Text=label..": "..val
-                        sliderLabel.Size=UDim2.new(0,45,0,16)
-                        sliderLabel.Position=UDim2.new(0,60,0,yPos)
-                        sliderLabel.BackgroundTransparency=1
-                        sliderLabel.Font=Enum.Font.Code
-                        sliderLabel.TextSize=10
-                        sliderLabel.TextColor3=UI_Colors.TextSecondary
-                        sliderLabel.TextXAlignment=Enum.TextXAlignment.Left
-                        sliderLabel.ZIndex=21
-                        if parent then sliderLabel.Parent=parent end
-
-                        local sliderBg=Instance.new("Frame")
-                        sliderBg.Size=UDim2.new(1,-120,0,6)
-                        sliderBg.Position=UDim2.new(0,60,0,yPos+18)
-                        sliderBg.BackgroundColor3=UI_Colors.SliderBg
-                        sliderBg.BackgroundTransparency=0.3
-                        sliderBg.BorderSizePixel=0
-                        sliderBg.ZIndex=21
-                        if parent then sliderBg.Parent=parent end
-                        CRN(sliderBg,UDim.new(1,0))
-
-                        local initVal = colorKey=="R" and r or colorKey=="G" and g or b
-                        local sliderFill=Instance.new("Frame")
-                        sliderFill.Size=UDim2.new(initVal/255,0,1,0)
-                        sliderFill.BackgroundColor3=colorKey=="R" and Color3.fromRGB(255,100,130) or colorKey=="G" and Color3.fromRGB(100,200,100) or Color3.fromRGB(100,100,255)
-                        sliderFill.BorderSizePixel=0
-                        sliderFill.ZIndex=22
-                        if sliderBg then sliderFill.Parent=sliderBg end
-                        CRN(sliderFill,UDim.new(1,0))
-
-                        local sliderKnob=Instance.new("Frame")
-                        sliderKnob.Size=UDim2.new(0,14,0,14)
-                        sliderKnob.Position=UDim2.new(initVal/255,-7,0.5,-7)
-                        sliderKnob.BackgroundColor3=UI_Colors.CardBg
-                        sliderKnob.BorderSizePixel=0
-                        sliderKnob.ZIndex=23
-                        if sliderBg then sliderKnob.Parent=sliderBg end
-                        CRN(sliderKnob,UDim.new(1,0))
-                        STR(sliderKnob,1.5,UI_Colors.ToggleOn,0)
-
-                        local function updateSlider(inp)
-                            if not sliderBg or not sliderBg.AbsolutePosition then return end
-                            local rp=math.clamp((inp.Position.X-sliderBg.AbsolutePosition.X)/sliderBg.AbsoluteSize.X,0,1)
-                            local val=math.floor(rp*255)
-                            sliderFill.Size=UDim2.new(rp,0,1,0)
-                            sliderKnob.Position=UDim2.new(rp,-7,0.5,-7)
-                            sliderLabel.Text=label..": "..val
-                            if colorKey=="R" then r=val elseif colorKey=="G" then g=val else b=val end
-                            local newColor=Color3.fromRGB(r,g,b)
-                            previewBox.BackgroundColor3=newColor
-                            preview.BackgroundColor3=newColor
-                            ColorPickers[fkk].Color=newColor
-                            cp.BackgroundColor3=newColor
-                            local colorMap = {
-                                UI_BG="Background",
-                                UI_FrameBg="FrameBg",
-                                UI_CardBg="CardBg",
-                                UI_Accent="Accent",
-                                UI_Secondary="Secondary",
-                                UI_Border="Border",
-                                UI_Text="Text",
-                                UI_TextSec="TextSecondary",
-                                UI_ToggleOn="ToggleOn",
-                                UI_ToggleOff="ToggleOff",
-                                UI_SliderBg="SliderBg",
-                                UI_SliderFill="SliderFill",
-                                UI_ESPBox="ESPBox",
-                                UI_ESPLine="ESPLine",
-                                UI_ESPText="ESPText",
-                                UI_ESPDist="ESPDist",
-                                UI_FOV1="FOVCircle",
-                                UI_FOV2="FOVCircle2"
-                            }
-                            if colorMap[fkk] then
-                                UI_Colors[colorMap[fkk]] = newColor
-                            end
-                            UpdateUIFromColors()
-                        end
-
-                        sliderKnob.InputBegan:Connect(function(inp)
-                            if inp.UserInputType==Enum.UserInputType.MouseButton1 then
-                                local cn
-                                cn=RunService.RenderStepped:Connect(function()
-                                    if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-                                        updateSlider({Position=UserInputService:GetMouseLocation()})
-                                    else
-                                        cn:Disconnect()
-                                    end
-                                end)
-                            end
-                        end)
-                        sliderBg.InputBegan:Connect(function(inp)
-                            if inp.UserInputType==Enum.UserInputType.MouseButton1 then
-                                updateSlider({Position=inp.Position})
-                                local cn
-                                cn=RunService.RenderStepped:Connect(function()
-                                    if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-                                        updateSlider({Position=UserInputService:GetMouseLocation()})
-                                    else
-                                        cn:Disconnect()
-                                    end
-                                end)
-                            end
-                        end)
-
-                        return {Label=sliderLabel, Fill=sliderFill, Knob=sliderKnob}
-                    end
-
-                    createColorSlider(popup,40,"R","R")
-                    createColorSlider(popup,72,"G","G")
-                    createColorSlider(popup,104,"B","B")
-
-                    local applyBtn=Instance.new("TextButton")
-                    applyBtn.Size=UDim2.new(0,100,0,30)
-                    applyBtn.Position=UDim2.new(0.5,-50,0,145)
-                    applyBtn.BackgroundColor3=UI_Colors.Accent
-                    applyBtn.BackgroundTransparency=0.15
-                    applyBtn.Text="Apply"
-                    applyBtn.Font=Enum.Font.GothamBold
-                    applyBtn.TextSize=12
-                    applyBtn.TextColor3=UI_Colors.Text
-                    applyBtn.ZIndex=21
-                    if popup then applyBtn.Parent=popup end
-                    CRN(applyBtn,UDim.new(0,8))
-                    STR(applyBtn,1.5,UI_Colors.Border,0.3)
-
-                    applyBtn.MouseButton1Click:Connect(function()
-                        local newColor=Color3.fromRGB(r,g,b)
-                        ColorPickers[fkk].Color=newColor
-                        preview.BackgroundColor3=newColor
-                        cp.BackgroundColor3=newColor
-                        local colorMap = {
-                            UI_BG="Background",
-                            UI_FrameBg="FrameBg",
-                            UI_CardBg="CardBg",
-                            UI_Accent="Accent",
-                            UI_Secondary="Secondary",
-                            UI_Border="Border",
-                            UI_Text="Text",
-                            UI_TextSec="TextSecondary",
-                            UI_ToggleOn="ToggleOn",
-                            UI_ToggleOff="ToggleOff",
-                            UI_SliderBg="SliderBg",
-                            UI_SliderFill="SliderFill",
-                            UI_ESPBox="ESPBox",
-                            UI_ESPLine="ESPLine",
-                            UI_ESPText="ESPText",
-                            UI_ESPDist="ESPDist",
-                            UI_FOV1="FOVCircle",
-                            UI_FOV2="FOVCircle2"
-                        }
-                        if colorMap[fkk] then
-                            UI_Colors[colorMap[fkk]] = newColor
-                        end
-                        UpdateUIFromColors()
-                        popup:Destroy()
-                    end)
-                end)
-            end
-
         elseif ftt=="S" then
             local fmi=f[5]
             local fma=f[6]
@@ -1765,45 +1516,6 @@ for i,cat in ipairs(Cats) do
                             ApplyExoTheme(opt)
                             if UI_Colors.UI_Mode=="Exo" then ApplyUIPreset("Exo") end
                         end
-                        if fkk=="UIPreset" then
-                            ApplyUIPreset(opt)
-                            -- Update all color pickers to match new preset
-                            local preset = UIPresets[opt]
-                            if preset then
-                                for key, value in pairs(preset) do
-                                    local colorKey = {
-                                        Background = "UI_BG",
-                                        FrameBg = "UI_FrameBg",
-                                        CardBg = "UI_CardBg",
-                                        Accent = "UI_Accent",
-                                        Secondary = "UI_Secondary",
-                                        Border = "UI_Border",
-                                        Text = "UI_Text",
-                                        TextSecondary = "UI_TextSec",
-                                        ToggleOn = "UI_ToggleOn",
-                                        ToggleOff = "UI_ToggleOff",
-                                        SliderBg = "UI_SliderBg",
-                                        SliderFill = "UI_SliderFill",
-                                        ESPBox = "UI_ESPBox",
-                                        ESPLine = "UI_ESPLine",
-                                        ESPText = "UI_ESPText",
-                                        ESPDist = "UI_ESPDist",
-                                        FOVCircle = "UI_FOV1",
-                                        FOVCircle2 = "UI_FOV2"
-                                    }
-                                    if colorKey[key] and ColorPickers[colorKey[key]] then
-                                        ColorPickers[colorKey[key]].Color = value
-                                        if ColorPickers[colorKey[key]].Preview then
-                                            ColorPickers[colorKey[key]].Preview.BackgroundColor3 = value
-                                        end
-                                        if ColorPickers[colorKey[key]].Button then
-                                            ColorPickers[colorKey[key]].Button.BackgroundColor3 = value
-                                        end
-                                    end
-                                end
-                                UpdateUIFromColors()
-                            end
-                        end
                     end)
                     ob.MouseEnter:Connect(function()
                         ob.BackgroundColor3=UI_Colors.Accent
@@ -1897,20 +1609,6 @@ for i,cat in ipairs(Cats) do
                             ST.MorphTarget=MorphInput.Text
                             StartMorph()
                         end
-                    end)
-                end
-            end
-            if fkk=="UI_Apply" then
-                if ab then
-                    ab.Text="Apply Colors"
-                    ab.MouseButton1Click:Connect(function()
-                        UpdateUIFromColors()
-                        for key, data in pairs(ColorPickers) do
-                            if data and data.Preview then
-                                data.Preview.BackgroundColor3=data.Color
-                            end
-                        end
-                        print("UI Colors Applied!")
                     end)
                 end
             end
@@ -2420,17 +2118,17 @@ UpdateFog()
 UpdateCamlock()
 CreateTriggerbotHitbox()
 -- FIX: Apply preset first, then update UI
-ApplyUIPreset("Original")
+ApplyUIPreset("{{UI_THEME}}")
 pcall(function()
     UpdateUIFromColors()
 end)
 `;
 
 // ============================================
-// REGULAR SCRIPT - FIXED v27.0 - GunHandler fix, IsWL fix, nil checks
+// REGULAR SCRIPT - FIXED v28.0 - GunHandler fix, IsWL fix, nil checks
 // ============================================
 const REGULAR_SCRIPT = `
---[[ Blushwovens Regular v27.0 - Full Silent Aim with require() ]]
+--[[ Blushwovens Regular v28.0 - Full Silent Aim with require() ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -2445,7 +2143,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Regular v27.0 - Loading...")
+print("Blushwovens Regular v28.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -2841,18 +2539,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
-
--- UI PRESETS
-local UIPresets = {
-    {Name="Pink", Accent=Color3.fromRGB(215,130,170), Second=Color3.fromRGB(245,205,220)},
-    {Name="Purple", Accent=Color3.fromRGB(140,100,220), Second=Color3.fromRGB(180,150,240)},
-    {Name="Blue", Accent=Color3.fromRGB(100,150,220), Second=Color3.fromRGB(150,190,240)},
-    {Name="Red", Accent=Color3.fromRGB(200,90,90), Second=Color3.fromRGB(240,140,140)},
-    {Name="Green", Accent=Color3.fromRGB(100,180,120), Second=Color3.fromRGB(150,210,160)},
-    {Name="Orange", Accent=Color3.fromRGB(220,150,80), Second=Color3.fromRGB(240,190,130)},
-    {Name="White", Accent=Color3.fromRGB(200,195,205), Second=Color3.fromRGB(230,225,235)},
-    {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
-}
 
 -- CAMLOCK - WITH TARGET LOCK
 local CamActive = false
@@ -3933,15 +3619,15 @@ local VERSION_LABEL = "Regular"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Regular v27.0 - Loaded successfully!")
+print("Blushwovens Regular v28.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// XENO SCRIPT - FIXED v27.0
+// XENO SCRIPT - FIXED v28.0
 // ============================================
 const XENO_SCRIPT = `
---[[ Blushwovens Xeno v27.0 - Silent Aim using getfenv/setfenv ]]
+--[[ Blushwovens Xeno v28.0 - Silent Aim using getfenv/setfenv ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -3956,7 +3642,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Xeno v27.0 - Loading...")
+print("Blushwovens Xeno v28.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -4226,8 +3912,7 @@ local function getClosestPart(char)
     local shortestDist = math.huge
     if not mouse or not mouse.X or not mouse.Y then
         return safeFindFirstChild(char, "Head")
-    end
-    local mousePos = Vector2.new(mouse.X, mouse.Y)
+    end    local mousePos = Vector2.new(mouse.X, mouse.Y)
     local parts = {"Head", "HumanoidRootPart", "Torso", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand"}
     for _, partName in pairs(parts) do
         local p = safeFindFirstChild(char, partName)
@@ -4375,18 +4060,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
-
--- UI PRESETS
-local UIPresets = {
-    {Name="Pink", Accent=Color3.fromRGB(215,130,170), Second=Color3.fromRGB(245,205,220)},
-    {Name="Purple", Accent=Color3.fromRGB(140,100,220), Second=Color3.fromRGB(180,150,240)},
-    {Name="Blue", Accent=Color3.fromRGB(100,150,220), Second=Color3.fromRGB(150,190,240)},
-    {Name="Red", Accent=Color3.fromRGB(200,90,90), Second=Color3.fromRGB(240,140,140)},
-    {Name="Green", Accent=Color3.fromRGB(100,180,120), Second=Color3.fromRGB(150,210,160)},
-    {Name="Orange", Accent=Color3.fromRGB(220,150,80), Second=Color3.fromRGB(240,190,130)},
-    {Name="White", Accent=Color3.fromRGB(200,195,205), Second=Color3.fromRGB(230,225,235)},
-    {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
-}
 
 -- CAMLOCK - WITH TARGET LOCK
 local CamActive = false
@@ -5467,15 +5140,15 @@ local VERSION_LABEL = "Xeno"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Xeno v27.0 - Loaded successfully!")
+print("Blushwovens Xeno v28.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// DELTA SCRIPT - FIXED v27.0
+// DELTA SCRIPT - FIXED v28.0
 // ============================================
 const DELTA_SCRIPT = `
---[[ Blushwovens Delta v27.0 - Silent Aim using mouse manipulation ]]
+--[[ Blushwovens Delta v28.0 - Silent Aim using mouse manipulation ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -5490,7 +5163,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Delta v27.0 - Loading...")
+print("Blushwovens Delta v28.0 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -5857,18 +5530,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
-
--- UI PRESETS
-local UIPresets = {
-    {Name="Pink", Accent=Color3.fromRGB(215,130,170), Second=Color3.fromRGB(245,205,220)},
-    {Name="Purple", Accent=Color3.fromRGB(140,100,220), Second=Color3.fromRGB(180,150,240)},
-    {Name="Blue", Accent=Color3.fromRGB(100,150,220), Second=Color3.fromRGB(150,190,240)},
-    {Name="Red", Accent=Color3.fromRGB(200,90,90), Second=Color3.fromRGB(240,140,140)},
-    {Name="Green", Accent=Color3.fromRGB(100,180,120), Second=Color3.fromRGB(150,210,160)},
-    {Name="Orange", Accent=Color3.fromRGB(220,150,80), Second=Color3.fromRGB(240,190,130)},
-    {Name="White", Accent=Color3.fromRGB(200,195,205), Second=Color3.fromRGB(230,225,235)},
-    {Name="Mint", Accent=Color3.fromRGB(120,190,180), Second=Color3.fromRGB(170,220,210)}
-}
 
 -- CAMLOCK - WITH TARGET LOCK
 local CamActive = false
@@ -6401,7 +6062,8 @@ local function ApplyHeadless(char)
             end
             for _,fi in ipairs(h:GetChildren()) do
                 if fi:IsA("Decal") or fi:IsA("FaceControls") then fi:Destroy() end
-            end            ST.MorphHiddenFace={}
+            end
+            ST.MorphHiddenFace={}
             for _,item in ipairs(char:GetChildren()) do
                 if item:IsA("Accessory") then
                     if item.AccessoryType==Enum.AccessoryType.Face or item.Name:lower():find("face") or item.Name:lower():find("glass") or item.Name:lower():find("mask") then
@@ -6946,7 +6608,7 @@ local VERSION_LABEL = "Delta"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Delta v27.0 - Loaded successfully!")
+print("Blushwovens Delta v28.0 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
@@ -6962,10 +6624,12 @@ const SCRIPTS = {
 // ============================================
 // LOADER GENERATOR
 // ============================================
-function generateLoaderScript(username, password, serverUrl, key, version) {
+function generateLoaderScript(username, password, serverUrl, key, version, uiTheme) {
     const scriptContent = SCRIPTS[version] || SCRIPTS.regular;
+    // Replace the UI theme placeholder with the user's theme
+    const themedScript = scriptContent.replace(/\{\{UI_THEME\}\}/g, uiTheme || "Original");
     return `
--- Blushwovens Loader v27.0 - ${version.toUpperCase()} VERSION
+-- Blushwovens Loader v28.0 - ${version.toUpperCase()} VERSION
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
 local KEY = "${key}"
@@ -7087,8 +6751,8 @@ spawn(function()
     end
 end)
 
-print("Blushwovens Loader v27.0 (${version}) - Starting...")
-notify("Loading ${version} v27.0... Please wait.", false)
+print("Blushwovens Loader v28.0 (${version}) - Starting...")
+notify("Loading ${version} v28.0... Please wait.", false)
 
 local ok, response = pcall(request)
 if not ok then
@@ -7119,7 +6783,7 @@ if not data.success then
     error("Error: " .. data.reason)
 end
 
-notify("✅ v27.0 loaded successfully!", false)
+notify("✅ v28.0 loaded successfully!", false)
 loadstring(data.chunk)()
 `;
 }
@@ -7223,6 +6887,26 @@ const commands = [
                 )),
 
     new SlashCommandBuilder()
+        .setName("set-ui-theme")
+        .setDescription("Change your UI theme")
+        .addStringOption(option =>
+            option.setName("theme")
+                .setDescription("Select your UI theme")
+                .setRequired(true)
+                .addChoices(
+                    { name: "Original", value: "Original" },
+                    { name: "Synthwave", value: "Synthwave" },
+                    { name: "Cyberpunk", value: "Cyberpunk" },
+                    { name: "Dark", value: "Dark" },
+                    { name: "Blood", value: "Blood" },
+                    { name: "Matrix", value: "Matrix" },
+                    { name: "Retro", value: "Retro" },
+                    { name: "Exo", value: "Exo" },
+                    { name: "Flame", value: "Flame" },
+                    { name: "HelloKitty", value: "HelloKitty" }
+                )),
+
+    new SlashCommandBuilder()
         .setName("list-users")
         .setDescription("List all users (Admin only)"),
 
@@ -7299,7 +6983,7 @@ const commands = [
                 .setRequired(true))
         .addStringOption(option =>
             option.setName("version")
-                .setDescription("The version to force (e.g., 27.0)")
+                .setDescription("The version to force (e.g., 28.0)")
                 .setRequired(true)),
 
     new SlashCommandBuilder()
@@ -7414,7 +7098,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
             used: 0,
             active: true,
             version: version,
-            scriptVersion: CURRENT_VERSION
+            scriptVersion: CURRENT_VERSION,
+            uiTheme: "Original"
         };
 
         db.users[interaction.user.id] = userData;
@@ -7434,6 +7119,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                          `**⏰ Time:** ${new Date().toISOString().split("T")[1].slice(0, 8)} UTC\n` +
                          `**📌 Version:** ${version}\n` +
                          `**📌 Script Version:** ${CURRENT_VERSION}\n` +
+                         `**🎨 UI Theme:** Original\n` +
                          `**👥 Total Users:** ${Object.keys(db.users).length}`
             });
         } catch (error) {
@@ -7441,7 +7127,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
-        const loaderScript = generateLoaderScript(username, password, serverUrl, key, version);
+        const loaderScript = generateLoaderScript(username, password, serverUrl, key, version, "Original");
 
         await interaction.followUp({
             content: `✅ **Account created successfully!** (Version: ${version}) I've sent your loader script via DM.`,
@@ -7485,10 +7171,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 { name: "💻 HWID", value: userData.hwid || "Not set", inline: true },
                 { name: "📌 Executor", value: userData.version || "regular", inline: true },
                 { name: "📌 Script Version", value: userData.scriptVersion || CURRENT_VERSION, inline: true },
+                { name: "🎨 UI Theme", value: userData.uiTheme || "Original", inline: true },
                 { name: "📌 Status", value: userData.active ? "✅ Active" : "❌ Inactive", inline: true },
                 { name: "⏰ Expires", value: userData.expires ? new Date(userData.expires).toISOString().split("T")[0] : "Never", inline: true }
             )
-            .setFooter({ text: "Use /reset-hwid to reset your HWID" });
+            .setFooter({ text: "Use /set-ui-theme to change your UI theme" });
 
         await interaction.followUp({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
@@ -7507,20 +7194,59 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         const version = userData.version || "regular";
+        const uiTheme = userData.uiTheme || "Original";
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
-        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, version);
+        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, version, uiTheme);
 
         await interaction.followUp({
-            content: `✅ I've sent your loader script (${version} version) via DM.`,
+            content: `✅ I've sent your loader script (${version} version) with ${uiTheme} theme via DM.`,
             flags: MessageFlags.Ephemeral
         });
 
         try {
             await interaction.user.send({
-                content: `📥 **Here is your loader script (${version} version). Just run it in your executor – no typing needed!**`,
+                content: `📥 **Here is your loader script (${version} version) with ${uiTheme} theme.**`,
                 files: [{
                     attachment: Buffer.from(loaderScript, "utf-8"),
                     name: `loader_${version}.lua`
+                }]
+            });
+        } catch (error) {
+            console.error("DM error:", error);
+        }
+        return;
+    }
+
+    // ============================================
+    // /set-ui-theme
+    // ============================================
+    if (command === "set-ui-theme") {
+        const userData = db.users[interaction.user.id];
+        if (!userData) {
+            return interaction.followUp({
+                content: "❌ You don't have an account. Use `/create-account` first.",
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        const theme = interaction.options.getString("theme");
+        userData.uiTheme = theme;
+        await saveUser(interaction.user.id, userData);
+
+        const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
+        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, userData.version || "regular", theme);
+
+        await interaction.followUp({
+            content: `✅ Your UI theme has been updated to **${theme}**. I've sent your updated loader script via DM.`,
+            flags: MessageFlags.Ephemeral
+        });
+
+        try {
+            await interaction.user.send({
+                content: `📥 **Here is your updated loader script with the ${theme} theme.**`,
+                files: [{
+                    attachment: Buffer.from(loaderScript, "utf-8"),
+                    name: `loader_${userData.version || "regular"}.lua`
                 }]
             });
         } catch (error) {
@@ -7596,17 +7322,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
         userData.scriptVersion = CURRENT_VERSION;
         await saveUser(interaction.user.id, userData);
 
+        const uiTheme = userData.uiTheme || "Original";
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
-        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, version);
+        const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, version, uiTheme);
 
         await interaction.followUp({
-            content: `✅ **Latest loader script sent!** (Version: ${version}, Script Version: ${CURRENT_VERSION})`,
+            content: `✅ **Latest loader script sent!** (Version: ${version}, Script Version: ${CURRENT_VERSION}, Theme: ${uiTheme})`,
             flags: MessageFlags.Ephemeral
         });
 
         try {
             await interaction.user.send({
-                content: `📥 **Here is the latest loader script (${version} version):**`,
+                content: `📥 **Here is the latest loader script (${version} version) with ${uiTheme} theme:**`,
                 files: [{
                     attachment: Buffer.from(loaderScript, "utf-8"),
                     name: `loader_${version}.lua`
@@ -7627,7 +7354,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         for (const userId in db.users) {
             const user = db.users[userId];
             const maxUsesDisplay = user.maxUses === 0 ? "∞" : user.maxUses;
-            userList.push(`**${user.username}** | Key: \`${user.key}\` | HWID: ${user.hwid || "Not set"} | Uses: ${user.used}/${maxUsesDisplay} | Executor: ${user.version || "regular"} | Script: ${user.scriptVersion || "N/A"} | ${user.active ? "✅ Active" : "❌ Revoked"}`);
+            userList.push(`**${user.username}** | Key: \`${user.key}\` | HWID: ${user.hwid || "Not set"} | Uses: ${user.used}/${maxUsesDisplay} | Executor: ${user.version || "regular"} | Script: ${user.scriptVersion || "N/A"} | Theme: ${user.uiTheme || "Original"} | ${user.active ? "✅ Active" : "❌ Revoked"}`);
         }
 
         if (userList.length === 0) {
@@ -7906,7 +7633,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // ============================================
     if (command === "announce-update") {
         const message = interaction.options.getString("message");
-        const version = interaction.options.getString("version") || "27.0";
+        const version = interaction.options.getString("version") || "28.0";
 
         try {
             const channel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
@@ -8040,6 +7767,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     `/get-loader\n` +
                     `/reset-hwid\n` +
                     `/set-version <version>\n` +
+                    `/set-ui-theme <theme>\n` +
                     `/update [version]\n`, inline: false },
                 { name: "🔒 Admin Commands", value:
                     `/list-users\n` +
@@ -8138,12 +7866,15 @@ app.post('/load', async (req, res) => {
     await saveUser(userId, userData);
 
     const scriptVersion = userData.version || "regular";
-    const scriptContent = SCRIPTS[scriptVersion] || SCRIPTS.regular;
+    const uiTheme = userData.uiTheme || "Original";
+    let scriptContent = SCRIPTS[scriptVersion] || SCRIPTS.regular;
+    // Replace the UI theme placeholder with the user's theme
+    scriptContent = scriptContent.replace(/\{\{UI_THEME\}\}/g, uiTheme);
 
     if (isFirstRun) {
-        console.log(`✅ HWID set for ${username} (First run, v${CURRENT_VERSION}, Executor: ${scriptVersion})`);
+        console.log(`✅ HWID set for ${username} (First run, v${CURRENT_VERSION}, Executor: ${scriptVersion}, Theme: ${uiTheme})`);
     } else {
-        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v${CURRENT_VERSION}, Executor: ${scriptVersion})`);
+        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v${CURRENT_VERSION}, Executor: ${scriptVersion}, Theme: ${uiTheme})`);
     }
 
     res.json({ success: true, chunk: scriptContent });
@@ -8211,7 +7942,7 @@ app.post('/check-version', (req, res) => {
     res.json({ outdated: false });
 });
 
-app.get('/', (req, res) => res.send('Blushwovens v27.0 Bot is running!'));
+app.get('/', (req, res) => res.send('Blushwovens v28.0 Bot is running!'));
 app.get('/version', (req, res) => {
     res.json({ version: CURRENT_VERSION });
 });
