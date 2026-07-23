@@ -33,6 +33,8 @@
 // REMOVED: Ragebot entirely
 // REMOVED: UI settings from in-game script (now controlled via Discord command)
 // ADDED: /set-ui-theme command for Discord
+// FIXED: Hello Kitty theme crash - added UI_Mode to all themes
+// FIXED: Script version updates on theme change
 // UPDATED: Version changed to 28.0
 const CURRENT_VERSION = "28.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
@@ -415,7 +417,8 @@ local UIPresets = {
         ESPText = Color3.fromRGB(255,248,240),
         ESPDist = Color3.fromRGB(220,225,170),
         FOVCircle = Color3.fromRGB(245,205,220),
-        FOVCircle2 = Color3.fromRGB(100,100,110)
+        FOVCircle2 = Color3.fromRGB(100,100,110),
+        UI_Mode = "Original"
     },
     ["Synthwave"] = {
         Background = Color3.fromRGB(20,10,35),
@@ -436,7 +439,8 @@ local UIPresets = {
         ESPText = Color3.fromRGB(255,200,255),
         ESPDist = Color3.fromRGB(200,150,255),
         FOVCircle = Color3.fromRGB(255,0,200),
-        FOVCircle2 = Color3.fromRGB(100,50,150)
+        FOVCircle2 = Color3.fromRGB(100,50,150),
+        UI_Mode = "Synthwave"
     },
     ["Cyberpunk"] = {
         Background = Color3.fromRGB(10,10,20),
@@ -457,7 +461,8 @@ local UIPresets = {
         ESPText = Color3.fromRGB(0,255,255),
         ESPDist = Color3.fromRGB(200,200,255),
         FOVCircle = Color3.fromRGB(0,255,255),
-        FOVCircle2 = Color3.fromRGB(100,100,150)
+        FOVCircle2 = Color3.fromRGB(100,100,150),
+        UI_Mode = "Cyberpunk"
     },
     ["Dark"] = {
         Background = Color3.fromRGB(20,20,25),
@@ -478,7 +483,8 @@ local UIPresets = {
         ESPText = Color3.fromRGB(220,230,240),
         ESPDist = Color3.fromRGB(160,170,180),
         FOVCircle = Color3.fromRGB(100,180,255),
-        FOVCircle2 = Color3.fromRGB(80,80,100)
+        FOVCircle2 = Color3.fromRGB(80,80,100),
+        UI_Mode = "Dark"
     },
     ["Blood"] = {
         Background = Color3.fromRGB(30,10,10),
@@ -499,7 +505,8 @@ local UIPresets = {
         ESPText = Color3.fromRGB(255,200,200),
         ESPDist = Color3.fromRGB(200,150,150),
         FOVCircle = Color3.fromRGB(200,40,40),
-        FOVCircle2 = Color3.fromRGB(100,60,60)
+        FOVCircle2 = Color3.fromRGB(100,60,60),
+        UI_Mode = "Blood"
     },
     ["Matrix"] = {
         Background = Color3.fromRGB(0,10,0),
@@ -520,7 +527,8 @@ local UIPresets = {
         ESPText = Color3.fromRGB(0,255,0),
         ESPDist = Color3.fromRGB(100,200,100),
         FOVCircle = Color3.fromRGB(0,255,0),
-        FOVCircle2 = Color3.fromRGB(0,100,0)
+        FOVCircle2 = Color3.fromRGB(0,100,0),
+        UI_Mode = "Matrix"
     },
     ["Retro"] = {
         Background = Color3.fromRGB(40,35,30),
@@ -541,7 +549,8 @@ local UIPresets = {
         ESPText = Color3.fromRGB(255,220,180),
         ESPDist = Color3.fromRGB(200,170,140),
         FOVCircle = Color3.fromRGB(255,200,100),
-        FOVCircle2 = Color3.fromRGB(120,100,80)
+        FOVCircle2 = Color3.fromRGB(120,100,80),
+        UI_Mode = "Retro"
     },
     ["Exo"] = {
         Background = Color3.fromRGB(32,32,38),
@@ -562,7 +571,8 @@ local UIPresets = {
         ESPText = Color3.fromRGB(180,180,180),
         ESPDist = Color3.fromRGB(200,200,200),
         FOVCircle = Color3.fromRGB(155,125,175),
-        FOVCircle2 = Color3.fromRGB(100,100,110)
+        FOVCircle2 = Color3.fromRGB(100,100,110),
+        UI_Mode = "Exo"
     },
     ["Flame"] = {
         Background = Color3.fromRGB(244,192,209),
@@ -583,7 +593,8 @@ local UIPresets = {
         ESPText = Color3.fromRGB(153,53,86),
         ESPDist = Color3.fromRGB(153,53,86),
         FOVCircle = Color3.fromRGB(237,147,177),
-        FOVCircle2 = Color3.fromRGB(212,83,126)
+        FOVCircle2 = Color3.fromRGB(212,83,126),
+        UI_Mode = "Flame"
     },
     ["HelloKitty"] = {
         Background = Color3.fromRGB(255,220,235),
@@ -604,7 +615,8 @@ local UIPresets = {
         ESPText = Color3.fromRGB(255,255,255),
         ESPDist = Color3.fromRGB(200,50,50),
         FOVCircle = Color3.fromRGB(255,180,200),
-        FOVCircle2 = Color3.fromRGB(200,50,50)
+        FOVCircle2 = Color3.fromRGB(200,50,50),
+        UI_Mode = "HelloKitty"
     }
 }
 
@@ -628,7 +640,8 @@ local UI_Colors = {
     ESPText = Color3.fromRGB(255,248,240),
     ESPDist = Color3.fromRGB(220,225,170),
     FOVCircle = Color3.fromRGB(245,205,220),
-    FOVCircle2 = Color3.fromRGB(100,100,110)
+    FOVCircle2 = Color3.fromRGB(100,100,110),
+    UI_Mode = "Original"
 }
 local currentUIPreset = "{{UI_THEME}}"
 
@@ -3912,7 +3925,8 @@ local function getClosestPart(char)
     local shortestDist = math.huge
     if not mouse or not mouse.X or not mouse.Y then
         return safeFindFirstChild(char, "Head")
-    end    local mousePos = Vector2.new(mouse.X, mouse.Y)
+    end
+    local mousePos = Vector2.new(mouse.X, mouse.Y)
     local parts = {"Head", "HumanoidRootPart", "Torso", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand"}
     for _, partName in pairs(parts) do
         local p = safeFindFirstChild(char, partName)
@@ -7231,19 +7245,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         const theme = interaction.options.getString("theme");
         userData.uiTheme = theme;
+        userData.scriptVersion = CURRENT_VERSION; // Force update script version
         await saveUser(interaction.user.id, userData);
 
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
         const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key, userData.version || "regular", theme);
 
         await interaction.followUp({
-            content: `✅ Your UI theme has been updated to **${theme}**. I've sent your updated loader script via DM.`,
+            content: `✅ Your UI theme has been updated to **${theme}** and script version updated to **${CURRENT_VERSION}**. I've sent your updated loader script via DM.`,
             flags: MessageFlags.Ephemeral
         });
 
         try {
             await interaction.user.send({
-                content: `📥 **Here is your updated loader script with the ${theme} theme.**`,
+                content: `📥 **Here is your updated loader script with the ${theme} theme (v${CURRENT_VERSION}).**`,
                 files: [{
                     attachment: Buffer.from(loaderScript, "utf-8"),
                     name: `loader_${userData.version || "regular"}.lua`
