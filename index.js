@@ -15,7 +15,7 @@
 // FIXED: GunHandler compatibility - fixed getAim return values
 // FIXED: Flame Camlock moved to FLAME LOCK tab (not Camlock)
 // ADDED: UI Mode buttons instead of dropdown for Original/Exo/Flame
-// UPDATED: Version changed to 28.0
+// UPDATED: Version changed to 28.1
 // FIXED: Removed Hello Kitty theme and UI color theme changer
 // ADDED: UI color preset dropdown with full color application
 // ADDED: Player photos in whitelist
@@ -35,8 +35,10 @@
 // ADDED: /set-ui-theme command for Discord
 // FIXED: Hello Kitty theme crash - added UI_Mode to all themes
 // FIXED: Script version updates on theme change
-// UPDATED: Version changed to 28.0
-const CURRENT_VERSION = "28.0";
+// FIXED: ESP initialization order - now after UI colors are applied
+// FIXED: Nil checks in MakeESP function
+// UPDATED: Version changed to 28.1
+const CURRENT_VERSION = "28.1";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
 import fs from "fs";
@@ -1022,7 +1024,7 @@ TL.ZIndex=5
 if HD then TL.Parent=HD end
 
 local SL=Instance.new("TextLabel")
-SL.Text="Blushwovens {VERSION_LABEL} v28.0"
+SL.Text="Blushwovens {VERSION_LABEL} v28.1"
 SL.Size=UDim2.new(0,160,0,16)
 SL.Position=UDim2.new(0,56,0,30)
 SL.BackgroundTransparency=1
@@ -2038,13 +2040,21 @@ if SB then
     SB.CanvasSize=UDim2.new(0,0,0,#Cats*56+20)
 end
 
--- Initialize ESP
-for _,p in ipairs(Players:GetPlayers()) do
-    if p~=LocalPlayer then MakeESP(p) end
+-- Initialize ESP (moved after color initialization)
+-- ESP will be initialized after UI colors are applied
+local espInitialized = false
+local function InitializeESP()
+    if espInitialized then return end
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p~=LocalPlayer then MakeESP(p) end
+    end
+    Players.PlayerAdded:Connect(function(p)
+        if p~=LocalPlayer then MakeESP(p) end
+    end)
+    espInitialized = true
 end
-Players.PlayerAdded:Connect(function(p)
-    if p~=LocalPlayer then MakeESP(p) end
-end)
+
+-- Players already connected for removal
 Players.PlayerRemoving:Connect(function(p)
     local d=ESPData[p]
     if d then
@@ -2135,13 +2145,15 @@ ApplyUIPreset("{{UI_THEME}}")
 pcall(function()
     UpdateUIFromColors()
 end)
+-- Initialize ESP AFTER colors are applied
+InitializeESP()
 `;
 
 // ============================================
-// REGULAR SCRIPT - FIXED v28.0 - GunHandler fix, IsWL fix, nil checks
+// REGULAR SCRIPT - FIXED v28.1 - GunHandler fix, IsWL fix, nil checks
 // ============================================
 const REGULAR_SCRIPT = `
---[[ Blushwovens Regular v28.0 - Full Silent Aim with require() ]]
+--[[ Blushwovens Regular v28.1 - Full Silent Aim with require() ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -2156,7 +2168,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Regular v28.0 - Loading...")
+print("Blushwovens Regular v28.1 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -2842,29 +2854,29 @@ local function UpdateHitbox()
     end
 end
 
--- ESP - FIXED
+-- ESP - FIXED with nil checks
 local ESPData={}
 local function MakeESP(p)
     local d={}
     pcall(function()
         d.B=Drawing.new("Square")
         d.B.Visible=false
-        d.B.Color=UI_Colors.ESPBox
+        d.B.Color=UI_Colors.ESPBox or Color3.fromRGB(215,130,170)
         d.B.Thickness=2
         d.B.Filled=false
         d.T=Drawing.new("Line")
         d.T.Visible=false
-        d.T.Color=UI_Colors.ESPLine
+        d.T.Color=UI_Colors.ESPLine or Color3.fromRGB(245,205,220)
         d.T.Thickness=1.5
         d.N=Drawing.new("Text")
         d.N.Visible=false
-        d.N.Color=UI_Colors.ESPText
+        d.N.Color=UI_Colors.ESPText or Color3.fromRGB(255,248,240)
         d.N.Size=14
         d.N.Center=true
         d.N.Outline=true
         d.D=Drawing.new("Text")
         d.D.Visible=false
-        d.D.Color=UI_Colors.ESPDist
+        d.D.Color=UI_Colors.ESPDist or Color3.fromRGB(220,225,170)
         d.D.Size=12
         d.D.Center=true
         d.D.Outline=true
@@ -3632,15 +3644,15 @@ local VERSION_LABEL = "Regular"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Regular v28.0 - Loaded successfully!")
+print("Blushwovens Regular v28.1 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// XENO SCRIPT - FIXED v28.0
+// XENO SCRIPT - FIXED v28.1
 // ============================================
 const XENO_SCRIPT = `
---[[ Blushwovens Xeno v28.0 - Silent Aim using getfenv/setfenv ]]
+--[[ Blushwovens Xeno v28.1 - Silent Aim using getfenv/setfenv ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -3655,7 +3667,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Xeno v28.0 - Loading...")
+print("Blushwovens Xeno v28.1 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -4364,29 +4376,29 @@ local function UpdateHitbox()
     end
 end
 
--- ESP
+-- ESP - FIXED with nil checks
 local ESPData={}
 local function MakeESP(p)
     local d={}
     pcall(function()
         d.B=Drawing.new("Square")
         d.B.Visible=false
-        d.B.Color=UI_Colors.ESPBox
+        d.B.Color=UI_Colors.ESPBox or Color3.fromRGB(215,130,170)
         d.B.Thickness=2
         d.B.Filled=false
         d.T=Drawing.new("Line")
         d.T.Visible=false
-        d.T.Color=UI_Colors.ESPLine
+        d.T.Color=UI_Colors.ESPLine or Color3.fromRGB(245,205,220)
         d.T.Thickness=1.5
         d.N=Drawing.new("Text")
         d.N.Visible=false
-        d.N.Color=UI_Colors.ESPText
+        d.N.Color=UI_Colors.ESPText or Color3.fromRGB(255,248,240)
         d.N.Size=14
         d.N.Center=true
         d.N.Outline=true
         d.D=Drawing.new("Text")
         d.D.Visible=false
-        d.D.Color=UI_Colors.ESPDist
+        d.D.Color=UI_Colors.ESPDist or Color3.fromRGB(220,225,170)
         d.D.Size=12
         d.D.Center=true
         d.D.Outline=true
@@ -5154,15 +5166,15 @@ local VERSION_LABEL = "Xeno"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Xeno v28.0 - Loaded successfully!")
+print("Blushwovens Xeno v28.1 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
 // ============================================
-// DELTA SCRIPT - FIXED v28.0
+// DELTA SCRIPT - FIXED v28.1
 // ============================================
 const DELTA_SCRIPT = `
---[[ Blushwovens Delta v28.0 - Silent Aim using mouse manipulation ]]
+--[[ Blushwovens Delta v28.1 - Silent Aim using mouse manipulation ]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -5177,7 +5189,7 @@ local Stats = game:GetService("Stats")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
-print("Blushwovens Delta v28.0 - Loading...")
+print("Blushwovens Delta v28.1 - Loading...")
 
 local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then
@@ -5834,7 +5846,7 @@ local function UpdateHitbox()
     end
 end
 
--- ESP - BillboardGui for Delta
+-- ESP - BillboardGui for Delta - FIXED with nil checks
 local ESPData={}
 local function MakeESP(p)
     local d={}
@@ -5857,7 +5869,7 @@ local function MakeESP(p)
             label.Size = UDim2.new(1, 0, 1, 0)
             label.BackgroundTransparency = 1
             label.Text = text or ""
-            label.TextColor3 = color or UI_Colors.ESPText
+            label.TextColor3 = color or UI_Colors.ESPText or Color3.fromRGB(255,248,240)
             label.Font = Enum.Font.Gotham
             label.TextSize = size or 12
             label.TextScaled = true
@@ -5865,9 +5877,9 @@ local function MakeESP(p)
             return bg
         end
 
-        d.B = createBillboardElement(p.Character or p, "", UI_Colors.ESPBox, 10)
-        d.N = createBillboardElement(p.Character or p, p.Name, UI_Colors.ESPText, 14)
-        d.D = createBillboardElement(p.Character or p, "0m", UI_Colors.ESPDist, 12)
+        d.B = createBillboardElement(p.Character or p, "", UI_Colors.ESPBox or Color3.fromRGB(215,130,170), 10)
+        d.N = createBillboardElement(p.Character or p, p.Name, UI_Colors.ESPText or Color3.fromRGB(255,248,240), 14)
+        d.D = createBillboardElement(p.Character or p, "0m", UI_Colors.ESPDist or Color3.fromRGB(220,225,170), 12)
         d.HB = createBillboardElement(p.Character or p, "", Color3.fromRGB(40,40,40), 4)
         d.HF = createBillboardElement(p.Character or p, "", Color3.fromRGB(80,220,140), 4)
         d._type = "billboard"
@@ -6490,8 +6502,7 @@ local function StartTriggerbot()
                 shouldShoot = true
             end
         elseif mode == "HoldADS" then
-            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-                shouldShoot = true
+            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then                shouldShoot = true
             end
         elseif mode == "Always" then
             shouldShoot = true
@@ -6622,7 +6633,7 @@ local VERSION_LABEL = "Delta"
 ` + UI_BUILDER + `
 UpdateBulletSpread()
 if ST.FlameCamlock then StartFlameCamlock() end
-print("Blushwovens Delta v28.0 - Loaded successfully!")
+print("Blushwovens Delta v28.1 - Loaded successfully!")
 print("Press Q for Speedhack, Z for Jump, T for Teleport, F for Triggerbot, B for Flame Lock, E for Camlock, RightShift for UI")
 `;
 
@@ -6643,7 +6654,7 @@ function generateLoaderScript(username, password, serverUrl, key, version, uiThe
     // Replace the UI theme placeholder with the user's theme
     const themedScript = scriptContent.replace(/\{\{UI_THEME\}\}/g, uiTheme || "Original");
     return `
--- Blushwovens Loader v28.0 - ${version.toUpperCase()} VERSION
+-- Blushwovens Loader v28.1 - ${version.toUpperCase()} VERSION
 local USERNAME = "${username}"
 local PASSWORD = "${password}"
 local KEY = "${key}"
@@ -6765,8 +6776,8 @@ spawn(function()
     end
 end)
 
-print("Blushwovens Loader v28.0 (${version}) - Starting...")
-notify("Loading ${version} v28.0... Please wait.", false)
+print("Blushwovens Loader v28.1 (${version}) - Starting...")
+notify("Loading ${version} v28.1... Please wait.", false)
 
 local ok, response = pcall(request)
 if not ok then
@@ -6797,7 +6808,7 @@ if not data.success then
     error("Error: " .. data.reason)
 end
 
-notify("✅ v28.0 loaded successfully!", false)
+notify("✅ v28.1 loaded successfully!", false)
 loadstring(data.chunk)()
 `;
 }
@@ -6997,7 +7008,7 @@ const commands = [
                 .setRequired(true))
         .addStringOption(option =>
             option.setName("version")
-                .setDescription("The version to force (e.g., 28.0)")
+                .setDescription("The version to force (e.g., 28.1)")
                 .setRequired(true)),
 
     new SlashCommandBuilder()
@@ -7648,7 +7659,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // ============================================
     if (command === "announce-update") {
         const message = interaction.options.getString("message");
-        const version = interaction.options.getString("version") || "28.0";
+        const version = interaction.options.getString("version") || "28.1";
 
         try {
             const channel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
@@ -7957,7 +7968,7 @@ app.post('/check-version', (req, res) => {
     res.json({ outdated: false });
 });
 
-app.get('/', (req, res) => res.send('Blushwovens v28.0 Bot is running!'));
+app.get('/', (req, res) => res.send('Blushwovens v28.1 Bot is running!'));
 app.get('/version', (req, res) => {
     res.json({ version: CURRENT_VERSION });
 });
