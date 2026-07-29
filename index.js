@@ -37,6 +37,8 @@
 // FIXED: Script version updates on theme change
 // FIXED: ESP initialization order - now after UI colors are applied
 // FIXED: Nil checks in MakeESP function
+// FIXED: ESP drawing now uses proper fallback colors
+// FIXED: Whitelist now properly initialized before ESP
 // UPDATED: Version changed to 28.1
 const CURRENT_VERSION = "28.1";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
@@ -2040,6 +2042,180 @@ if SB then
     SB.CanvasSize=UDim2.new(0,0,0,#Cats*56+20)
 end
 
+-- WHITELIST initialization - MUST be before ESP
+local WL={}
+local function IsWL(p)
+    if not p then return false end
+    if not p.UserId then return false end
+    if SilentAimWhitelist and SilentAimWhitelist[p.UserId] == true then return true end
+    return WL and WL[p.UserId]==true
+end
+local function SetWL(p,v)
+    if not p then return end
+    if not p.UserId then return end
+    if v then
+        WL[p.UserId]=true
+        if SilentAimWhitelist then SilentAimWhitelist[p.UserId]=true end
+    else
+        WL[p.UserId]=nil
+        if SilentAimWhitelist then SilentAimWhitelist[p.UserId]=nil end
+    end
+end
+
+-- ESP - FIXED with proper fallback colors and whitelist support
+local ESPData={}
+local function MakeESP(p)
+    local d={}
+    pcall(function()
+        d.B=Drawing.new("Square")
+        d.B.Visible=false
+        d.B.Color=UI_Colors.ESPBox or Color3.fromRGB(215,130,170)
+        d.B.Thickness=2
+        d.B.Filled=false
+        d.T=Drawing.new("Line")
+        d.T.Visible=false
+        d.T.Color=UI_Colors.ESPLine or Color3.fromRGB(245,205,220)
+        d.T.Thickness=1.5
+        d.N=Drawing.new("Text")
+        d.N.Visible=false
+        d.N.Color=UI_Colors.ESPText or Color3.fromRGB(255,248,240)
+        d.N.Size=14
+        d.N.Center=true
+        d.N.Outline=true
+        d.D=Drawing.new("Text")
+        d.D.Visible=false
+        d.D.Color=UI_Colors.ESPDist or Color3.fromRGB(220,225,170)
+        d.D.Size=12
+        d.D.Center=true
+        d.D.Outline=true
+        d.HB=Drawing.new("Square")
+        d.HB.Visible=false
+        d.HB.Color=Color3.fromRGB(40,40,40)
+        d.HB.Filled=true
+        d.HB.Thickness=1
+        d.HF=Drawing.new("Square")
+        d.HF.Visible=false
+        d.HF.Color=Color3.fromRGB(80,220,140)
+        d.HF.Filled=true
+        d.HF.Thickness=1
+        ESPData[p]=d
+    end)
+end
+
+local function UpdateESP()
+    if not ST.ESP then
+        for _,d in pairs(ESPData) do
+            pcall(function()
+                if d and d.B then d.B.Visible=false end
+                if d and d.T then d.T.Visible=false end
+                if d and d.N then d.N.Visible=false end
+                if d and d.D then d.D.Visible=false end
+                if d and d.HB then d.HB.Visible=false end
+                if d and d.HF then d.HF.Visible=false end
+            end)
+        end
+        return
+    end
+    for p,d in pairs(ESPData) do
+        if not d then continue end
+        -- Check whitelist FIRST
+        if IsWL and IsWL(p) or not p.Character then
+            pcall(function()
+                if d.B then d.B.Visible=false end
+                if d.T then d.T.Visible=false end
+                if d.N then d.N.Visible=false end
+                if d.D then d.D.Visible=false end
+                if d.HB then d.HB.Visible=false end
+                if d.HF then d.HF.Visible=false end
+            end)
+        else
+            if ST.KnockCheck and IsKnocked(p.Character) then
+                pcall(function()
+                    if d.B then d.B.Visible=false end
+                    if d.T then d.T.Visible=false end
+                    if d.N then d.N.Visible=false end
+                    if d.D then d.D.Visible=false end
+                    if d.HB then d.HB.Visible=false end
+                    if d.HF then d.HF.Visible=false end
+                end)
+                continue
+            end
+            local hum=safeFindFirstChild(p.Character, "Humanoid")
+            local head=safeFindFirstChild(p.Character, "Head")
+            local root=safeFindFirstChild(p.Character, "HumanoidRootPart")
+            if hum and head and root and hum.Health>0 then
+                local hs=W2S(head.Position)
+                local rs=W2S(root.Position)
+                if hs and rs then
+                    local bs=Vector2.new(2000/rs.Z,3500/rs.Z)
+                    pcall(function()
+                        if d.B then
+                            d.B.Size=bs
+                            d.B.Position=Vector2.new(hs.X-bs.X/2,hs.Y-bs.Y/2)
+                            d.B.Visible=ST.ESPBx
+                        end
+                        if d.T then
+                            d.T.From=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y)
+                            d.T.To=Vector2.new(rs.X,rs.Y)
+                            d.T.Visible=ST.ESPTr
+                        end
+                        if d.N then
+                            d.N.Text=p.Name
+                            d.N.Position=Vector2.new(hs.X,hs.Y-30)
+                            d.N.Visible=ST.ESPNm
+                        end
+                        local mr=LocalPlayer.Character and safeFindFirstChild(LocalPlayer.Character, "HumanoidRootPart")
+                        if mr and d.D then
+                            local dist=math.floor((mr.Position-root.Position).Magnitude)
+                            d.D.Text=dist.."m"
+                            d.D.Position=Vector2.new(hs.X,hs.Y-15)
+                            d.D.Visible=ST.ESPDs
+                        end
+                        if ST.ESPHp then
+                            local hp=hum.Health/hum.MaxHealth
+                            local bw=bs.X-4
+                            if d.HB then
+                                d.HB.Size=Vector2.new(bw,4)
+                                d.HB.Position=Vector2.new(hs.X-bs.X/2+2,hs.Y-bs.Y/2-8)
+                                d.HB.Visible=true
+                            end
+                            if d.HF then
+                                d.HF.Size=Vector2.new(bw*hp,4)
+                                d.HF.Position=Vector2.new(hs.X-bs.X/2+2,hs.Y-bs.Y/2-8)
+                                d.HF.Visible=true
+                                if hp>0.6 then d.HF.Color=Color3.fromRGB(80,220,140)
+                                elseif hp>0.3 then d.HF.Color=Color3.fromRGB(255,220,80)
+                                else d.HF.Color=Color3.fromRGB(255,80,80) end
+                            end
+                        else
+                            if d.HB then d.HB.Visible=false end
+                            if d.HF then d.HF.Visible=false end
+                        end
+                    end)
+                else
+                    pcall(function()
+                        if d.B then d.B.Visible=false end
+                        if d.T then d.T.Visible=false end
+                        if d.N then d.N.Visible=false end
+                        if d.D then d.D.Visible=false end
+                        if d.HB then d.HB.Visible=false end
+                        if d.HF then d.HF.Visible=false end
+                    end)
+                end
+            else
+                pcall(function()
+                    if d.B then d.B.Visible=false end
+                    if d.T then d.T.Visible=false end
+                    if d.N then d.N.Visible=false end
+                    if d.D then d.D.Visible=false end
+                    if d.HB then d.HB.Visible=false end
+                    if d.HF then d.HF.Visible=false end
+                end)
+            end
+        end
+    end
+end
+
 -- Initialize ESP (moved after color initialization)
 -- ESP will be initialized after UI colors are applied
 local espInitialized = false
@@ -3731,8 +3907,7 @@ local originalGetAim = nil
 local handler = nil
 
 if gunHandlerLoaded and gunHandlerEnv then
-    originalGetAim = gunHandlerEnv.getAim
-    handler = gunHandlerEnv
+    originalGetAim = gunHandlerEnv.getAim    handler = gunHandlerEnv
 end
 
 -- BULLET SPREAD HOOK
@@ -6502,7 +6677,8 @@ local function StartTriggerbot()
                 shouldShoot = true
             end
         elseif mode == "HoldADS" then
-            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then                shouldShoot = true
+            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+                shouldShoot = true
             end
         elseif mode == "Always" then
             shouldShoot = true
