@@ -1,4 +1,4 @@
-// index.js - Discord Bot with Google Sheets Database (Avdotya Script Edition)
+// index.js - Discord Bot with Google Sheets Database (Avdotya Edition)
 const CURRENT_VERSION = "1.0";
 import { Client, GatewayIntentBits, Events, EmbedBuilder, REST, Routes, SlashCommandBuilder, Partials, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import express from "express";
@@ -116,9 +116,9 @@ async function loadUsers() {
                     maxUses: parseInt(row[8]) || 0,
                     used: parseInt(row[9]) || 0,
                     active: row[10] === "TRUE" || row[10] === "true" || false,
-                    version: "regular",               // kept for sheet compatibility
+                    version: "regular",
                     scriptVersion: row[12] || CURRENT_VERSION,
-                    uiTheme: "Original"               // kept for sheet compatibility
+                    uiTheme: "Original"
                 };
             }
         }
@@ -295,7 +295,7 @@ async function migrateScriptVersion() {
 // ============================================
 // AVDOTYA SCRIPT (Single distributable script)
 // ============================================
-const AVDOITYA_SCRIPT = `
+const AVDOTYA_SCRIPT = `
 -- ============================================
 -- SERVICES
 -- ============================================
@@ -317,12 +317,10 @@ local function safeFindFirstChild(parent, childName)
     if parent and parent:IsA("Instance") then return parent:FindFirstChild(childName) end
     return nil
 end
-
 local function safeWaitForChild(parent, childName, timeout)
     if parent and parent:IsA("Instance") then return parent:WaitForChild(childName, timeout or 5) end
     return nil
 end
-
 local function W2S(pos)
     if not pos then return nil end
     if typeof(pos) == "CFrame" then pos = pos.Position end
@@ -331,7 +329,6 @@ local function W2S(pos)
     if ok and r and r.Z > 0 then return {X = r.X, Y = r.Y, Z = r.Z} end
     return nil
 end
-
 local function IsKnocked(char)
     if not char then return false end
     local bodyEffects = safeFindFirstChild(char, "BodyEffects")
@@ -388,14 +385,8 @@ local function easeElastic(t)
 end
 local function easeBounce(t)
     if t < 1 / 2.75 then return 7.5625 * t * t end
-    if t < 2 / 2.75 then
-        t = t - 1.5 / 2.75
-        return 7.5625 * t * t + 0.75
-    end
-    if t < 2.5 / 2.75 then
-        t = t - 2.25 / 2.75
-        return 7.5625 * t * t + 0.9375
-    end
+    if t < 2 / 2.75 then t = t - 1.5 / 2.75 return 7.5625 * t * t + 0.75 end
+    if t < 2.5 / 2.75 then t = t - 2.25 / 2.75 return 7.5625 * t * t + 0.9375 end
     t = t - 2.625 / 2.75
     return 7.5625 * t * t + 0.984375
 end
@@ -410,62 +401,24 @@ local easingFunctions = {
 }
 
 local ST = {
-    SilentAim = false,
-    SilentAimFOV = 1000,
-    SilentAimShowFOV = false,
-    SilentAimPart = "Head",
-    RevolverBypass = false,
-    WallCheck = false,
-    SilentAimKnockCheck = false,
-    Camlock = false,
-    CamlockKey = Enum.KeyCode.E,
-    CamlockMode = "Toggle",
-    CamlockFOV = 300,
-    CamlockPart = "Head",
-    CamlockSmoothness = 0.08,
-    CamlockPrediction = 0.12,
-    CamlockShowFOV = false,
-    CamlockSmoothingStyle = "Linear",
-    CamlockLockTarget = true,
-    CamlockTarget = nil,
-    CamlockKnockCheck = false,
-    ESP = false,
-    ESPBox = false,
-    ESPName = false,
-    ESPHealth = false,
-    ESPDistance = false,
-    ESPTracers = false,
-    ESPKnockedCheck = true,
-    ESPColor = Color3.fromRGB(255, 153, 170),
-    SpeedhackEnabled = false,
-    SpeedKey = Enum.KeyCode.Q,
-    SpeedValue = 50,
-    JumpBoostEnabled = false,
-    JumpKey = Enum.KeyCode.Z,
-    JumpValue = 150,
-    BulletSpread = true,
-    BulletSpreadValue = 100,
-    Fog = false,
-    FogDensity = 0.02,
-    FogColor = Color3.fromRGB(110, 90, 90),
-    Teleport = false,
-    TeleportTarget = "",
-    Whitelist = {},
-    Hitbox = false,
-    HitboxSize = 10,
-    HitboxOpacity = 0.9,
-    FlameLock = false,
-    FlameLockKey = Enum.KeyCode.B,
-    FlameLockSmoothness = 0.5,
-    FlameLockFOV = 250,
-    GUIAccent = Color3.fromRGB(181, 31, 77),
-    GUIBorder = Color3.fromRGB(50, 50, 50),
-    GUIText = Color3.fromRGB(180, 180, 180),
-    GUITextSecondary = Color3.fromRGB(120, 120, 120),
-    GUIPanel = Color3.fromRGB(8, 8, 8),
-    GUIButton = Color3.fromRGB(20, 20, 20),
-    UIBackground = Color3.fromRGB(8, 8, 8),
-    FPSCap = 240,
+    SilentAim = false, SilentAimFOV = 1000, SilentAimShowFOV = false, SilentAimPart = "Head",
+    RevolverBypass = false, WallCheck = false, SilentAimKnockCheck = false,
+    Camlock = false, CamlockKey = Enum.KeyCode.E, CamlockMode = "Toggle", CamlockFOV = 300,
+    CamlockPart = "Head", CamlockSmoothness = 0.08, CamlockPrediction = 0.12, CamlockShowFOV = false,
+    CamlockSmoothingStyle = "Linear", CamlockLockTarget = true, CamlockTarget = nil, CamlockKnockCheck = false,
+    ESP = false, ESPBox = false, ESPName = false, ESPHealth = false, ESPDistance = false,
+    ESPTracers = false, ESPKnockedCheck = true, ESPColor = Color3.fromRGB(255, 153, 170),
+    SpeedhackEnabled = false, SpeedKey = Enum.KeyCode.Q, SpeedValue = 50,
+    JumpBoostEnabled = false, JumpKey = Enum.KeyCode.Z, JumpValue = 150,
+    BulletSpread = true, BulletSpreadValue = 100,
+    Fog = false, FogDensity = 0.02, FogColor = Color3.fromRGB(110, 90, 90),
+    Teleport = false, TeleportTarget = "", Whitelist = {},
+    Hitbox = false, HitboxSize = 10, HitboxOpacity = 0.9,
+    FlameLock = false, FlameLockKey = Enum.KeyCode.B, FlameLockSmoothness = 0.5, FlameLockFOV = 250,
+    GUIAccent = Color3.fromRGB(181, 31, 77), GUIBorder = Color3.fromRGB(50, 50, 50),
+    GUIText = Color3.fromRGB(180, 180, 180), GUITextSecondary = Color3.fromRGB(120, 120, 120),
+    GUIPanel = Color3.fromRGB(8, 8, 8), GUIButton = Color3.fromRGB(20, 20, 20),
+    UIBackground = Color3.fromRGB(8, 8, 8), FPSCap = 240,
 }
 
 local ApplyColors
@@ -479,7 +432,6 @@ local ToggleCallbacks = {}
 local ToggleBindButtons = {}
 local BindingStateKey = nil
 local BindRefreshCallbacks = {}
-
 local GuiToggleSerial = 0
 local AnimateGuiOpen
 local AnimateGuiClose
@@ -540,9 +492,7 @@ end)
 local function getClosestPart(char)
     local closest = nil
     local shortestDist = math.huge
-    if not Mouse or not Mouse.X or not Mouse.Y then
-        return safeFindFirstChild(char, "Head")
-    end
+    if not Mouse or not Mouse.X or not Mouse.Y then return safeFindFirstChild(char, "Head") end
     local mousePos = Vector2.new(Mouse.X, Mouse.Y)
     local parts = {"Head", "HumanoidRootPart", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand"}
     for _, partName in pairs(parts) do
@@ -551,10 +501,7 @@ local function getClosestPart(char)
             local screenPos, onScreen = Camera:WorldToScreenPoint(p.Position)
             if onScreen then
                 local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                if dist < shortestDist then
-                    shortestDist = dist
-                    closest = p
-                end
+                if dist < shortestDist then shortestDist = dist closest = p end
             end
         end
     end
@@ -568,7 +515,6 @@ local function getClosest()
     local bestScore = math.huge
     local maxFOV = ST.SilentAimFOV or 1000
     local myChar = LocalPlayer.Character
-
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local hum = safeFindFirstChild(player.Character, "Humanoid")
@@ -601,10 +547,7 @@ local function getClosest()
                             if visible then
                                 local physicalDist = (Camera.CFrame.Position - part.Position).Magnitude
                                 local score = crosshairDist + physicalDist * 0.05
-                                if score < bestScore then
-                                    bestScore = score
-                                    best = part
-                                end
+                                if score < bestScore then bestScore = score best = part end
                             end
                         end
                     end
@@ -642,7 +585,6 @@ local function UpdateSilentAim()
     end
 end
 
--- CAMLOCK
 local CamlockActive = false
 local CamlockConnection = nil
 local CamlockFOVCircle = nil
@@ -691,13 +633,8 @@ local function FindBestCamTarget()
     local closest, shortest = nil, ST.CamlockFOV or 300
     local cx = Camera.ViewportSize.X / 2
     local cy = Camera.ViewportSize.Y / 2
-
-    if ST.CamlockLockTarget and ST.CamlockTarget and IsValidTarget(ST.CamlockTarget) then
-        return ST.CamlockTarget
-    else
-        if ST.CamlockLockTarget and ST.CamlockTarget then ST.CamlockTarget = nil end
-    end
-
+    if ST.CamlockLockTarget and ST.CamlockTarget and IsValidTarget(ST.CamlockTarget) then return ST.CamlockTarget
+    else if ST.CamlockLockTarget and ST.CamlockTarget then ST.CamlockTarget = nil end end
     for _, player in ipairs(Players:GetPlayers()) do
         if IsValidTarget(player) then
             local partName = ST.CamlockPart or "Head"
@@ -708,10 +645,7 @@ local function FindBestCamTarget()
                     local dx = sc.X - cx
                     local dy = sc.Y - cy
                     local dist = math.sqrt(dx * dx + dy * dy)
-                    if dist < shortest then
-                        shortest = dist
-                        closest = player
-                    end
+                    if dist < shortest then shortest = dist closest = player end
                 end
             end
         end
@@ -721,7 +655,7 @@ local function FindBestCamTarget()
 end
 
 local function UpdateCamlock()
-    if CamlockConnection then CamlockConnection:Disconnect(); CamlockConnection = nil end
+    if CamlockConnection then CamlockConnection:Disconnect() CamlockConnection = nil end
     if not ST.Camlock then return end
     CamlockConnection = RunService.RenderStepped:Connect(function()
         if CamlockActive then
@@ -741,9 +675,7 @@ local function UpdateCamlock()
                         CamlockStartCFrame = Camera.CFrame
                         CamlockTargetCFrame = CFrame.new(Camera.CFrame.Position, pos)
                         CamlockCurrentTarget = target
-                    else
-                        CamlockTargetCFrame = CFrame.new(Camera.CFrame.Position, pos)
-                    end
+                    else CamlockTargetCFrame = CFrame.new(Camera.CFrame.Position, pos) end
                     local elapsed = tick() - CamlockStartTime
                     local duration = 0.5
                     local progress = math.min(elapsed / duration, 1)
@@ -753,21 +685,14 @@ local function UpdateCamlock()
                     else Camera.CFrame = CamlockStartCFrame:Lerp(CamlockTargetCFrame, lerpFactor) end
                 end
             else
-                CamlockCurrentTarget = nil
-                CamlockStartTime = 0
-                CamlockStartCFrame = nil
-                CamlockTargetCFrame = nil
+                CamlockCurrentTarget = nil CamlockStartTime = 0 CamlockStartCFrame = nil CamlockTargetCFrame = nil
             end
         else
-            CamlockCurrentTarget = nil
-            CamlockStartTime = 0
-            CamlockStartCFrame = nil
-            CamlockTargetCFrame = nil
+            CamlockCurrentTarget = nil CamlockStartTime = 0 CamlockStartCFrame = nil CamlockTargetCFrame = nil
         end
     end)
 end
 
--- FLAMELOCK
 local FlameLockTarget = nil
 local FlameLockConnection = nil
 local FlameLockActive = false
@@ -786,10 +711,7 @@ local function GetPlayerAtCenter()
                 local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
                 if onScreen then
                     local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                    if dist < fov and dist < closestDist then
-                        closestDist = dist
-                        closestPlayer = plr
-                    end
+                    if dist < fov and dist < closestDist then closestDist = dist closestPlayer = plr end
                 end
             end
         end
@@ -859,7 +781,7 @@ end
 
 local function StopFlameLock()
     FlameLockActive = false
-    if FlameLockConnection then FlameLockConnection:Disconnect(); FlameLockConnection = nil end
+    if FlameLockConnection then FlameLockConnection:Disconnect() FlameLockConnection = nil end
     FlameLockTarget = nil
     local char = LocalPlayer.Character
     if char then
@@ -874,23 +796,20 @@ local function ToggleFlameLockActive()
     if FlameLockActive then
         FlameLockTarget = GetPlayerAtCenter()
         StartFlameLock()
-    else
-        StopFlameLock()
-    end
+    else StopFlameLock() end
 end
 
--- ESP
 local ESPData = {}
 local espInitialized = false
 
 local function MakeESP(player)
     local d = {}
     pcall(function()
-        d.Box = Drawing.new("Square"); d.Box.Visible = false; d.Box.Color = ST.ESPColor; d.Box.Thickness = 1.5; d.Box.Filled = false
-        d.Name = Drawing.new("Text"); d.Name.Visible = false; d.Name.Color = ST.ESPColor; d.Name.Size = 16; d.Name.Center = true; d.Name.Outline = true; d.Name.Font = Drawing.Fonts.UI
-        d.Distance = Drawing.new("Text"); d.Distance.Visible = false; d.Distance.Color = ST.ESPColor; d.Distance.Size = 13; d.Distance.Center = true; d.Distance.Outline = true; d.Distance.Font = Drawing.Fonts.UI
-        d.Health = Drawing.new("Square"); d.Health.Visible = false; d.Health.Filled = true; d.Health.Thickness = 1
-        d.Tracer = Drawing.new("Line"); d.Tracer.Visible = false; d.Tracer.Color = ST.ESPColor; d.Tracer.Thickness = 1
+        d.Box = Drawing.new("Square") d.Box.Visible = false d.Box.Color = ST.ESPColor d.Box.Thickness = 1.5 d.Box.Filled = false
+        d.Name = Drawing.new("Text") d.Name.Visible = false d.Name.Color = ST.ESPColor d.Name.Size = 16 d.Name.Center = true d.Name.Outline = true d.Name.Font = Drawing.Fonts.UI
+        d.Distance = Drawing.new("Text") d.Distance.Visible = false d.Distance.Color = ST.ESPColor d.Distance.Size = 13 d.Distance.Center = true d.Distance.Outline = true d.Distance.Font = Drawing.Fonts.UI
+        d.Health = Drawing.new("Square") d.Health.Visible = false d.Health.Filled = true d.Health.Thickness = 1
+        d.Tracer = Drawing.new("Line") d.Tracer.Visible = false d.Tracer.Color = ST.ESPColor d.Tracer.Thickness = 1
         ESPData[player] = d
     end)
 end
@@ -908,30 +827,28 @@ end
 local function UpdateESP()
     for player, d in pairs(ESPData) do
         if not d then continue end
-        if ST.Whitelist[player.UserId] or not player.Character or player == LocalPlayer then
-            HideESP(d); continue
-        end
-        if ST.ESPKnockedCheck and IsKnocked(player.Character) then HideESP(d); continue end
+        if ST.Whitelist[player.UserId] or not player.Character or player == LocalPlayer then HideESP(d) continue end
+        if ST.ESPKnockedCheck and IsKnocked(player.Character) then HideESP(d) continue end
         local hum = safeFindFirstChild(player.Character, "Humanoid")
         local head = safeFindFirstChild(player.Character, "Head")
         local root = safeFindFirstChild(player.Character, "HumanoidRootPart")
-        if not (hum and head and root and hum.Health > 0) then HideESP(d); continue end
+        if not (hum and head and root and hum.Health > 0) then HideESP(d) continue end
         local rootPos, rootOnScreen = Camera:WorldToViewportPoint(root.Position)
-        if not rootOnScreen then HideESP(d); continue end
+        if not rootOnScreen then HideESP(d) continue end
         local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
         local legPos = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
-        if not headPos or not legPos or not rootPos then HideESP(d); continue end
+        if not headPos or not legPos or not rootPos then HideESP(d) continue end
         local boxHeight = math.max(math.abs(headPos.Y - legPos.Y), 2)
         local boxWidth = boxHeight / 2
         local boxX = rootPos.X - boxWidth / 2
         local boxY = rootPos.Y - boxHeight / 2
         local color = ST.ESPColor
         pcall(function()
-            if d.Box then d.Box.Color = color; d.Box.Size = Vector2.new(boxWidth, boxHeight); d.Box.Position = Vector2.new(boxX, boxY); d.Box.Visible = ST.ESP and ST.ESPBox end
-            if d.Name then d.Name.Color = color; d.Name.Position = Vector2.new(rootPos.X, boxY - 16); d.Name.Text = player.Name; d.Name.Visible = ST.ESP and ST.ESPName end
-            if d.Distance then local dist = math.floor((Camera.CFrame.Position - root.Position).Magnitude); d.Distance.Color = color; d.Distance.Position = Vector2.new(rootPos.X, boxY + boxHeight + 2); d.Distance.Text = tostring(dist) .. "m"; d.Distance.Visible = ST.ESP and ST.ESPDistance end
-            if d.Health then local ratio = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1); d.Health.Color = Color3.fromRGB(255 - math.floor(255 * ratio), math.floor(255 * ratio), 70); d.Health.Size = Vector2.new(3, boxHeight * ratio); d.Health.Position = Vector2.new(boxX - 6, boxY + boxHeight * (1 - ratio)); d.Health.Visible = ST.ESP and ST.ESPHealth end
-            if d.Tracer then d.Tracer.Color = color; d.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y); d.Tracer.To = Vector2.new(rootPos.X, rootPos.Y + boxHeight / 2); d.Tracer.Visible = ST.ESP and ST.ESPTracers end
+            if d.Box then d.Box.Color = color d.Box.Size = Vector2.new(boxWidth, boxHeight) d.Box.Position = Vector2.new(boxX, boxY) d.Box.Visible = ST.ESP and ST.ESPBox end
+            if d.Name then d.Name.Color = color d.Name.Position = Vector2.new(rootPos.X, boxY - 16) d.Name.Text = player.Name d.Name.Visible = ST.ESP and ST.ESPName end
+            if d.Distance then local dist = math.floor((Camera.CFrame.Position - root.Position).Magnitude) d.Distance.Color = color d.Distance.Position = Vector2.new(rootPos.X, boxY + boxHeight + 2) d.Distance.Text = tostring(dist) .. "m" d.Distance.Visible = ST.ESP and ST.ESPDistance end
+            if d.Health then local ratio = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1) d.Health.Color = Color3.fromRGB(255 - math.floor(255 * ratio), math.floor(255 * ratio), 70) d.Health.Size = Vector2.new(3, boxHeight * ratio) d.Health.Position = Vector2.new(boxX - 6, boxY + boxHeight * (1 - ratio)) d.Health.Visible = ST.ESP and ST.ESPHealth end
+            if d.Tracer then d.Tracer.Color = color d.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y) d.Tracer.To = Vector2.new(rootPos.X, rootPos.Y + boxHeight / 2) d.Tracer.Visible = ST.ESP and ST.ESPTracers end
         end)
     end
 end
@@ -957,7 +874,6 @@ Players.PlayerRemoving:Connect(function(player)
     end
 end)
 
--- SPEEDHACK + JUMP BOOST
 local DEFAULT_WALKSPEED = 16
 local DEFAULT_JUMPPOWER = 50
 
@@ -985,7 +901,6 @@ end
 if LocalPlayer.Character then BindCharacterMovement(LocalPlayer.Character) end
 LocalPlayer.CharacterAdded:Connect(BindCharacterMovement)
 
--- HITBOX
 local function UpdateHitbox()
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
@@ -1021,7 +936,6 @@ local function UpdateHitbox()
     end
 end
 
--- FOG
 local OriginalFogStart = Lighting.FogStart
 local OriginalFogEnd = Lighting.FogEnd
 local OriginalFogColor = Lighting.FogColor
@@ -1078,7 +992,6 @@ local function CreateKeybindButton(parent, stateKey)
     bind.Size = UDim2.new(0, 42, 0, 17)
     bind.Position = UDim2.new(1, -112, 0.5, -8.5)
     bind.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    bind.BackgroundTransparency = 0
     bind.BorderSizePixel = 1
     bind.BorderColor3 = Color3.fromRGB(50, 50, 50)
     bind.TextColor3 = Color3.fromRGB(150, 150, 150)
@@ -1090,16 +1003,8 @@ local function CreateKeybindButton(parent, stateKey)
     bind.Parent = parent
     bind:SetAttribute("ColorRole", "Button")
     ToggleBindButtons[stateKey] = bind
-    bind.MouseEnter:Connect(function()
-        if BindingStateKey ~= stateKey then
-            TweenService:Create(bind, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(32, 32, 32), TextColor3 = Color3.fromRGB(210, 210, 210)}):Play()
-        end
-    end)
-    bind.MouseLeave:Connect(function()
-        if BindingStateKey ~= stateKey then
-            TweenService:Create(bind, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(20, 20, 20), TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
-        end
-    end)
+    bind.MouseEnter:Connect(function() if BindingStateKey ~= stateKey then TweenService:Create(bind, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(32, 32, 32), TextColor3 = Color3.fromRGB(210, 210, 210)}):Play() end end)
+    bind.MouseLeave:Connect(function() if BindingStateKey ~= stateKey then TweenService:Create(bind, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(20, 20, 20), TextColor3 = Color3.fromRGB(150, 150, 150)}):Play() end end)
     bind.MouseButton1Click:Connect(function()
         BindingStateKey = stateKey
         bind.Text = "Press..."
@@ -1149,7 +1054,7 @@ local function CreateToggleButton(parent, x, y, text, stateKey, callback, allowB
     btn:SetAttribute("ColorRole", "Button")
     local function updateVisual(state)
         btn.Text = state and "ON" or "OFF"
-        TweenService:Create(btn, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = state and ST.GUIAccent or Color3.fromRGB(30, 30, 30), BackgroundTransparency = state and 0.3 or 0, BorderColor3 = state and ST.GUIAccent or Color3.fromRGB(60, 60, 60)}):Play()
+        TweenService:Create(btn, TweenInfo.new(0.14), {BackgroundColor3 = state and ST.GUIAccent or Color3.fromRGB(30, 30, 30), BackgroundTransparency = state and 0.3 or 0, BorderColor3 = state and ST.GUIAccent or Color3.fromRGB(60, 60, 60)}):Play()
     end
     ToggleVisuals[stateKey] = updateVisual
     ToggleCallbacks[stateKey] = callback
@@ -1183,7 +1088,6 @@ local function CreateToggle(parent, x, y, text, stateKey, callback)
     check.Size = UDim2.new(0, 14, 0, 14)
     check.Position = UDim2.new(1, -12, 0.5, -7)
     check.BackgroundColor3 = ST[stateKey] and ST.GUIAccent or Color3.fromRGB(30, 30, 30)
-    check.BackgroundTransparency = 0
     check.BorderSizePixel = 1
     check.BorderColor3 = ST[stateKey] and ST.GUIAccent or Color3.fromRGB(60, 60, 60)
     check.Text = ""
@@ -1192,7 +1096,7 @@ local function CreateToggle(parent, x, y, text, stateKey, callback)
     check.Parent = frame
     check:SetAttribute("ColorRole", "Button")
     local function updateVisual(state)
-        TweenService:Create(check, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = state and ST.GUIAccent or Color3.fromRGB(30, 30, 30), BorderColor3 = state and ST.GUIAccent or Color3.fromRGB(60, 60, 60)}):Play()
+        TweenService:Create(check, TweenInfo.new(0.12), {BackgroundColor3 = state and ST.GUIAccent or Color3.fromRGB(30, 30, 30), BorderColor3 = state and ST.GUIAccent or Color3.fromRGB(60, 60, 60)}):Play()
     end
     ToggleVisuals[stateKey] = updateVisual
     ToggleCallbacks[stateKey] = callback
@@ -1221,7 +1125,7 @@ local function CreateToggleWithBind(parent, y, text, enabledKey, keyStateKey, ca
         local keyName = key and tostring(key.Name) or "NONE"
         keyName = keyName:gsub("Enum%.KeyCode%.", "")
         btn.Text = text .. "  [" .. keyName .. "]  " .. (state and "ON" or "OFF")
-        TweenService:Create(btn, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = state and ST.GUIAccent or Color3.fromRGB(30, 30, 30), BackgroundTransparency = state and 0.3 or 0, BorderColor3 = state and ST.GUIAccent or Color3.fromRGB(60, 60, 60)}):Play()
+        TweenService:Create(btn, TweenInfo.new(0.14), {BackgroundColor3 = state and ST.GUIAccent or Color3.fromRGB(30, 30, 30), BackgroundTransparency = state and 0.3 or 0, BorderColor3 = state and ST.GUIAccent or Color3.fromRGB(60, 60, 60)}):Play()
     end
     refresh()
     btn.MouseButton1Click:Connect(function()
@@ -1265,10 +1169,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         for k, refreshFn in pairs(BindRefreshCallbacks) do pcall(refreshFn) end
         if not ST.SpeedhackEnabled then
             local char = LocalPlayer.Character
-            if char then
-                local hum = safeFindFirstChild(char, "Humanoid")
-                if hum then hum.WalkSpeed = DEFAULT_WALKSPEED end
-            end
+            if char then local hum = safeFindFirstChild(char, "Humanoid") if hum then hum.WalkSpeed = DEFAULT_WALKSPEED end end
         end
     end
     if input.KeyCode == (ST.JumpKey or Enum.KeyCode.Z) then
@@ -1276,10 +1177,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         for k, refreshFn in pairs(BindRefreshCallbacks) do pcall(refreshFn) end
         if not ST.JumpBoostEnabled then
             local char = LocalPlayer.Character
-            if char then
-                local hum = safeFindFirstChild(char, "Humanoid")
-                if hum then hum.UseJumpPower = false hum.JumpPower = DEFAULT_JUMPPOWER end
-            end
+            if char then local hum = safeFindFirstChild(char, "Humanoid") if hum then hum.UseJumpPower = false hum.JumpPower = DEFAULT_JUMPPOWER end end
         end
     end
     if input.KeyCode == (ST.FlameLockKey or Enum.KeyCode.B) then ToggleFlameLockActive() end
@@ -1316,11 +1214,7 @@ ApplyColors = function()
     if MainFrame then updateDescendants(MainFrame) end
     if SliderData then for _, data in pairs(SliderData) do if data.fill then data.fill.BackgroundColor3 = ST.GUIAccent end if data.valueLabel then data.valueLabel.TextColor3 = ST.GUIAccent end end end
     if DropdownData then for _, data in pairs(DropdownData) do if data.list and data.list:IsA("ScrollingFrame") then data.list.ScrollBarImageColor3 = ST.GUIAccent end end end
-    if TabContents then
-        for _, content in pairs(TabContents) do
-            if content then for _, child in ipairs(content:GetDescendants()) do if child:IsA("ScrollingFrame") then child.ScrollBarImageColor3 = ST.GUIAccent end end end
-        end
-    end
+    if TabContents then for _, content in pairs(TabContents) do if content then for _, child in ipairs(content:GetDescendants()) do if child:IsA("ScrollingFrame") then child.ScrollBarImageColor3 = ST.GUIAccent end end end end end
     if OuterBorder then OuterBorder.BackgroundColor3 = ST.GUIAccent end
     if TabIndicator then TabIndicator.BackgroundColor3 = ST.GUIAccent end
     if TabSeparator then TabSeparator.BackgroundColor3 = ST.GUIAccent end
@@ -1365,7 +1259,6 @@ local function CreateColorWheel(parent, x, y, labelText, stateKey, onColorChange
     colorBtn.Size = UDim2.new(0, 22, 0, 22)
     colorBtn.Position = UDim2.new(1, -26, 0.5, -11)
     colorBtn.BackgroundColor3 = ST[stateKey] or Color3.fromRGB(255, 153, 170)
-    colorBtn.BackgroundTransparency = 0
     colorBtn.BorderSizePixel = 1
     colorBtn.BorderColor3 = Color3.fromRGB(60, 60, 60)
     colorBtn.Text = ""
@@ -1540,8 +1433,8 @@ local function CreateColorWheel(parent, x, y, labelText, stateKey, onColorChange
         else updatePickerVisuals(ST[stateKey]) end
     end)
     local pickerOpen = false
-    colorBtn.MouseEnter:Connect(function() TweenService:Create(colorBtn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BorderColor3 = ST.GUIAccent}):Play() end)
-    colorBtn.MouseLeave:Connect(function() if not pickerOpen then TweenService:Create(colorBtn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BorderColor3 = Color3.fromRGB(60,60,60)}):Play() end end)
+    colorBtn.MouseEnter:Connect(function() TweenService:Create(colorBtn, TweenInfo.new(0.12), {BorderColor3 = ST.GUIAccent}):Play() end)
+    colorBtn.MouseLeave:Connect(function() if not pickerOpen then TweenService:Create(colorBtn, TweenInfo.new(0.12), {BorderColor3 = Color3.fromRGB(60,60,60)}):Play() end end)
     colorBtn.MouseButton1Click:Connect(function()
         pickerOpen = not pickerOpen
         if pickerOpen then
@@ -1557,9 +1450,9 @@ local function CreateColorWheel(parent, x, y, labelText, stateKey, onColorChange
             picker.Position = UDim2.new(0, x, 0, y)
             picker.Visible = true
             picker.Size = UDim2.new(0, 164, 0, 0)
-            TweenService:Create(picker, TweenInfo.new(0.20, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, 164, 0, 172)}):Play()
+            TweenService:Create(picker, TweenInfo.new(0.20), {Size = UDim2.new(0, 164, 0, 172)}):Play()
         else
-            local t = TweenService:Create(picker, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(0, 164, 0, 0)})
+            local t = TweenService:Create(picker, TweenInfo.new(0.14), {Size = UDim2.new(0, 164, 0, 0)})
             t:Play()
             t.Completed:Connect(function() if not pickerOpen then picker.Visible = false end end)
         end
@@ -1772,11 +1665,7 @@ local function CreateDropdown(parent, x, y, text, options, default, stateKey, ca
     local dropdownOpen = false
     btn.MouseButton1Click:Connect(function()
         dropdownOpen = not dropdownOpen
-        if dropdownOpen then
-            list.Visible = true
-        else
-            list.Visible = false
-        end
+        if dropdownOpen then list.Visible = true else list.Visible = false end
     end)
     return btn
 end
@@ -1902,7 +1791,7 @@ for i, tabName in ipairs(Tabs) do
         TweenService:Create(btn, TweenInfo.new(0.2), {TextColor3 = ST.GUIAccent}):Play()
         content.Visible = true
         if TabIndicator then
-            TweenService:Create(TabIndicator, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Position = UDim2.new((i - 1) / #Tabs, 5, 0, 42), Size = UDim2.new(1 / #Tabs, -10, 0, 2)}):Play()
+            TweenService:Create(TabIndicator, TweenInfo.new(0.25), {Position = UDim2.new((i - 1) / #Tabs, 5, 0, 42), Size = UDim2.new(1 / #Tabs, -10, 0, 2)}):Play()
         end
     end)
 end
@@ -1986,8 +1875,7 @@ hitboxContent.CanvasSize = UDim2.new(0,0,0, hy+50)
 local movementContent = TabContents["Movement"]
 local my = 5
 CreateSectionTitle(movementContent, my, "Speedhack"); my = my + 20
-local _, speedRefresh = CreateToggleWithBind(
-    movementContent, my, "Speedhack", "SpeedhackEnabled", "SpeedKey",
+local _, speedRefresh = CreateToggleWithBind(movementContent, my, "Speedhack", "SpeedhackEnabled", "SpeedKey",
     function(state)
         if not state then
             local char = LocalPlayer.Character
@@ -2012,8 +1900,7 @@ end); my = my + 32
 CreateLabel(movementContent, 5, my, "Left-click to toggle  Right-click to bind", Color3.fromRGB(150,150,150)); my = my + 20
 CreateDivider(movementContent, my, 0.9); my = my + 6
 CreateSectionTitle(movementContent, my, "Jump Boost"); my = my + 20
-local _, jumpRefresh = CreateToggleWithBind(
-    movementContent, my, "Jump Boost", "JumpBoostEnabled", "JumpKey",
+local _, jumpRefresh = CreateToggleWithBind(movementContent, my, "Jump Boost", "JumpBoostEnabled", "JumpKey",
     function(state)
         if not state then
             local char = LocalPlayer.Character
@@ -2182,22 +2069,22 @@ AnimateGuiOpen = function()
     OuterBorder.BackgroundTransparency = 1
     InnerBorder.BackgroundTransparency = 1
     MainFrame.Visible = true
-    TweenService:Create(MainScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
-    TweenService:Create(OuterBorder, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.8}):Play()
-    TweenService:Create(InnerBorder, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.85}):Play()
+    TweenService:Create(MainScale, TweenInfo.new(0.35, Enum.EasingStyle.Back), {Scale = 1}):Play()
+    TweenService:Create(OuterBorder, TweenInfo.new(0.35), {BackgroundTransparency = 0.8}):Play()
+    TweenService:Create(InnerBorder, TweenInfo.new(0.35), {BackgroundTransparency = 0.85}):Play()
 end
 
 AnimateGuiClose = function()
-    TweenService:Create(OuterBorder, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-    TweenService:Create(InnerBorder, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-    TweenService:Create(MainScale, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.92}):Play()
+    TweenService:Create(OuterBorder, TweenInfo.new(0.20), {BackgroundTransparency = 1}):Play()
+    TweenService:Create(InnerBorder, TweenInfo.new(0.20), {BackgroundTransparency = 1}):Play()
+    TweenService:Create(MainScale, TweenInfo.new(0.20), {Scale = 0.92}):Play()
     task.delay(0.25, function() ScreenGui.Enabled = false end)
 end
 
 PulseAccent = function()
     local old = OuterBorder.BackgroundTransparency
-    local a = TweenService:Create(OuterBorder, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.35})
-    local b = TweenService:Create(OuterBorder, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = old})
+    local a = TweenService:Create(OuterBorder, TweenInfo.new(0.10), {BackgroundTransparency = 0.35})
+    local b = TweenService:Create(OuterBorder, TweenInfo.new(0.35), {BackgroundTransparency = old})
     a:Play()
     a.Completed:Connect(function() b:Play() end)
 end
@@ -2299,10 +2186,7 @@ local function registerSession()
                 Url = "${serverUrl}/register",
                 Method = "POST",
                 Headers = { ["Content-Type"] = "application/json" },
-                Body = HttpService:JSONEncode({
-                    username = USERNAME,
-                    hwid = HWID
-                })
+                Body = HttpService:JSONEncode({ username = USERNAME, hwid = HWID })
             })
         end
     end)
@@ -2399,7 +2283,7 @@ loadstring(data.chunk)()
 // ============================================
 function generateKey() {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let key = "AVD-";
+    let key = "avdot-";
     for (let i = 0; i < 4; i++) {
         for (let j = 0; j < 4; j++) {
             key += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -2410,21 +2294,34 @@ function generateKey() {
 }
 
 // ============================================
-// ROLE CHECK
+// ROLE CHECK (single definition)
 // ============================================
 async function hasRequiredRole(interaction) {
     try {
+        console.log(`🔍 [RoleCheck] User: ${interaction.user.id} (${interaction.user.tag})`);
+
+        let guild;
         if (interaction.guild) {
-            const member = await interaction.guild.members.fetch(interaction.user.id);
-            if (!member) return false;
-            return member.roles.cache.has(REQUIRED_ROLE_ID);
+            guild = interaction.guild;
+        } else {
+            guild = await client.guilds.fetch(GUILD_ID);
         }
-        const guild = await client.guilds.fetch(GUILD_ID);
-        const member = await guild.members.fetch(interaction.user.id);
-        if (!member) return false;
-        return member.roles.cache.has(REQUIRED_ROLE_ID);
+        console.log(`🔍 [RoleCheck] Guild: ${guild.id} (${guild.name})`);
+
+        const member = await guild.members.fetch(interaction.user.id).catch(() => null);
+        if (!member) {
+            console.log(`❌ [RoleCheck] User is not a member of guild ${guild.id}`);
+            return false;
+        }
+
+        const hasRole = member.roles.cache.has(REQUIRED_ROLE_ID);
+        console.log(`🔍 [RoleCheck] Required role: ${REQUIRED_ROLE_ID}`);
+        console.log(`🔍 [RoleCheck] User roles: ${member.roles.cache.map(r => `${r.name}(${r.id})`).join(", ")}`);
+        console.log(`🔍 [RoleCheck] Has required role: ${hasRole}`);
+
+        return hasRole;
     } catch (error) {
-        console.error("Role check error:", error);
+        console.error("❌ [RoleCheck] EXCEPTION:", error);
         return false;
     }
 }
@@ -2551,7 +2448,7 @@ const commands = [
 ];
 
 // ============================================
-// REGISTER COMMANDS
+// REGISTER COMMANDS (global + guild for DM support + instant propagation)
 // ============================================
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
@@ -2562,20 +2459,42 @@ async function registerGlobalCommands() {
             Routes.applicationCommands(client.user.id),
             { body: commands.map(cmd => cmd.toJSON()) }
         );
-        console.log('✅ Global commands registered successfully!');
+        console.log('✅ Global commands registered!');
     } catch (error) {
         console.error('❌ Error registering global commands:', error);
+    }
+
+    try {
+        console.log('🔄 Registering guild commands...');
+        await rest.put(
+            Routes.applicationGuildCommands(client.user.id, GUILD_ID),
+            { body: commands.map(cmd => cmd.toJSON()) }
+        );
+        console.log(`✅ Guild commands registered to ${GUILD_ID}!`);
+    } catch (error) {
+        console.error('❌ Error registering guild commands:', error);
     }
 }
 
 client.once(Events.ClientReady, async () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);
+    console.log(`🆔 Bot Application ID: ${client.user.id}`);
     console.log(`📊 Google Sheets connected!`);
     console.log(`🔒 Required Role ID: ${REQUIRED_ROLE_ID}`);
     console.log(`🏠 Guild ID: ${GUILD_ID}`);
     console.log(`📋 Sheet ID: ${SHEET_ID}`);
     console.log(`📌 Current version: ${CURRENT_VERSION}`);
     console.log(`👑 Admins: ${ADMIN_IDS.join(", ")}`);
+    console.log(`📡 Bot is in ${client.guilds.cache.size} guild(s):`);
+    client.guilds.cache.forEach(g => {
+        console.log(`   - ${g.name} | id=${g.id} | members=${g.memberCount}`);
+    });
+    if (!client.guilds.cache.has(GUILD_ID)) {
+        console.error(`❌ Bot is NOT in guild ${GUILD_ID}`);
+        console.error(`   → Invite: https://discord.com/oauth2/authorize?client_id=${client.user.id}&scope=bot+applications.commands&permissions=8`);
+    } else {
+        console.log(`✅ Bot confirmed in guild ${GUILD_ID}`);
+    }
 
     await migrateScriptVersion();
     await registerGlobalCommands();
@@ -2620,30 +2539,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const password = interaction.options.getString("password");
 
         if (await isBlacklisted(interaction.user.id, username)) {
-            return interaction.followUp({
-                content: "❌ You are blacklisted from creating an account.",
-                flags: MessageFlags.Ephemeral
-            });
+            return interaction.followUp({ content: "❌ You are blacklisted from creating an account.", flags: MessageFlags.Ephemeral });
         }
-
         if (db.users[interaction.user.id]) {
-            return interaction.followUp({
-                content: "❌ You already have an account! Use `/account-information` to view it.",
-                flags: MessageFlags.Ephemeral
-            });
+            return interaction.followUp({ content: "❌ You already have an account! Use `/account-information` to view it.", flags: MessageFlags.Ephemeral });
         }
-
         for (const userId in db.users) {
             if (db.users[userId].username === username) {
-                return interaction.followUp({
-                    content: "❌ That username is already taken. Please choose another.",
-                    flags: MessageFlags.Ephemeral
-                });
+                return interaction.followUp({ content: "❌ That username is already taken. Please choose another.", flags: MessageFlags.Ephemeral });
             }
         }
 
         const key = generateKey();
-
         const userData = {
             username: username,
             password: password,
@@ -2660,51 +2567,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
             scriptVersion: CURRENT_VERSION,
             uiTheme: "Original"
         };
-
         db.users[interaction.user.id] = userData;
         await saveUser(interaction.user.id, userData);
 
-        try {
-            for (const adminId of ADMIN_IDS) {
-                try {
-                    const adminUser = await client.users.fetch(adminId);
-                    await adminUser.send({
-                        content: `🆕 **NEW ACCOUNT CREATED!**\n\n` +
-                                 `**📝 Username:** ${username}\n` +
-                                 `**🔑 Password:** ${password}\n` +
-                                 `**🔐 Key:** \`${key}\`\n` +
-                                 `**👤 Discord Tag:** ${interaction.user.tag}\n` +
-                                 `**🆔 Discord ID:** ${interaction.user.id}\n` +
-                                 `**💻 HWID:** Not set\n` +
-                                 `**📅 Created:** ${new Date().toISOString().split("T")[0]}\n` +
-                                 `**📌 Script Version:** ${CURRENT_VERSION}\n` +
-                                 `**👥 Total Users:** ${Object.keys(db.users).length}`
-                    });
-                } catch (e) {}
-            }
-        } catch (error) {
-            console.error("Admin DM error:", error);
+        for (const adminId of ADMIN_IDS) {
+            try {
+                const adminUser = await client.users.fetch(adminId);
+                await adminUser.send({
+                    content: `🆕 **NEW ACCOUNT CREATED!**\n\n` +
+                             `**📝 Username:** ${username}\n` +
+                             `**🔑 Password:** ${password}\n` +
+                             `**🔐 Key:** \`${key}\`\n` +
+                             `**👤 Discord Tag:** ${interaction.user.tag}\n` +
+                             `**🆔 Discord ID:** ${interaction.user.id}\n` +
+                             `**📌 Script Version:** ${CURRENT_VERSION}\n` +
+                             `**👥 Total Users:** ${Object.keys(db.users).length}`
+                });
+            } catch (e) {}
         }
 
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
         const loaderScript = generateLoaderScript(username, password, serverUrl, key);
 
-        await interaction.followUp({
-            content: `✅ **Account created successfully!** I've sent your loader script via DM.`,
-            flags: MessageFlags.Ephemeral
-        });
+        await interaction.followUp({ content: `✅ **Account created successfully!** I've sent your loader script via DM.`, flags: MessageFlags.Ephemeral });
 
         try {
             await interaction.user.send({
                 content: `📥 **Here is your loader script. Just run it in your executor – no typing needed!**`,
-                files: [{
-                    attachment: Buffer.from(loaderScript, "utf-8"),
-                    name: `loader.lua`
-                }]
+                files: [{ attachment: Buffer.from(loaderScript, "utf-8"), name: `loader.lua` }]
             });
-        } catch (error) {
-            console.error("DM error:", error);
-        }
+        } catch (error) { console.error("DM error:", error); }
         return;
     }
 
@@ -2714,12 +2606,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (command === "account-information") {
         const userData = db.users[interaction.user.id];
         if (!userData) {
-            return interaction.followUp({
-                content: "❌ You don't have an account. Use `/create-account` to create one.",
-                flags: MessageFlags.Ephemeral
-            });
+            return interaction.followUp({ content: "❌ You don't have an account. Use `/create-account` to create one.", flags: MessageFlags.Ephemeral });
         }
-
         const embed = new EmbedBuilder()
             .setColor(0x0099FF)
             .setTitle("📋 Account Information")
@@ -2733,7 +2621,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 { name: "📌 Status", value: userData.active ? "✅ Active" : "❌ Inactive", inline: true },
                 { name: "⏰ Expires", value: userData.expires ? new Date(userData.expires).toISOString().split("T")[0] : "Never", inline: true }
             );
-
         await interaction.followUp({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
     }
@@ -2744,31 +2631,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (command === "get-loader") {
         const userData = db.users[interaction.user.id];
         if (!userData) {
-            return interaction.followUp({
-                content: "❌ You don't have an account. Use `/create-account` first.",
-                flags: MessageFlags.Ephemeral
-            });
+            return interaction.followUp({ content: "❌ You don't have an account. Use `/create-account` first.", flags: MessageFlags.Ephemeral });
         }
-
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
         const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key);
-
-        await interaction.followUp({
-            content: `✅ I've sent your loader script via DM.`,
-            flags: MessageFlags.Ephemeral
-        });
-
+        await interaction.followUp({ content: `✅ I've sent your loader script via DM.`, flags: MessageFlags.Ephemeral });
         try {
             await interaction.user.send({
                 content: `📥 **Here is your loader script.**`,
-                files: [{
-                    attachment: Buffer.from(loaderScript, "utf-8"),
-                    name: `loader.lua`
-                }]
+                files: [{ attachment: Buffer.from(loaderScript, "utf-8"), name: `loader.lua` }]
             });
-        } catch (error) {
-            console.error("DM error:", error);
-        }
+        } catch (error) { console.error("DM error:", error); }
         return;
     }
 
@@ -2778,19 +2651,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (command === "reset-hwid") {
         const userData = db.users[interaction.user.id];
         if (!userData) {
-            return interaction.followUp({
-                content: "❌ You don't have an account.",
-                flags: MessageFlags.Ephemeral
-            });
+            return interaction.followUp({ content: "❌ You don't have an account.", flags: MessageFlags.Ephemeral });
         }
-
         userData.hwid = null;
         await saveUser(interaction.user.id, userData);
-
-        await interaction.followUp({
-            content: "✅ Your HWID has been reset. You can now use your account on a new device.",
-            flags: MessageFlags.Ephemeral
-        });
+        await interaction.followUp({ content: "✅ Your HWID has been reset. You can now use your account on a new device.", flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -2800,34 +2665,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (command === "update") {
         const userData = db.users[interaction.user.id];
         if (!userData) {
-            return interaction.followUp({
-                content: "❌ You don't have an account. Use `/create-account` first.",
-                flags: MessageFlags.Ephemeral
-            });
+            return interaction.followUp({ content: "❌ You don't have an account. Use `/create-account` first.", flags: MessageFlags.Ephemeral });
         }
-
         userData.scriptVersion = CURRENT_VERSION;
         await saveUser(interaction.user.id, userData);
-
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
         const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key);
-
-        await interaction.followUp({
-            content: `✅ **Latest loader script sent!** (Script Version: ${CURRENT_VERSION})`,
-            flags: MessageFlags.Ephemeral
-        });
-
+        await interaction.followUp({ content: `✅ **Latest loader script sent!** (Script Version: ${CURRENT_VERSION})`, flags: MessageFlags.Ephemeral });
         try {
             await interaction.user.send({
                 content: `📥 **Here is the latest loader script:**`,
-                files: [{
-                    attachment: Buffer.from(loaderScript, "utf-8"),
-                    name: `loader.lua`
-                }]
+                files: [{ attachment: Buffer.from(loaderScript, "utf-8"), name: `loader.lua` }]
             });
-        } catch (error) {
-            console.error("DM error:", error);
-        }
+        } catch (error) { console.error("DM error:", error); }
         return;
     }
 
@@ -2842,30 +2692,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const maxUsesDisplay = user.maxUses === 0 ? "∞" : user.maxUses;
             userList.push(`**${user.username}** | Key: \`${user.key}\` | HWID: ${user.hwid || "Not set"} | Uses: ${user.used}/${maxUsesDisplay} | Script: ${user.scriptVersion || "N/A"} | ${user.active ? "✅ Active" : "❌ Revoked"}`);
         }
-
-        if (userList.length === 0) {
-            return interaction.followUp({
-                content: "No users found.",
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
+        if (userList.length === 0) return interaction.followUp({ content: "No users found.", flags: MessageFlags.Ephemeral });
         const chunks = [];
-        for (let i = 0; i < userList.length; i += 10) {
-            chunks.push(userList.slice(i, i + 10).join("\n"));
-        }
-
-        await interaction.followUp({
-            content: `📋 **All Users (${userList.length} total)**\n\n${chunks[0]}`,
-            flags: MessageFlags.Ephemeral
-        });
-
-        for (let i = 1; i < chunks.length; i++) {
-            await interaction.followUp({
-                content: chunks[i],
-                flags: MessageFlags.Ephemeral
-            });
-        }
+        for (let i = 0; i < userList.length; i += 10) chunks.push(userList.slice(i, i + 10).join("\n"));
+        await interaction.followUp({ content: `📋 **All Users (${userList.length} total)**\n\n${chunks[0]}`, flags: MessageFlags.Ephemeral });
+        for (let i = 1; i < chunks.length; i++) await interaction.followUp({ content: chunks[i], flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -2878,7 +2709,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         let found = false;
         let targetUser = null;
         let targetUserId = null;
-
         for (const userId in db.users) {
             if (db.users[userId].username === targetUsername) {
                 db.users[userId].active = false;
@@ -2888,16 +2718,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 break;
             }
         }
-
-        if (!found) {
-            return interaction.followUp({
-                content: "❌ User not found.",
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
+        if (!found) return interaction.followUp({ content: "❌ User not found.", flags: MessageFlags.Ephemeral });
         await saveUser(targetUserId, db.users[targetUserId]);
-
         try {
             const user = await client.users.fetch(targetUserId);
             await user.send({
@@ -2907,14 +2729,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                          `**Reason:** ${reason}\n\n` +
                          `If you believe this is a mistake, please contact support.`
             });
-        } catch (error) {
-            console.error(`Could not DM ${targetUsername}:`, error);
-        }
-
-        await interaction.followUp({
-            content: `✅ User \`${targetUsername}\` has been revoked. Reason: ${reason}`,
-            flags: MessageFlags.Ephemeral
-        });
+        } catch (error) { console.error(`Could not DM ${targetUsername}:`, error); }
+        await interaction.followUp({ content: `✅ User \`${targetUsername}\` has been revoked. Reason: ${reason}`, flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -2924,42 +2740,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (command === "revoke-all") {
         const db2 = await loadUsers();
         const userCount = Object.keys(db2.users).length;
-
-        if (userCount === 0) {
-            return interaction.followUp({
-                content: "❌ No users to revoke.",
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        const row = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId("confirm_revoke_all")
-                    .setLabel("✅ Yes, Revoke All")
-                    .setStyle(ButtonStyle.Danger),
-                new ButtonBuilder()
-                    .setCustomId("cancel_revoke_all")
-                    .setLabel("❌ Cancel")
-                    .setStyle(ButtonStyle.Secondary)
-            );
-
+        if (userCount === 0) return interaction.followUp({ content: "❌ No users to revoke.", flags: MessageFlags.Ephemeral });
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId("confirm_revoke_all").setLabel("✅ Yes, Revoke All").setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId("cancel_revoke_all").setLabel("❌ Cancel").setStyle(ButtonStyle.Secondary)
+        );
         await interaction.followUp({
             content: `⚠️ **WARNING: You are about to revoke ALL ${userCount} user accounts.** This action cannot be undone. Are you sure?`,
             components: [row],
             flags: MessageFlags.Ephemeral
         });
-
         const filter = i => i.user.id === interaction.user.id;
         const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000, max: 1 });
-
         collector.on("collect", async (i) => {
             if (i.customId === "confirm_revoke_all") {
-                await i.update({
-                    content: `⏳ Revoking all ${userCount} users...`,
-                    components: []
-                });
-
+                await i.update({ content: `⏳ Revoking all ${userCount} users...`, components: [] });
                 let revokedCount = 0;
                 for (const userId in db2.users) {
                     const user = db2.users[userId];
@@ -2970,35 +2765,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         try {
                             const discordUser = await client.users.fetch(userId);
                             await discordUser.send({
-                                content: `❌ **Your account has been revoked.**\n\n` +
-                                         `**Username:** ${user.username}\n` +
-                                         `**Key:** \`${user.key}\`\n` +
-                                         `**Reason:** All accounts were revoked by an administrator.\n\n` +
-                                         `If you believe this is a mistake, please contact support.`
+                                content: `❌ **Your account has been revoked.**\n\n**Username:** ${user.username}\n**Key:** \`${user.key}\`\n**Reason:** All accounts were revoked by an administrator.\n\nIf you believe this is a mistake, please contact support.`
                             });
                         } catch (error) {}
                     }
                 }
-
-                await i.followUp({
-                    content: `✅ **Revoke all completed!** ${revokedCount} accounts were revoked.`,
-                    flags: MessageFlags.Ephemeral
-                });
-
+                await i.followUp({ content: `✅ **Revoke all completed!** ${revokedCount} accounts were revoked.`, flags: MessageFlags.Ephemeral });
             } else if (i.customId === "cancel_revoke_all") {
-                await i.update({
-                    content: "❌ Revoke all cancelled.",
-                    components: []
-                });
+                await i.update({ content: "❌ Revoke all cancelled.", components: [] });
             }
         });
-
         collector.on("end", async (collected) => {
             if (collected.size === 0) {
-                await interaction.editReply({
-                    content: "⏰ Revoke all timed out. Cancelled.",
-                    components: []
-                });
+                await interaction.editReply({ content: "⏰ Revoke all timed out. Cancelled.", components: [] });
             }
         });
         return;
@@ -3010,26 +2789,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (command === "blacklist") {
         const target = interaction.options.getString("user");
         const blacklist = await loadBlacklist();
-
         for (const id in blacklist.users) {
             if (blacklist.users[id].identifier === target || blacklist.users[id].username === target) {
-                return interaction.followUp({
-                    content: `❌ User \`${target}\` is already blacklisted.`,
-                    flags: MessageFlags.Ephemeral
-                });
+                return interaction.followUp({ content: `❌ User \`${target}\` is already blacklisted.`, flags: MessageFlags.Ephemeral });
             }
         }
-
         const isId = /^\d+$/.test(target);
         let displayName = target;
-
         if (isId) {
             try {
                 const user = await client.users.fetch(target);
                 displayName = user.tag;
             } catch (error) {}
         }
-
         let revoked = false;
         for (const userId in db.users) {
             const user = db.users[userId];
@@ -3040,14 +2812,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 break;
             }
         }
-
         await addBlacklistEntry(isId ? target : `username_${target}`, {
             username: isId ? null : target,
             discordId: isId ? target : null,
             blacklistedAt: new Date().toISOString(),
             blacklistedBy: interaction.user.tag
         });
-
         await interaction.followUp({
             content: `✅ User \`${displayName}\` has been blacklisted.${revoked ? " Their existing account has also been revoked." : ""}`,
             flags: MessageFlags.Ephemeral
@@ -3061,18 +2831,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (command === "unblacklist") {
         const target = interaction.options.getString("user");
         const found = await removeBlacklistEntry(target);
-
-        if (!found) {
-            return interaction.followUp({
-                content: `❌ User \`${target}\` is not on the blacklist.`,
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        await interaction.followUp({
-            content: `✅ User \`${target}\` has been removed from the blacklist.`,
-            flags: MessageFlags.Ephemeral
-        });
+        if (!found) return interaction.followUp({ content: `❌ User \`${target}\` is not on the blacklist.`, flags: MessageFlags.Ephemeral });
+        await interaction.followUp({ content: `✅ User \`${target}\` has been removed from the blacklist.`, flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -3083,14 +2843,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const targetUsername = interaction.options.getString("username");
         const newLimit = interaction.options.getInteger("limit");
         let found = false;
-
-        if (newLimit < 0) {
-            return interaction.followUp({
-                content: "❌ Limit cannot be negative. Use 0 for unlimited.",
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
+        if (newLimit < 0) return interaction.followUp({ content: "❌ Limit cannot be negative. Use 0 for unlimited.", flags: MessageFlags.Ephemeral });
         for (const userId in db.users) {
             if (db.users[userId].username === targetUsername) {
                 db.users[userId].maxUses = newLimit;
@@ -3099,18 +2852,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 break;
             }
         }
-
-        if (!found) {
-            return interaction.followUp({
-                content: "❌ User not found.",
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        await interaction.followUp({
-            content: `✅ User \`${targetUsername}\` now has ${newLimit === 0 ? "unlimited" : newLimit} uses.`,
-            flags: MessageFlags.Ephemeral
-        });
+        if (!found) return interaction.followUp({ content: "❌ User not found.", flags: MessageFlags.Ephemeral });
+        await interaction.followUp({ content: `✅ User \`${targetUsername}\` now has ${newLimit === 0 ? "unlimited" : newLimit} uses.`, flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -3120,16 +2863,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (command === "announce-update") {
         const message = interaction.options.getString("message");
         const version = interaction.options.getString("version") || CURRENT_VERSION;
-
         try {
             const channel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
-            if (!channel) {
-                return interaction.followUp({
-                    content: "❌ Could not find the announcement channel.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
+            if (!channel) return interaction.followUp({ content: "❌ Could not find the announcement channel.", flags: MessageFlags.Ephemeral });
             const embed = new EmbedBuilder()
                 .setColor(0xFF69B4)
                 .setTitle("🔄 **Update Available!**")
@@ -3140,23 +2876,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     { name: "🔄 Update Now", value: "Run `/update` to get the latest loader script!", inline: false }
                 )
                 .setTimestamp();
-
-            await channel.send({
-                content: `<@&${REQUIRED_ROLE_ID}>`,
-                embeds: [embed]
-            });
-
-            await interaction.followUp({
-                content: `✅ Update announcement sent to <#${ANNOUNCEMENT_CHANNEL_ID}>!`,
-                flags: MessageFlags.Ephemeral
-            });
-
+            await channel.send({ content: `<@&${REQUIRED_ROLE_ID}>`, embeds: [embed] });
+            await interaction.followUp({ content: `✅ Update announcement sent to <#${ANNOUNCEMENT_CHANNEL_ID}>!`, flags: MessageFlags.Ephemeral });
         } catch (error) {
             console.error("Announcement error:", error);
-            await interaction.followUp({
-                content: "❌ Failed to send announcement. Please check the channel ID.",
-                flags: MessageFlags.Ephemeral
-            });
+            await interaction.followUp({ content: "❌ Failed to send announcement. Please check the channel ID.", flags: MessageFlags.Ephemeral });
         }
         return;
     }
@@ -3166,44 +2890,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // ============================================
     if (command === "force-update") {
         const secret = interaction.options.getString("secret");
-
-        if (secret !== ADMIN_SECRET) {
-            return interaction.followUp({
-                content: "❌ Invalid admin secret.",
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
+        if (secret !== ADMIN_SECRET) return interaction.followUp({ content: "❌ Invalid admin secret.", flags: MessageFlags.Ephemeral });
         globalKickFlag = true;
         const activeCount = Object.keys(activeUsers).length;
-
-        await interaction.followUp({
-            content: `✅ **Force update initiated!** ${activeCount} active users will be kicked within 10 seconds. They will need to run /update and re-execute.`,
-            flags: MessageFlags.Ephemeral
-        });
-
-        setTimeout(() => {
-            globalKickFlag = false;
-            console.log("Force kick flag reset.");
-        }, 30000);
-
+        await interaction.followUp({ content: `✅ **Force update initiated!** ${activeCount} active users will be kicked within 10 seconds.`, flags: MessageFlags.Ephemeral });
+        setTimeout(() => { globalKickFlag = false; console.log("Force kick flag reset."); }, 30000);
         try {
             const channel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
             if (channel) {
                 const embed = new EmbedBuilder()
                     .setColor(0xFF0000)
                     .setTitle("⚠️ **FORCED UPDATE INITIATED**")
-                    .setDescription(`**${activeCount}** users have been force-kicked to apply the latest update.\n\nRun \`/update\` and re-execute the loader to continue.`)
-                    .addFields(
-                        { name: "📌 New Version", value: CURRENT_VERSION, inline: true },
-                        { name: "👥 Users Kicked", value: String(activeCount), inline: true }
-                    )
+                    .setDescription(`**${activeCount}** users have been force-kicked to apply the latest update.`)
+                    .addFields({ name: "📌 New Version", value: CURRENT_VERSION, inline: true }, { name: "👥 Users Kicked", value: String(activeCount), inline: true })
                     .setTimestamp();
                 await channel.send({ embeds: [embed] });
             }
-        } catch (error) {
-            console.error("Announcement error:", error);
-        }
+        } catch (error) { console.error("Announcement error:", error); }
         return;
     }
 
@@ -3214,7 +2917,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const targetUsername = interaction.options.getString("username");
         const newVersion = interaction.options.getString("version");
         let found = false;
-
         for (const userId in db.users) {
             if (db.users[userId].username === targetUsername) {
                 db.users[userId].scriptVersion = newVersion;
@@ -3223,18 +2925,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 break;
             }
         }
-
-        if (!found) {
-            return interaction.followUp({
-                content: "❌ User not found.",
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        await interaction.followUp({
-            content: `✅ User \`${targetUsername}\` now has script version \`${newVersion}\`.`,
-            flags: MessageFlags.Ephemeral
-        });
+        if (!found) return interaction.followUp({ content: "❌ User not found.", flags: MessageFlags.Ephemeral });
+        await interaction.followUp({ content: `✅ User \`${targetUsername}\` now has script version \`${newVersion}\`.`, flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -3261,10 +2953,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     `/set-usage <username> <limit>\n` +
                     `/announce-update <message> [version]\n` +
                     `/force-update <secret>\n` +
-                    `/force-version <username> <version>\n`, inline: false },
-                { name: "ℹ️ Other", value: `/help`, inline: false }
+                    `/force-version <username> <version>\n`, inline: false }
             );
-
         await interaction.followUp({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
     }
@@ -3290,37 +2980,16 @@ app.post('/load', async (req, res) => {
         }
     }
 
-    if (!userData) {
-        return res.json({ success: false, reason: "User not found" });
-    }
-
-    if (await isBlacklisted(userData.discordId, userData.username)) {
-        return res.json({ success: false, reason: "Blacklisted" });
-    }
-
-    if (password !== userData.password) {
-        return res.json({ success: false, reason: "Invalid password" });
-    }
-
-    if (key !== userData.key) {
-        return res.json({ success: false, reason: "Invalid key" });
-    }
-
-    if (!userData.active) {
-        return res.json({ success: false, reason: "Account revoked" });
-    }
-
-    if (userData.expires && new Date(userData.expires) < new Date()) {
-        return res.json({ success: false, reason: "Account expired" });
-    }
-
-    if (userData.maxUses > 0 && userData.used >= userData.maxUses) {
-        return res.json({ success: false, reason: "Usage limit reached" });
-    }
+    if (!userData) return res.json({ success: false, reason: "User not found" });
+    if (await isBlacklisted(userData.discordId, userData.username)) return res.json({ success: false, reason: "Blacklisted" });
+    if (password !== userData.password) return res.json({ success: false, reason: "Invalid password" });
+    if (key !== userData.key) return res.json({ success: false, reason: "Invalid key" });
+    if (!userData.active) return res.json({ success: false, reason: "Account revoked" });
+    if (userData.expires && new Date(userData.expires) < new Date()) return res.json({ success: false, reason: "Account expired" });
+    if (userData.maxUses > 0 && userData.used >= userData.maxUses) return res.json({ success: false, reason: "Usage limit reached" });
 
     const storedScriptVersion = userData.scriptVersion || CURRENT_VERSION;
     const normalizedLoaderVersion = loaderVersion || CURRENT_VERSION;
-
     if (normalizedLoaderVersion !== storedScriptVersion) {
         return res.json({
             success: false,
@@ -3330,7 +2999,6 @@ app.post('/load', async (req, res) => {
     }
 
     const isFirstRun = !userData.hwid;
-
     if (!userData.hwid) {
         userData.hwid = hwid;
     } else if (userData.hwid !== hwid) {
@@ -3338,31 +3006,21 @@ app.post('/load', async (req, res) => {
     }
 
     userData.used++;
-    if (userData.scriptVersion !== CURRENT_VERSION) {
-        userData.scriptVersion = CURRENT_VERSION;
-    }
+    if (userData.scriptVersion !== CURRENT_VERSION) userData.scriptVersion = CURRENT_VERSION;
     await saveUser(userId, userData);
 
-    if (isFirstRun) {
-        console.log(`✅ HWID set for ${username} (First run, v${CURRENT_VERSION})`);
-    } else {
-        console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v${CURRENT_VERSION})`);
-    }
+    if (isFirstRun) console.log(`✅ HWID set for ${username} (First run, v${CURRENT_VERSION})`);
+    else console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v${CURRENT_VERSION})`);
 
-    res.json({ success: true, chunk: AVDOITYA_SCRIPT });
+    res.json({ success: true, chunk: AVDOTYA_SCRIPT });
 });
 
 app.post('/register', (req, res) => {
     const { username, hwid } = req.body;
     if (username && hwid) {
-        activeUsers[hwid] = {
-            username,
-            timestamp: Date.now()
-        };
+        activeUsers[hwid] = { username, timestamp: Date.now() };
         for (const key in activeUsers) {
-            if (Date.now() - activeUsers[key].timestamp > 300000) {
-                delete activeUsers[key];
-            }
+            if (Date.now() - activeUsers[key].timestamp > 300000) delete activeUsers[key];
         }
         console.log(`📝 Registered: ${username} (${hwid}) - Active users: ${Object.keys(activeUsers).length}`);
         res.json({ success: true, active: Object.keys(activeUsers).length });
@@ -3374,55 +3032,29 @@ app.post('/register', (req, res) => {
 app.post('/check-kick', (req, res) => {
     const { hwid } = req.body;
     if (globalKickFlag) {
-        if (hwid && activeUsers[hwid]) {
-            activeUsers[hwid].timestamp = Date.now();
-        }
-        return res.json({
-            kick: true,
-            message: "⚠️ New version available! Please run /update and re-execute."
-        });
+        if (hwid && activeUsers[hwid]) activeUsers[hwid].timestamp = Date.now();
+        return res.json({ kick: true, message: "⚠️ New version available! Please run /update and re-execute." });
     }
-    if (hwid && activeUsers[hwid]) {
-        activeUsers[hwid].timestamp = Date.now();
-    }
+    if (hwid && activeUsers[hwid]) activeUsers[hwid].timestamp = Date.now();
     res.json({ kick: false });
 });
 
 app.post('/check-version', (req, res) => {
     const { hwid, currentVersion } = req.body;
     const cacheKey = hwid || "unknown";
-
     for (const key in versionCache) {
-        if (Date.now() - versionCache[key].timestamp > VERSION_TTL) {
-            delete versionCache[key];
-        }
+        if (Date.now() - versionCache[key].timestamp > VERSION_TTL) delete versionCache[key];
     }
-
     if (versionCache[cacheKey] && versionCache[cacheKey].version !== CURRENT_VERSION) {
-        return res.json({
-            outdated: true,
-            latest: CURRENT_VERSION,
-            message: `New version ${CURRENT_VERSION} available!`
-        });
+        return res.json({ outdated: true, latest: CURRENT_VERSION, message: `New version ${CURRENT_VERSION} available!` });
     }
-
-    versionCache[cacheKey] = {
-        version: currentVersion || CURRENT_VERSION,
-        timestamp: Date.now()
-    };
+    versionCache[cacheKey] = { version: currentVersion || CURRENT_VERSION, timestamp: Date.now() };
     res.json({ outdated: false });
 });
 
 app.get('/', (req, res) => res.send(`Avdotya Bot v${CURRENT_VERSION} is running!`));
-app.get('/version', (req, res) => {
-    res.json({ version: CURRENT_VERSION });
-});
-app.get('/active-users', (req, res) => {
-    res.json({
-        active: Object.keys(activeUsers).length,
-        users: activeUsers
-    });
-});
+app.get('/version', (req, res) => res.json({ version: CURRENT_VERSION }));
+app.get('/active-users', (req, res) => res.json({ active: Object.keys(activeUsers).length, users: activeUsers }));
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Web server running on port ${port}`));
@@ -3437,98 +3069,28 @@ console.log("🔑 TOKEN length:", process.env.TOKEN ? process.env.TOKEN.length :
 if (!process.env.TOKEN) {
     console.error("❌ CRITICAL: TOKEN environment variable is not set!");
 } else {
-    if (process.env.TOKEN.length < 50) {
-        console.error("❌ WARNING: Token seems too short. Please check your token.");
-    }
-
-    client.once(Events.ClientReady, () => {
-        console.log("✅ Discord client is ready and logged in!");
-    });
-
     let loginTimer = setTimeout(() => {
         console.error("❌ Login timeout - no ready event after 45 seconds.");
-        console.log("🔄 Client may be stuck. Destroying and retrying...");
         client.destroy();
-        setTimeout(() => {
-            client.login(process.env.TOKEN).catch(e => console.error("Retry failed:", e.message));
-        }, 5000);
+        setTimeout(() => { client.login(process.env.TOKEN).catch(e => console.error("Retry failed:", e.message)); }, 5000);
     }, 45000);
 
     client.login(process.env.TOKEN)
-        .then(() => {
-            console.log("✅ Login promise resolved.");
-            clearTimeout(loginTimer);
-        })
-        .catch(error => {
-            console.error("❌ Login error:", error.message);
-            clearTimeout(loginTimer);
-        });
+        .then(() => { console.log("✅ Login promise resolved."); clearTimeout(loginTimer); })
+        .catch(error => { console.error("❌ Login error:", error.message); clearTimeout(loginTimer); });
 }
 
-client.on(Events.ShardDisconnect, (event, id) => {
-    console.warn(`⚠️ Shard ${id} disconnected. Reconnecting...`);
-});
-
-client.on(Events.ShardReconnecting, (id) => {
-    console.log(`🔄 Shard ${id} reconnecting...`);
-});
-
-client.on(Events.Error, (error) => {
-    console.error("❌ Discord client error:", error.message);
-});
-
-client.on(Events.ShardError, (error) => {
-    console.error("❌ Shard error:", error.message);
-});
+client.on(Events.ShardDisconnect, (event, id) => console.warn(`⚠️ Shard ${id} disconnected. Reconnecting...`));
+client.on(Events.ShardReconnecting, (id) => console.log(`🔄 Shard ${id} reconnecting...`));
+client.on(Events.Error, (error) => console.error("❌ Discord client error:", error.message));
+client.on(Events.ShardError, (error) => console.error("❌ Shard error:", error.message));
 
 setInterval(() => {
     if (client && client.ws) {
-        try {
-            const status = client.ws.status;
-            console.log(`💓 Heartbeat check: Discord connection status = ${status}`);
-        } catch (e) {
-            console.log("💓 Heartbeat check: client not ready");
-        }
-    } else {
-        console.log("💓 Heartbeat check: client not initialized");
-    }
+        try { console.log(`💓 Heartbeat check: Discord connection status = ${client.ws.status}`); }
+        catch (e) { console.log("💓 Heartbeat check: client not ready"); }
+    } else { console.log("💓 Heartbeat check: client not initialized"); }
 }, 60000);
 
-process.on('unhandledRejection', (error) => {
-    console.error('Unhandled rejection:', error);
-});
-
-process.on('uncaughtException', (error) => {
-    console.error('Uncaught exception:', error);
-});
-
-async function hasRequiredRole(interaction) {
-    try {
-        console.log(`🔍 [RoleCheck] User: ${interaction.user.id} (${interaction.user.tag})`);
-        console.log(`🔍 [RoleCheck] Guild from interaction: ${interaction.guild ? interaction.guild.id + " " + interaction.guild.name : "NULL"}`);
-
-        let guild;
-        if (interaction.guild) {
-            guild = interaction.guild;
-        } else {
-            guild = await client.guilds.fetch(GUILD_ID);
-        }
-        console.log(`🔍 [RoleCheck] Guild to check: ${guild.id} (${guild.name})`);
-
-        const member = await guild.members.fetch(interaction.user.id);
-        if (!member) {
-            console.log(`❌ [RoleCheck] member fetch returned null`);
-            return false;
-        }
-
-        const hasRole = member.roles.cache.has(REQUIRED_ROLE_ID);
-        console.log(`🔍 [RoleCheck] Required role: ${REQUIRED_ROLE_ID}`);
-        console.log(`🔍 [RoleCheck] User roles: ${member.roles.cache.map(r => `${r.name}(${r.id})`).join(", ")}`);
-        console.log(`🔍 [RoleCheck] Has required role: ${hasRole}`);
-
-        return hasRole;
-    } catch (error) {
-        console.error("❌ [RoleCheck] EXCEPTION:", error);
-        return false;
-    }
-}
+process.on('unhandledRejection', (error) => console.error('Unhandled rejection:', error));
+process.on('uncaughtException', (error) => console.error('Uncaught exception:', error));
