@@ -49,7 +49,6 @@ const ANNOUNCEMENT_CHANNEL_ID = "1516957022690611301";
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "blush_admin_secret_2026";
 const VERSION_TTL = 300000;
 
-// ModuleScript asset ID that hosts the Avdotya script (private Roblox module)
 const AVDOTYA_MODULE_ASSET_ID = 83220830100927;
 
 let activeUsers = {};
@@ -296,7 +295,7 @@ async function migrateScriptVersion() {
 }
 
 // ============================================
-// LOADER GENERATOR (ModuleScript edition)
+// LOADER GENERATOR (ModuleScript edition, Potassium-compatible)
 // ============================================
 function generateLoaderScript(username, password, serverUrl, key) {
     return `
@@ -323,20 +322,28 @@ if SCRIPT_VERSION ~= CURRENT_VERSION then
     return
 end
 
-local function request(url, body)
-    local requestFunc = syn and syn.request or http and http.request or fluxus and fluxus.request
-    if not requestFunc then error("No HTTP request function found") end
+-- Broad executor HTTP detection (Potassium, Synapse, Fluxus, Delta, Krnl, Solara, etc.)
+local function getRequestFunc()
+    if syn and syn.request then return syn.request end
+    if http and http.request then return http.request end
+    if fluxus and fluxus.request then return fluxus.request end
+    if request then return request end
+    if http_request then return http_request end
+    if http and http.get then return http.get end
+    return nil
+end
+
+local requestFunc = getRequestFunc()
+if not requestFunc then
+    error("No HTTP request function found. Please use a supported executor.")
+end
+
+local function postJSON(url, tbl)
     return requestFunc({
-        Url = "${serverUrl}/load",
+        Url = url,
         Method = "POST",
         Headers = { ["Content-Type"] = "application/json" },
-        Body = HttpService:JSONEncode({
-            username = USERNAME,
-            password = PASSWORD,
-            key = KEY,
-            hwid = HWID,
-            version = "${CURRENT_VERSION}"
-        })
+        Body = HttpService:JSONEncode(tbl)
     })
 end
 
@@ -352,33 +359,17 @@ end
 
 local function registerSession()
     pcall(function()
-        local requestFunc = syn and syn.request or http and http.request or fluxus and fluxus.request
-        if requestFunc then
-            requestFunc({
-                Url = "${serverUrl}/register",
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = HttpService:JSONEncode({ username = USERNAME, hwid = HWID })
-            })
-        end
+        postJSON("${serverUrl}/register", { username = USERNAME, hwid = HWID })
     end)
 end
 
 local function checkForKick()
     pcall(function()
-        local requestFunc = syn and syn.request or http and http.request or fluxus and fluxus.request
-        if requestFunc then
-            local response = requestFunc({
-                Url = "${serverUrl}/check-kick",
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = HttpService:JSONEncode({ hwid = HWID })
-            })
-            if response and response.Body then
-                local data = HttpService:JSONDecode(response.Body)
-                if data and data.kick then
-                    game:GetService("Players").LocalPlayer:Kick(data.message or "New version available! Please /update")
-                end
+        local response = postJSON("${serverUrl}/check-kick", { hwid = HWID })
+        if response and response.Body then
+            local data = HttpService:JSONDecode(response.Body)
+            if data and data.kick then
+                game:GetService("Players").LocalPlayer:Kick(data.message or "New version available! Please /update")
             end
         end
     end)
@@ -386,19 +377,11 @@ end
 
 local function checkVersionCache()
     pcall(function()
-        local requestFunc = syn and syn.request or http and http.request or fluxus and fluxus.request
-        if requestFunc then
-            local response = requestFunc({
-                Url = "${serverUrl}/check-version",
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = HttpService:JSONEncode({ hwid = HWID, currentVersion = CURRENT_VERSION })
-            })
-            if response and response.Body then
-                local data = HttpService:JSONDecode(response.Body)
-                if data and data.outdated then
-                    game:GetService("Players").LocalPlayer:Kick("New version " .. data.latest .. " available! Please /update")
-                end
+        local response = postJSON("${serverUrl}/check-version", { hwid = HWID, currentVersion = CURRENT_VERSION })
+        if response and response.Body then
+            local data = HttpService:JSONDecode(response.Body)
+            if data and data.outdated then
+                game:GetService("Players").LocalPlayer:Kick("New version " .. data.latest .. " available! Please /update")
             end
         end
     end)
@@ -416,10 +399,19 @@ end)
 print("Avdotya Loader v${CURRENT_VERSION} - Starting...")
 notify("Loading Avdotya script... Please wait.", false)
 
-local ok, response = pcall(request)
+local ok, response = pcall(function()
+    return postJSON("${serverUrl}/load", {
+        username = USERNAME,
+        password = PASSWORD,
+        key = KEY,
+        hwid = HWID,
+        version = "${CURRENT_VERSION}"
+    })
+end)
+
 if not ok then
     notify("Network error - check your connection.", true)
-    error("Could not reach server.")
+    error("Could not reach server: " .. tostring(response))
 end
 
 local data = HttpService:JSONDecode(response.Body)
@@ -453,9 +445,67 @@ end
 
 print("Fetching module " .. tostring(moduleAssetId) .. "...")
 
-local fetchOk, moduleFunc = pcall(function()
-    return require(moduleAssetId)
-end)
+-- Try multiple methods to fetch the module by asset ID.
+local function loadModuleByAssetId(assetId)
+    -- Method 1: direct require(number) — Synapse, Script-Ware
+    local ok1, res1 = pcall(function() return require(assetId) end)
+    if ok1 and res1 ~= nil then
+        print("[Loader] Module loaded via direct require()")
+        return res1
+    end
+    print("[Loader] Method 1 (require number) failed: " .. tostring(res1))
+
+    -- Method 2: game:GetObjects("rbxassetid://ID") — Potassium, Fluxus, Delta, Krnl, Solara
+    local ok2, res2 = pcall(function()
+        local objects = game:GetObjects("rbxassetid://" .. tostring(assetId))
+        if not objects or #objects == 0 then error("GetObjects returned empty") end
+        local root = objects[1]
+        local moduleScript
+        if root:IsA("ModuleScript") then
+            moduleScript = root
+        else
+            for _, obj in ipairs(root:GetDescendants()) do
+                if obj:IsA("ModuleScript") then
+                    moduleScript = obj
+                    break
+                end
+            end
+        end
+        if not moduleScript then error("No ModuleScript in asset") end
+        return require(moduleScript)
+    end)
+    if ok2 and res2 ~= nil then
+        print("[Loader] Module loaded via game:GetObjects")
+        return res2
+    end
+    print("[Loader] Method 2 (GetObjects) failed: " .. tostring(res2))
+
+    -- Method 3: InsertService:LoadAsset (requires the asset to be public)
+    local ok3, res3 = pcall(function()
+        local InsertService = game:GetService("InsertService")
+        local model = InsertService:LoadAsset(assetId)
+        if not model then error("LoadAsset returned nil") end
+        local moduleScript
+        for _, obj in ipairs(model:GetDescendants()) do
+            if obj:IsA("ModuleScript") then
+                moduleScript = obj
+                break
+            end
+        end
+        if not moduleScript then model:Destroy() error("No ModuleScript in model") end
+        local required = require(moduleScript)
+        return required
+    end)
+    if ok3 and res3 ~= nil then
+        print("[Loader] Module loaded via InsertService:LoadAsset")
+        return res3
+    end
+    print("[Loader] Method 3 (InsertService) failed: " .. tostring(res3))
+
+    error("All module fetch methods failed.")
+end
+
+local fetchOk, moduleFunc = pcall(loadModuleByAssetId, moduleAssetId)
 
 if not fetchOk then
     notify("Failed to load module. Contact support.", true)
@@ -463,7 +513,6 @@ if not fetchOk then
 end
 
 if type(moduleFunc) ~= "function" then
-    -- Some setups return a table; try common patterns
     if type(moduleFunc) == "table" then
         if type(moduleFunc.run) == "function" then
             moduleFunc.run(loadstring, hookfunction, getgenv)
@@ -503,12 +552,11 @@ function generateKey() {
 }
 
 // ============================================
-// ROLE CHECK (single definition)
+// ROLE CHECK
 // ============================================
 async function hasRequiredRole(interaction) {
     try {
         console.log(`🔍 [RoleCheck] User: ${interaction.user.id} (${interaction.user.tag})`);
-
         let guild;
         if (interaction.guild) {
             guild = interaction.guild;
@@ -516,18 +564,15 @@ async function hasRequiredRole(interaction) {
             guild = await client.guilds.fetch(GUILD_ID);
         }
         console.log(`🔍 [RoleCheck] Guild: ${guild.id} (${guild.name})`);
-
         const member = await guild.members.fetch(interaction.user.id).catch(() => null);
         if (!member) {
             console.log(`❌ [RoleCheck] User is not a member of guild ${guild.id}`);
             return false;
         }
-
         const hasRole = member.roles.cache.has(REQUIRED_ROLE_ID);
         console.log(`🔍 [RoleCheck] Required role: ${REQUIRED_ROLE_ID}`);
         console.log(`🔍 [RoleCheck] User roles: ${member.roles.cache.map(r => `${r.name}(${r.id})`).join(", ")}`);
         console.log(`🔍 [RoleCheck] Has required role: ${hasRole}`);
-
         return hasRole;
     } catch (error) {
         console.error("❌ [RoleCheck] EXCEPTION:", error);
@@ -546,118 +591,61 @@ const commands = [
     new SlashCommandBuilder()
         .setName("create-account")
         .setDescription("Create a new account")
-        .addStringOption(option =>
-            option.setName("username")
-                .setDescription("Your desired username")
-                .setRequired(true))
-        .addStringOption(option =>
-            option.setName("password")
-                .setDescription("Your password")
-                .setRequired(true)),
+        .addStringOption(option => option.setName("username").setDescription("Your desired username").setRequired(true))
+        .addStringOption(option => option.setName("password").setDescription("Your password").setRequired(true)),
 
-    new SlashCommandBuilder()
-        .setName("account-information")
-        .setDescription("View your account details"),
-
-    new SlashCommandBuilder()
-        .setName("get-loader")
-        .setDescription("Resend your loader script"),
-
-    new SlashCommandBuilder()
-        .setName("reset-hwid")
-        .setDescription("Reset your HWID for a new device"),
-
-    new SlashCommandBuilder()
-        .setName("update")
-        .setDescription("Get the latest loader script with updates"),
-
-    new SlashCommandBuilder()
-        .setName("list-users")
-        .setDescription("List all users (Admin only)"),
+    new SlashCommandBuilder().setName("account-information").setDescription("View your account details"),
+    new SlashCommandBuilder().setName("get-loader").setDescription("Resend your loader script"),
+    new SlashCommandBuilder().setName("reset-hwid").setDescription("Reset your HWID for a new device"),
+    new SlashCommandBuilder().setName("update").setDescription("Get the latest loader script with updates"),
+    new SlashCommandBuilder().setName("list-users").setDescription("List all users (Admin only)"),
 
     new SlashCommandBuilder()
         .setName("revoke")
         .setDescription("Revoke a user's account (Admin only)")
-        .addStringOption(option =>
-            option.setName("username")
-                .setDescription("The username to revoke")
-                .setRequired(true))
-        .addStringOption(option =>
-            option.setName("reason")
-                .setDescription("Reason for revocation (optional)")
-                .setRequired(false)),
+        .addStringOption(option => option.setName("username").setDescription("The username to revoke").setRequired(true))
+        .addStringOption(option => option.setName("reason").setDescription("Reason for revocation (optional)").setRequired(false)),
 
-    new SlashCommandBuilder()
-        .setName("revoke-all")
-        .setDescription("Revoke ALL user accounts (Admin only) - Requires confirmation"),
+    new SlashCommandBuilder().setName("revoke-all").setDescription("Revoke ALL user accounts (Admin only) - Requires confirmation"),
 
     new SlashCommandBuilder()
         .setName("blacklist")
         .setDescription("Blacklist a user from creating accounts (Admin only)")
-        .addStringOption(option =>
-            option.setName("user")
-                .setDescription("Discord ID or username to blacklist")
-                .setRequired(true)),
+        .addStringOption(option => option.setName("user").setDescription("Discord ID or username to blacklist").setRequired(true)),
 
     new SlashCommandBuilder()
         .setName("unblacklist")
         .setDescription("Remove a user from the blacklist (Admin only)")
-        .addStringOption(option =>
-            option.setName("user")
-                .setDescription("Discord ID or username to unblacklist")
-                .setRequired(true)),
+        .addStringOption(option => option.setName("user").setDescription("Discord ID or username to unblacklist").setRequired(true)),
 
     new SlashCommandBuilder()
         .setName("set-usage")
         .setDescription("Set usage limit for a user (Admin only)")
-        .addStringOption(option =>
-            option.setName("username")
-                .setDescription("The username")
-                .setRequired(true))
-        .addIntegerOption(option =>
-            option.setName("limit")
-                .setDescription("Max uses (0 = unlimited)")
-                .setRequired(true)),
+        .addStringOption(option => option.setName("username").setDescription("The username").setRequired(true))
+        .addIntegerOption(option => option.setName("limit").setDescription("Max uses (0 = unlimited)").setRequired(true)),
 
     new SlashCommandBuilder()
         .setName("announce-update")
         .setDescription("Send an update announcement to the server (Admin only)")
-        .addStringOption(option =>
-            option.setName("message")
-                .setDescription("The update message to announce")
-                .setRequired(true))
-        .addStringOption(option =>
-            option.setName("version")
-                .setDescription("The new version number (optional)")
-                .setRequired(false)),
+        .addStringOption(option => option.setName("message").setDescription("The update message to announce").setRequired(true))
+        .addStringOption(option => option.setName("version").setDescription("The new version number (optional)").setRequired(false)),
 
     new SlashCommandBuilder()
         .setName("force-update")
         .setDescription("Force all active users to update (Admin only)")
-        .addStringOption(option =>
-            option.setName("secret")
-                .setDescription("Admin secret")
-                .setRequired(true)),
+        .addStringOption(option => option.setName("secret").setDescription("Admin secret").setRequired(true)),
 
     new SlashCommandBuilder()
         .setName("force-version")
         .setDescription("Force set a user's script version (Admin only)")
-        .addStringOption(option =>
-            option.setName("username")
-                .setDescription("The username")
-                .setRequired(true))
-        .addStringOption(option =>
-            option.setName("version")
-                .setDescription("The version to force (e.g., 1.0)")
-                .setRequired(true)),
+        .addStringOption(option => option.setName("username").setDescription("The username").setRequired(true))
+        .addStringOption(option => option.setName("version").setDescription("The version to force (e.g., 1.0)").setRequired(true)),
 
-    new SlashCommandBuilder()
-        .setName("help")
-        .setDescription("Show all available commands")
+    new SlashCommandBuilder().setName("help").setDescription("Show all available commands")
 ];
 
 // ============================================
-// REGISTER COMMANDS (global + guild for DM support + instant propagation)
+// REGISTER COMMANDS
 // ============================================
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
@@ -722,10 +710,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const adminCommands = ["list-users", "revoke", "revoke-all", "blacklist", "unblacklist", "set-usage", "announce-update", "force-update", "force-version"];
     if (adminCommands.includes(command)) {
         if (!isAdmin(interaction.user.id)) {
-            return interaction.reply({
-                content: "❌ You don't have permission to use this command.",
-                flags: MessageFlags.Ephemeral
-            });
+            return interaction.reply({ content: "❌ You don't have permission to use this command.", flags: MessageFlags.Ephemeral });
         }
     }
 
@@ -741,9 +726,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    // ============================================
     // /create-account
-    // ============================================
     if (command === "create-account") {
         const username = interaction.options.getString("username");
         const password = interaction.options.getString("password");
@@ -762,20 +745,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         const key = generateKey();
         const userData = {
-            username: username,
-            password: password,
+            username, password,
             discordId: interaction.user.id,
             discordTag: interaction.user.tag,
-            key: key,
-            hwid: null,
+            key, hwid: null,
             created: new Date().toISOString(),
-            expires: null,
-            maxUses: 0,
-            used: 0,
-            active: true,
-            version: "regular",
-            scriptVersion: CURRENT_VERSION,
-            uiTheme: "Original"
+            expires: null, maxUses: 0, used: 0, active: true,
+            version: "regular", scriptVersion: CURRENT_VERSION, uiTheme: "Original"
         };
         db.users[interaction.user.id] = userData;
         await saveUser(interaction.user.id, userData);
@@ -801,7 +777,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const loaderScript = generateLoaderScript(username, password, serverUrl, key);
 
         await interaction.followUp({ content: `✅ **Account created successfully!** I've sent your loader script via DM.`, flags: MessageFlags.Ephemeral });
-
         try {
             await interaction.user.send({
                 content: `📥 **Here is your loader script. Just run it in your executor – no typing needed!**`,
@@ -811,14 +786,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // ============================================
     // /account-information
-    // ============================================
     if (command === "account-information") {
         const userData = db.users[interaction.user.id];
-        if (!userData) {
-            return interaction.followUp({ content: "❌ You don't have an account. Use `/create-account` to create one.", flags: MessageFlags.Ephemeral });
-        }
+        if (!userData) return interaction.followUp({ content: "❌ You don't have an account. Use `/create-account` to create one.", flags: MessageFlags.Ephemeral });
         const embed = new EmbedBuilder()
             .setColor(0x0099FF)
             .setTitle("📋 Account Information")
@@ -836,14 +807,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // ============================================
     // /get-loader
-    // ============================================
     if (command === "get-loader") {
         const userData = db.users[interaction.user.id];
-        if (!userData) {
-            return interaction.followUp({ content: "❌ You don't have an account. Use `/create-account` first.", flags: MessageFlags.Ephemeral });
-        }
+        if (!userData) return interaction.followUp({ content: "❌ You don't have an account. Use `/create-account` first.", flags: MessageFlags.Ephemeral });
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
         const loaderScript = generateLoaderScript(userData.username, userData.password, serverUrl, userData.key);
         await interaction.followUp({ content: `✅ I've sent your loader script via DM.`, flags: MessageFlags.Ephemeral });
@@ -856,28 +823,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // ============================================
     // /reset-hwid
-    // ============================================
     if (command === "reset-hwid") {
         const userData = db.users[interaction.user.id];
-        if (!userData) {
-            return interaction.followUp({ content: "❌ You don't have an account.", flags: MessageFlags.Ephemeral });
-        }
+        if (!userData) return interaction.followUp({ content: "❌ You don't have an account.", flags: MessageFlags.Ephemeral });
         userData.hwid = null;
         await saveUser(interaction.user.id, userData);
         await interaction.followUp({ content: "✅ Your HWID has been reset. You can now use your account on a new device.", flags: MessageFlags.Ephemeral });
         return;
     }
 
-    // ============================================
     // /update
-    // ============================================
     if (command === "update") {
         const userData = db.users[interaction.user.id];
-        if (!userData) {
-            return interaction.followUp({ content: "❌ You don't have an account. Use `/create-account` first.", flags: MessageFlags.Ephemeral });
-        }
+        if (!userData) return interaction.followUp({ content: "❌ You don't have an account. Use `/create-account` first.", flags: MessageFlags.Ephemeral });
         userData.scriptVersion = CURRENT_VERSION;
         await saveUser(interaction.user.id, userData);
         const serverUrl = process.env.SERVER_URL || "https://blush-discord.onrender.com";
@@ -892,9 +851,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // ============================================
-    // /list-users (Admin only)
-    // ============================================
+    // /list-users
     if (command === "list-users") {
         const db2 = await loadUsers();
         let userList = [];
@@ -911,15 +868,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // ============================================
-    // /revoke (Admin only)
-    // ============================================
+    // /revoke
     if (command === "revoke") {
         const targetUsername = interaction.options.getString("username");
         const reason = interaction.options.getString("reason") || "No reason provided.";
-        let found = false;
-        let targetUser = null;
-        let targetUserId = null;
+        let found = false, targetUser = null, targetUserId = null;
         for (const userId in db.users) {
             if (db.users[userId].username === targetUsername) {
                 db.users[userId].active = false;
@@ -934,20 +887,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
         try {
             const user = await client.users.fetch(targetUserId);
             await user.send({
-                content: `❌ **Your account has been revoked.**\n\n` +
-                         `**Username:** ${targetUser.username}\n` +
-                         `**Key:** \`${targetUser.key}\`\n` +
-                         `**Reason:** ${reason}\n\n` +
-                         `If you believe this is a mistake, please contact support.`
+                content: `❌ **Your account has been revoked.**\n\n**Username:** ${targetUser.username}\n**Key:** \`${targetUser.key}\`\n**Reason:** ${reason}\n\nIf you believe this is a mistake, please contact support.`
             });
         } catch (error) { console.error(`Could not DM ${targetUsername}:`, error); }
         await interaction.followUp({ content: `✅ User \`${targetUsername}\` has been revoked. Reason: ${reason}`, flags: MessageFlags.Ephemeral });
         return;
     }
 
-    // ============================================
-    // /revoke-all (Admin only)
-    // ============================================
+    // /revoke-all
     if (command === "revoke-all") {
         const db2 = await loadUsers();
         const userCount = Object.keys(db2.users).length;
@@ -994,9 +941,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // ============================================
-    // /blacklist (Admin only)
-    // ============================================
+    // /blacklist
     if (command === "blacklist") {
         const target = interaction.options.getString("user");
         const blacklist = await loadBlacklist();
@@ -1036,9 +981,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // ============================================
-    // /unblacklist (Admin only)
-    // ============================================
+    // /unblacklist
     if (command === "unblacklist") {
         const target = interaction.options.getString("user");
         const found = await removeBlacklistEntry(target);
@@ -1047,9 +990,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // ============================================
-    // /set-usage (Admin only)
-    // ============================================
+    // /set-usage
     if (command === "set-usage") {
         const targetUsername = interaction.options.getString("username");
         const newLimit = interaction.options.getInteger("limit");
@@ -1068,9 +1009,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // ============================================
-    // /announce-update (Admin only)
-    // ============================================
+    // /announce-update
     if (command === "announce-update") {
         const message = interaction.options.getString("message");
         const version = interaction.options.getString("version") || CURRENT_VERSION;
@@ -1096,9 +1035,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // ============================================
-    // /force-update (Admin only)
-    // ============================================
+    // /force-update
     if (command === "force-update") {
         const secret = interaction.options.getString("secret");
         if (secret !== ADMIN_SECRET) return interaction.followUp({ content: "❌ Invalid admin secret.", flags: MessageFlags.Ephemeral });
@@ -1121,9 +1058,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // ============================================
-    // /force-version (Admin only)
-    // ============================================
+    // /force-version
     if (command === "force-version") {
         const targetUsername = interaction.options.getString("username");
         const newVersion = interaction.options.getString("version");
@@ -1141,9 +1076,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // ============================================
     // /help
-    // ============================================
     if (command === "help") {
         const embed = new EmbedBuilder()
             .setColor(0x00FF00)
@@ -1223,7 +1156,6 @@ app.post('/load', async (req, res) => {
     if (isFirstRun) console.log(`✅ HWID set for ${username} (First run, v${CURRENT_VERSION})`);
     else console.log(`✅ HWID verified for ${username} (Used ${userData.used} times, v${CURRENT_VERSION})`);
 
-    // Return the module asset ID instead of the full script chunk
     res.json({ success: true, moduleAssetId: AVDOTYA_MODULE_ASSET_ID });
 });
 
