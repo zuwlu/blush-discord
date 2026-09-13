@@ -3501,3 +3501,34 @@ process.on('unhandledRejection', (error) => {
 process.on('uncaughtException', (error) => {
     console.error('Uncaught exception:', error);
 });
+
+async function hasRequiredRole(interaction) {
+    try {
+        console.log(`🔍 [RoleCheck] User: ${interaction.user.id} (${interaction.user.tag})`);
+        console.log(`🔍 [RoleCheck] Guild from interaction: ${interaction.guild ? interaction.guild.id + " " + interaction.guild.name : "NULL"}`);
+
+        let guild;
+        if (interaction.guild) {
+            guild = interaction.guild;
+        } else {
+            guild = await client.guilds.fetch(GUILD_ID);
+        }
+        console.log(`🔍 [RoleCheck] Guild to check: ${guild.id} (${guild.name})`);
+
+        const member = await guild.members.fetch(interaction.user.id);
+        if (!member) {
+            console.log(`❌ [RoleCheck] member fetch returned null`);
+            return false;
+        }
+
+        const hasRole = member.roles.cache.has(REQUIRED_ROLE_ID);
+        console.log(`🔍 [RoleCheck] Required role: ${REQUIRED_ROLE_ID}`);
+        console.log(`🔍 [RoleCheck] User roles: ${member.roles.cache.map(r => `${r.name}(${r.id})`).join(", ")}`);
+        console.log(`🔍 [RoleCheck] Has required role: ${hasRole}`);
+
+        return hasRole;
+    } catch (error) {
+        console.error("❌ [RoleCheck] EXCEPTION:", error);
+        return false;
+    }
+}
